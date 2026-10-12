@@ -63,6 +63,8 @@ The kernel translates its internal module GUID to the target process's PUID befo
 
 ## Compatibility policy
 
+Firmware profiles cover the 31 retail/testkit/devkit combinations available in the supplied external 3.60-3.74 corpus. Compiled kernel/WebKit guards and linked firmware imports pass against those images. Five kit images are unavailable; current profile changes have not been executed on hardware. See [the firmware matrix](docs/tls13-firmware-support.md) for precise coverage and evidence limits. Loaded module identities select profiles, independently of version spoofing.
+
 The first implementation supports client-side TLS 1.2 and TLS 1.3 through the bundled `libhttp` HTTPS path. It is not a general TLS 1.3 replacement for every Vita `SceSsl` consumer.
 
 The adapter implements Sony's recovered retry/error conventions, hostname verification, and application certificate callbacks. Nonnegative callback results do not automatically permit an invalid certificate: the original post-callback process/version/system-parameter policy is also applied using the gated module's existing imports. Its behavior is covered by host tests; execution of those imports and hooks still requires Vita validation.

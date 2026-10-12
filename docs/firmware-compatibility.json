@@ -1,0 +1,1539 @@
+{
+  "schema_version": 1,
+  "evidence": "compiled guards plus decrypted firmware; not hardware execution",
+  "linked_artifacts": {
+    "build/kernel/tls_fixer.elf": {
+      "sha256": "b91035e4747512447502133654249c6bbbd8c49dabb29224629849a79e01c5fb",
+      "firmware_imports": 32
+    },
+    "build/tls13-vita/browser/tls_fixer": {
+      "sha256": "e8d1a62d3fa262e9ea4f968ee983cae68375a57765513e9de5fbc30c9f9a2eb8",
+      "firmware_imports": 44
+    },
+    "build/tls13-vita/provider/tls_fixer_http": {
+      "sha256": "e452affe37cc5161ba333b5f5d69801f710746a631b0b46da6d7a61524a627c9",
+      "firmware_imports": 42
+    },
+    "tls_fixer.elf": {
+      "sha256": "c0652a964a25cb735ad7c11d7a73ad8150924130d542a1d6a067a938fd28b821",
+      "firmware_imports": 104
+    }
+  },
+  "bundled_modules": {
+    "misc/lhttp.suprx": {
+      "name": "SceLibHttp",
+      "nid": "02733194",
+      "self_sha256": "42bc7e34077964ac7edc4365abad8af9bf41793a34d2c7efd631976f7d2739c1"
+    },
+    "misc/lssl.suprx": {
+      "name": "SceLibSsl",
+      "nid": "b1620f91",
+      "self_sha256": "850148bad6771619004835caf056f2303d8d77c99623ce247b07958391f72ae5"
+    },
+    "misc/compat.suprx": {
+      "name": "ScePsp2Compat",
+      "nid": "a5c5708c",
+      "self_sha256": "738862133819fc37bc21f714da7ca76c72d73a620afafbe6a940d87dd4e6dc58"
+    },
+    "misc/comm2.suprx": {
+      "name": "SceNpCommerce2",
+      "nid": "416111e0",
+      "self_sha256": "5f959855334f19a831075ee5fc28a4ae0f51d0ab28a492e04fc13456f5a864b7"
+    }
+  },
+  "verified": [
+    {
+      "hardware": "retail",
+      "firmware": "3.60",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492918,
+      "vtable_offset": 11108484,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "726c6635",
+          "sha256": "f02dbf89890223d52f32e30bc9e5643f13ed73e23006759b428dadd7b3f40231",
+          "text_filesz": 61316,
+          "data_filesz": 0,
+          "data_memsz": 132032
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "20163df2",
+          "sha256": "d3b7c62422ce77136553679786758cf8129af00627ea1c3d008642994ade3a09",
+          "text_filesz": 11480764,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 0,
+      "native_exports_verified": [
+        "c445fa63:d269f915",
+        "c445fa63:97cf7b4e",
+        "c445fa63:5972e2cc",
+        "c445fa63:99890202"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239,
+        "SceNpCommerce2": 67
+      },
+      "dns_helper_imports_verified": 1,
+      "dns_helper_hook_import": "e8f15cde:aeb3307e"
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.61",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492922,
+      "vtable_offset": 11108452,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "a5a80af8",
+          "sha256": "15d4bae07b15360f5e819ff75416f374a3eaf38a676c192f57756b6a1d8baf81",
+          "text_filesz": 61316,
+          "data_filesz": 0,
+          "data_memsz": 132032
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "95a02949",
+          "sha256": "eca2be56c168a3cb7ef9b02e8afaf29be926f2593b7b1ad382fb3d52f1b9bb7b",
+          "text_filesz": 11480732,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 0,
+      "native_exports_verified": [
+        "c445fa63:d269f915",
+        "c445fa63:97cf7b4e",
+        "c445fa63:5972e2cc",
+        "c445fa63:99890202"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.63",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492922,
+      "vtable_offset": 11108452,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "b87084f7",
+          "sha256": "5e54857566dd00b90fa339c974f97a63a4a727523ec5b9d022fb1705c83cb22e",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "b1fe1b01",
+          "sha256": "05be979755578cbb283d14d9b8ddc8fe32b40f9712f568259ed342af59eb35f1",
+          "text_filesz": 11480732,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.65",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492922,
+      "vtable_offset": 11108452,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "781c6f50",
+          "sha256": "3a8f3d675b032e175ab1dabafa0a4f387afe7ec7a379e6aa43421496c068d29d",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "a33a93f7",
+          "sha256": "64ebe29432efbfff3fa55403087c128127151a4423d7a1367348b8204e84d69c",
+          "text_filesz": 11480732,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.67",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492950,
+      "vtable_offset": 11108476,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "352000c9",
+          "sha256": "7a0f3131af72872de7eb591eb63daed71aeab24417cb7c20ea134244870ab19c",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "e87b919e",
+          "sha256": "c89312fa800e666ca55b2396444b2816e4ef64b946a175feac4ba51cb4d3e280",
+          "text_filesz": 11480756,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.68",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "d9c169a6",
+          "sha256": "3359fda7aa3594a7e1895517656cda1462f86f07df2b9e7635aa1dd9c8f34374",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "0c92976b",
+          "sha256": "1bbce8f05d7f0860ada1a4f5c3ede3d7517cdf0564e858b852084b85597ff362",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.69",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "626a6c37",
+          "sha256": "28df8dab08c9f5ac2f8257b915e3834930464fd64a2d7d234d061b663820ec14",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "829a7082",
+          "sha256": "24170a42a534e4cebce9efff0c329b0b50729aa06acc61b87cd23168e0ac06a5",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.70",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "7d7448ce",
+          "sha256": "51ec4394b699e83f006c8677a3ef34a7730aa2e1b7d64238ba86cf0f4cc59759",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "4492e657",
+          "sha256": "2ba9a6e75d38deb65213b8499c60903c8aed64b6a86ba88517eaef77cee7306d",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.71",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "5e2d8132",
+          "sha256": "63baed65c1c244e693f663cfe351b8823969485450927164515abda93ec3deda",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "c417b585",
+          "sha256": "6a7f7e003f1359df60118a11844ad5e865da406068f2f243aedd314ad4e06edf",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.72",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "ce41f3d9",
+          "sha256": "98e35c1e4b019aad65ffb107764f2723e5d11f3e253fdf9f55eea139f7affcdf",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "5143d9cf",
+          "sha256": "69f8016258e46f8c48a2bbb9361a7f04ac5dcf40e0bc0b950c9338d5747af625",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.73",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "f280f289",
+          "sha256": "a5680907cc5710cf14c2d2290ad490027e5354c9cf7f17e2ccaf8c794ad52b07",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "f82ddf69",
+          "sha256": "585de0b6c0d69608bdb5dc4807c0019af23dff2495cb5411f289f5e91e42c06c",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "retail",
+      "firmware": "3.74",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "8f483354",
+          "sha256": "4b9c70fe70a410d93cd7820c7707e46d2644d5761b95528ac657732061278b19",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "52fe25c9",
+          "sha256": "02c55398423e0459d6cbf344e38afc57d6ee2ae4f51ba1b6e3b91a7da4640f99",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.60",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492918,
+      "vtable_offset": 11108484,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "726c6635",
+          "sha256": "f02dbf89890223d52f32e30bc9e5643f13ed73e23006759b428dadd7b3f40231",
+          "text_filesz": 61316,
+          "data_filesz": 0,
+          "data_memsz": 132032
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "87f5a440",
+          "sha256": "290a766cbc9ca9ee751a6293b0ebe77d48acbd70a026895ee8b03e5bf988e413",
+          "text_filesz": 11480764,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 0,
+      "native_exports_verified": [
+        "c445fa63:d269f915",
+        "c445fa63:97cf7b4e",
+        "c445fa63:5972e2cc",
+        "c445fa63:99890202"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239,
+        "SceNpCommerce2": 67
+      },
+      "dns_helper_imports_verified": 1,
+      "dns_helper_hook_import": "e8f15cde:aeb3307e"
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.61",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492922,
+      "vtable_offset": 11108452,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "a5a80af8",
+          "sha256": "15d4bae07b15360f5e819ff75416f374a3eaf38a676c192f57756b6a1d8baf81",
+          "text_filesz": 61316,
+          "data_filesz": 0,
+          "data_memsz": 132032
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "250680e1",
+          "sha256": "2ff5268ce8922b2a99ae45998d734a27bbec5abc0f6c98a282e5b1c2862bc159",
+          "text_filesz": 11480732,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 0,
+      "native_exports_verified": [
+        "c445fa63:d269f915",
+        "c445fa63:97cf7b4e",
+        "c445fa63:5972e2cc",
+        "c445fa63:99890202"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.63",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492922,
+      "vtable_offset": 11108452,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "b87084f7",
+          "sha256": "5e54857566dd00b90fa339c974f97a63a4a727523ec5b9d022fb1705c83cb22e",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "334fdbac",
+          "sha256": "9f7fe215dbc956b284490e3ed00a2fb7b5edab7217af5b693d70a0a53d05d156",
+          "text_filesz": 11480732,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.65",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492922,
+      "vtable_offset": 11108452,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "781c6f50",
+          "sha256": "3a8f3d675b032e175ab1dabafa0a4f387afe7ec7a379e6aa43421496c068d29d",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "e32c493d",
+          "sha256": "37559f037105d32827e5f1e9b4a342b57eeb2b02b502571dc6bd61979da95e97",
+          "text_filesz": 11480732,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.67",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492950,
+      "vtable_offset": 11108476,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "352000c9",
+          "sha256": "7a0f3131af72872de7eb591eb63daed71aeab24417cb7c20ea134244870ab19c",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "a82568bf",
+          "sha256": "d7716d5b1179aa5565762615078163d66da93f6927d3b5a602bf3128c682e5f4",
+          "text_filesz": 11480756,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.68",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "d9c169a6",
+          "sha256": "3359fda7aa3594a7e1895517656cda1462f86f07df2b9e7635aa1dd9c8f34374",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "cad8ce30",
+          "sha256": "0b5297c1cdbb28b660e835f2c8032e5940e835356fd8335efad95dafeab52a56",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.70",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "7d7448ce",
+          "sha256": "51ec4394b699e83f006c8677a3ef34a7730aa2e1b7d64238ba86cf0f4cc59759",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "145c1700",
+          "sha256": "139fda1e25241043de1fea0d414a141ab22d71e1a557b953d185cb16df0e2c8f",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.72",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "ce41f3d9",
+          "sha256": "98e35c1e4b019aad65ffb107764f2723e5d11f3e253fdf9f55eea139f7affcdf",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "536b8987",
+          "sha256": "889e7b9fc2f2154c6fa9ad0b05d5476748b157ccd98ec08f12f32ec54cfcd006",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.73",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "f280f289",
+          "sha256": "a5680907cc5710cf14c2d2290ad490027e5354c9cf7f17e2ccaf8c794ad52b07",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "81ca3d03",
+          "sha256": "280e4afba19d021f967c8a916472f37b8e81fc211ab8de07d568f3c23b64a9aa",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.60",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492918,
+      "vtable_offset": 11108484,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "726c6635",
+          "sha256": "f02dbf89890223d52f32e30bc9e5643f13ed73e23006759b428dadd7b3f40231",
+          "text_filesz": 61316,
+          "data_filesz": 0,
+          "data_memsz": 132032
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "1a29ef0d",
+          "sha256": "802a3a6a1d9846d703bb8c044b2ee640de8e7c1f26e3d8aa87c09767eb9974d5",
+          "text_filesz": 11480764,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 0,
+      "native_exports_verified": [
+        "c445fa63:d269f915",
+        "c445fa63:97cf7b4e",
+        "c445fa63:5972e2cc",
+        "c445fa63:99890202"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239,
+        "SceNpCommerce2": 67
+      },
+      "dns_helper_imports_verified": 1,
+      "dns_helper_hook_import": "e8f15cde:aeb3307e"
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.61",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492922,
+      "vtable_offset": 11108452,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "a5a80af8",
+          "sha256": "15d4bae07b15360f5e819ff75416f374a3eaf38a676c192f57756b6a1d8baf81",
+          "text_filesz": 61316,
+          "data_filesz": 0,
+          "data_memsz": 132032
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "9c6be71b",
+          "sha256": "5f521eb5c26a15b5aecbe993ba70386ffb55f1dbe64ca76ecbd1ca8b7d35d510",
+          "text_filesz": 11480732,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 0,
+      "native_exports_verified": [
+        "c445fa63:d269f915",
+        "c445fa63:97cf7b4e",
+        "c445fa63:5972e2cc",
+        "c445fa63:99890202"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.63",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492922,
+      "vtable_offset": 11108452,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "b87084f7",
+          "sha256": "5e54857566dd00b90fa339c974f97a63a4a727523ec5b9d022fb1705c83cb22e",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "d2747a81",
+          "sha256": "c9f2e4d9b68b7d2fed44dce2928a0fffbb8333d4761625cac08a0950e2997e0a",
+          "text_filesz": 11480732,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.65",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492922,
+      "vtable_offset": 11108452,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "781c6f50",
+          "sha256": "3a8f3d675b032e175ab1dabafa0a4f387afe7ec7a379e6aa43421496c068d29d",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "8deccd66",
+          "sha256": "9f0d47993d2bedecda8198cdaad4331f2a6e4e5d1d91e1dfa7eb8767ae0d8836",
+          "text_filesz": 11480732,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.67",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1492950,
+      "vtable_offset": 11108476,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "352000c9",
+          "sha256": "7a0f3131af72872de7eb591eb63daed71aeab24417cb7c20ea134244870ab19c",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "a7754683",
+          "sha256": "b6cbbda48591770541be6ad51e579efec21b4b0ead4a91441d73674c73f73915",
+          "text_filesz": 11480756,
+          "data_filesz": 52788,
+          "data_memsz": 71104
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.68",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "d9c169a6",
+          "sha256": "3359fda7aa3594a7e1895517656cda1462f86f07df2b9e7635aa1dd9c8f34374",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "029b02d6",
+          "sha256": "3abf13708485565b9487212103d8be7cc6f1ea04fc8722129d9d939cef8dfea8",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.69",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "626a6c37",
+          "sha256": "28df8dab08c9f5ac2f8257b915e3834930464fd64a2d7d234d061b663820ec14",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "de76dce7",
+          "sha256": "2eb15dccd21c7d979b14f401d7dc7aa6b1de244cb23ecb6ef5acafd379e5f02f",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.70",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "7d7448ce",
+          "sha256": "51ec4394b699e83f006c8677a3ef34a7730aa2e1b7d64238ba86cf0f4cc59759",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "1953403e",
+          "sha256": "3108b7e1d5dc0b00906f3d25a645c5df20cdbcf96e1b510bfafb62ead736cccb",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.71",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "5e2d8132",
+          "sha256": "63baed65c1c244e693f663cfe351b8823969485450927164515abda93ec3deda",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "d9e17ef3",
+          "sha256": "69e50f051b4505abddf32e5185ab28bcd15dc3259f175414742e96ad36fc5c34",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.73",
+      "device_tested": false,
+      "kernel_guard": true,
+      "post_start_guard": true,
+      "webkit_callback_guard": true,
+      "callback_import": "81405f79:7dab2e59",
+      "callback_offset": 1493774,
+      "vtable_offset": 11140972,
+      "modules": {
+        "modulemgr": {
+          "name": "SceKernelModulemgr",
+          "nid": "f280f289",
+          "sha256": "a5680907cc5710cf14c2d2290ad490027e5354c9cf7f17e2ccaf8c794ad52b07",
+          "text_filesz": 61492,
+          "data_filesz": 0,
+          "data_memsz": 131988
+        },
+        "webkit": {
+          "name": "SceWebKit",
+          "nid": "8b26b9a7",
+          "sha256": "fed33316d3adcf17583ea70ca0719b720ef345117480033bfda51100e44427ac",
+          "text_filesz": 11513252,
+          "data_filesz": 56148,
+          "data_memsz": 74472
+        }
+      },
+      "native_module_api_family": 1,
+      "native_exports_verified": [
+        "92c9ffc2:daa90093",
+        "92c9ffc2:b72c75a4",
+        "92c9ffc2:fca9fdb1",
+        "92c9ffc2:f1de6949"
+      ],
+      "imports_verified": {
+        "build/kernel/tls_fixer.elf": 32,
+        "build/tls13-vita/browser/tls_fixer": 44,
+        "build/tls13-vita/provider/tls_fixer_http": 42,
+        "tls_fixer.elf": 104
+      },
+      "replacement_dependencies_verified": {
+        "SceLibHttp": 148,
+        "SceLibSsl": 42,
+        "ScePsp2Compat": 239
+      }
+    }
+  ],
+  "unavailable": [
+    {
+      "hardware": "testkit",
+      "firmware": "3.69",
+      "reason": "external image absent"
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.71",
+      "reason": "external image absent"
+    },
+    {
+      "hardware": "testkit",
+      "firmware": "3.74",
+      "reason": "external image absent"
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.72",
+      "reason": "external image absent"
+    },
+    {
+      "hardware": "devkit",
+      "firmware": "3.74",
+      "reason": "external image absent"
+    }
+  ]
+}

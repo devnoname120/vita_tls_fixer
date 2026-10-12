@@ -4,8 +4,9 @@
 #include <psp2kern/kernel/sysclib.h>
 #include <stdint.h>
 #include <taihen.h>
+#include "tls_fixer/firmware_profiles.h"
+#include "native_module_api.h"
 
-#define MODULEMGR_TEXT_SIZE UINT32_C(0xef84)
 #define MODULEMGR_START_OFFSET UINT32_C(0x378d)
 
 static const uint8_t entry[] = {
@@ -31,6 +32,12 @@ static const uint8_t current_pid[] = {
 static const uint8_t process_open[] = {
     0x01, 0x22, 0x00, 0x23, 0x08, 0xf0, 0x46, 0xee, 0x05, 0x46, 0x64, 0xe7
 };
+static const uint8_t current_pid_later[] = {
+    0x09, 0xf0, 0x60, 0xe9, 0x06, 0x46, 0x43, 0xe7
+};
+static const uint8_t process_open_later[] = {
+    0x01, 0x22, 0x00, 0x23, 0x08, 0xf0, 0x9c, 0xee, 0x05, 0x46, 0x64, 0xe7
+};
 
 #if TLS_FIXER_BROWSER_POST_START
 static const uint8_t start_entry[] = {
@@ -53,6 +60,14 @@ static const uint8_t start_dispatch[] = {
     0x2b, 0x46, 0xcd, 0xe9, 0x00, 0xe0, 0x51, 0x46,
     0x0b, 0xf1, 0x08, 0x00, 0xff, 0xf7, 0xf9, 0xf8,
     0x81, 0x46, 0x40, 0x46, 0x08, 0xf0, 0xb6, 0xeb,
+    0x05, 0x9b, 0x01, 0x2b, 0x1c, 0xd0, 0x02, 0x2b,
+    0x15, 0xd0, 0xb9, 0xf1
+};
+static const uint8_t start_dispatch_later[] = {
+    0x0d, 0xf1, 0x14, 0x0e, 0x00, 0x20, 0x4a, 0x46,
+    0x2b, 0x46, 0xcd, 0xe9, 0x00, 0xe0, 0x51, 0x46,
+    0x0b, 0xf1, 0x08, 0x00, 0xff, 0xf7, 0xf9, 0xf8,
+    0x81, 0x46, 0x40, 0x46, 0x08, 0xf0, 0x0c, 0xec,
     0x05, 0x9b, 0x01, 0x2b, 0x1c, 0xd0, 0x02, 0x2b,
     0x15, 0xd0, 0xb9, 0xf1
 };
@@ -91,8 +106,11 @@ int tls_fixer_validate_loader_hook(SceUID module_id) {
     const SceKernelSegmentInfo *segment = &info.segments[0];
     uintptr_t base = (uintptr_t)segment->vaddr;
     if (segment->size != sizeof(*segment) || (segment->perms & 7u) != 5u ||
-        segment->filesz != MODULEMGR_TEXT_SIZE || segment->memsz < segment->filesz ||
+        segment->memsz < segment->filesz ||
         base == 0 || (base & 3u) != 0 || base > UINTPTR_MAX - segment->memsz) return -1;
+    const TlsFixerKernelProfile *profile = tls_fixer_select_kernel_profile(
+        (const unsigned char *)base, segment->filesz);
+    if (profile == NULL) return -1;
     if ((uintptr_t)info.start_entry != base + MODULEMGR_START_OFFSET) return -1;
 
     for (size_t i = 0; i < sizeof(signatures) / sizeof(signatures[0]); ++i) {
@@ -100,9 +118,17 @@ int tls_fixer_validate_loader_hook(SceUID module_id) {
         if (signature->offset > segment->filesz ||
             signature->size > segment->filesz - signature->offset) return -1;
         const volatile uint8_t *code = (const volatile uint8_t *)(base + signature->offset);
+        const uint8_t *expected = signature->bytes;
+        if (profile->family != 0) {
+            if (signature->offset == 0x2384) expected = current_pid_later;
+            if (signature->offset == 0x23f8) expected = process_open_later;
+#if TLS_FIXER_BROWSER_POST_START
+            if (signature->offset == 0x29b2) expected = start_dispatch_later;
+#endif
+        }
         for (size_t n = 0; n < signature->size; ++n) {
             uint8_t mask = signature->mask == NULL ? 0xff : signature->mask[n];
-            if (((code[n] ^ signature->bytes[n]) & mask) != 0) return -1;
+            if (((code[n] ^ expected[n]) & mask) != 0) return -1;
         }
     }
     return 0;

@@ -522,7 +522,7 @@ static int install_http_modules(int requested_state) {
         }
     }
 
-    if (result >= 0 && firmware.version == UINT32_C(0x03600000)) {
+    if (result >= 0 && (firmware.version & UINT32_C(0xffff0000)) == UINT32_C(0x03600000)) {
         result = install_dns_fix(requested_state);
     }
     return result;
@@ -717,7 +717,7 @@ int main(void) {
             path_exists(new_modules[1]) &&
             path_exists(new_modules[2]) &&
             path_exists(new_modules[5]) &&
-            (firmware_version != UINT32_C(0x03600000) ||
+            ((firmware_version & UINT32_C(0xffff0000)) != UINT32_C(0x03600000) ||
              (path_exists(new_modules[3]) && path_exists(new_modules[4]))));
         installed[4] = (uint8_t)path_exists("vs0:/data/external/cert/CA_LIST.cer_old");
         installed[0] = installed[1] & installed[2] & installed[3] & installed[4];

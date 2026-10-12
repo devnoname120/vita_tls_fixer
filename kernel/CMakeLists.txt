@@ -144,6 +144,7 @@ target_link_libraries(tls_fixer.elf
 )
 
 if(NOT TLS_FIXER_SELF_DISARM_ONLY AND NOT TLS_FIXER_DISARM_RESULT_ONLY)
+	target_sources(tls_fixer.elf PRIVATE native_module_api.c)
 	target_sources(tls_fixer.elf PRIVATE tls13_loader.c ../tls13/src/path.c)
 	if(NOT TLS_FIXER_INITIALIZE_ONLY)
 		target_sources(tls_fixer.elf PRIVATE hook_guard.c)

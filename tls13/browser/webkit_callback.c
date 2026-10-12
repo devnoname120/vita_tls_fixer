@@ -66,21 +66,30 @@ int tls_fixer_webkit_is_default_ctx_callback(const void *callback, const void *u
     if (module.segments[0].vaddr == NULL || module.segments[1].vaddr == NULL) {
         return reject_callback(TLS_FIXER_WEBKIT_REJECT_SEGMENT_ADDRESS);
     }
-    if (module.segments[0].filesz != TLS_FIXER_WEBKIT_TEXT_FILESZ ||
-        module.segments[0].memsz != TLS_FIXER_WEBKIT_TEXT_MEMSZ ||
-        module.segments[1].filesz != TLS_FIXER_WEBKIT_DATA_FILESZ ||
-        module.segments[1].memsz != TLS_FIXER_WEBKIT_DATA_MEMSZ) {
+    int geometry_known = 0;
+    for (size_t i = 0; i < sizeof(tls_fixer_webkit_profiles) / sizeof(tls_fixer_webkit_profiles[0]); ++i) {
+        const TlsFixerWebKitProfile *candidate = &tls_fixer_webkit_profiles[i];
+        if (module.segments[0].filesz == candidate->text_size &&
+            module.segments[0].memsz == candidate->text_size &&
+            module.segments[1].filesz == candidate->data_filesz &&
+            module.segments[1].memsz == candidate->data_memsz) { geometry_known = 1; break; }
+    }
+    if (!geometry_known) {
         return reject_callback(TLS_FIXER_WEBKIT_REJECT_SEGMENT_GEOMETRY);
     }
 
     text = (uintptr_t)module.segments[0].vaddr;
-    if (TLS_FIXER_WEBKIT_CTX_CALLBACK_OFFSET > module.segments[0].filesz ||
+    const TlsFixerWebKitProfile *profile = tls_fixer_select_webkit_profile(
+        (const unsigned char *)text, module.segments[0].filesz, module.segments[0].memsz,
+        module.segments[1].filesz, module.segments[1].memsz);
+    if (profile == NULL) return reject_callback(TLS_FIXER_WEBKIT_REJECT_MODULE_IDENTITY);
+    if (profile->callback_offset > module.segments[0].filesz ||
         sizeof(tls_fixer_webkit_ctx_callback_signature) >
-            module.segments[0].filesz - TLS_FIXER_WEBKIT_CTX_CALLBACK_OFFSET ||
-        address != text + TLS_FIXER_WEBKIT_CTX_CALLBACK_OFFSET) {
+            module.segments[0].filesz - profile->callback_offset ||
+        address != text + profile->callback_offset) {
         return reject_callback(TLS_FIXER_WEBKIT_REJECT_CALLBACK_ADDRESS);
     }
-    if (memcmp((const void *)address, tls_fixer_webkit_ctx_callback_signature,
+    if (memcmp((const void *)address, profile->callback_signature,
             sizeof(tls_fixer_webkit_ctx_callback_signature)) != 0) {
         return reject_callback(TLS_FIXER_WEBKIT_REJECT_CALLBACK_SIGNATURE);
     }
@@ -95,7 +104,7 @@ int tls_fixer_webkit_is_default_ctx_callback(const void *callback, const void *u
         return reject_callback(rejection);
     }
 
-    expected_vtable = text + TLS_FIXER_WEBKIT_REQUEST_VTABLE_OFFSET;
+    expected_vtable = text + profile->vtable_offset;
     if (expected_vtable > UINT32_MAX) {
         return reject_callback(TLS_FIXER_WEBKIT_REJECT_VTABLE_RANGE);
     }

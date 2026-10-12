@@ -1,4 +1,5 @@
 #include "tls13_loader.h"
+#include "native_module_api.h"
 
 #include <psp2/io/fcntl.h>
 #include <psp2kern/io/fcntl.h>

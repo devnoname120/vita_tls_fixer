@@ -8,7 +8,7 @@
 #define MODULE_ID 11
 #define TEXT_SIZE 0xef84
 
-_Alignas(4) static unsigned char text[TEXT_SIZE];
+_Alignas(4) static unsigned char text[0xf034];
 static SceKernelModuleInfo fixture;
 static int query_result, query_calls;
 
@@ -48,6 +48,11 @@ static void reset(void) {
     fixture.segments[0].perms = 5;
     fixture.segments[0].vaddr = text;
     fixture.segments[0].memsz = fixture.segments[0].filesz = TEXT_SIZE;
+    /* Independent identity from the saved 3.60 kernel RX capture. */
+    strcpy((char *)text + 0xb9d4, "SceKernelModulemgr");
+    text[0xb9ef] = 6;
+    uint32_t module_nid = UINT32_C(0x726c6635);
+    memcpy(text + 0xba04, &module_nid, sizeof(module_nid));
     for (size_t i = 0; i < sizeof(sites) / sizeof(sites[0]); ++i) {
         size_t length = strlen(sites[i].hex) / 2;
         assert(sites[i].offset + length <= sizeof(text));
@@ -94,6 +99,9 @@ int main(void) {
     reset(); fixture.segments[0].filesz += 1; expect_rejected();
     reset(); fixture.segments[0].memsz = 16; expect_rejected();
     reset(); fixture.segments[0].perms = 6; expect_rejected();
+    reset(); text[0xba04] ^= 1; expect_rejected();
+    reset(); text[0xb9d4] = 'X'; expect_rejected();
+    reset(); text[0xb9ef] = 0; expect_rejected();
     reset(); fixture.segments[0].vaddr = (void *)(UINTPTR_MAX - 7);
     fixture.start_entry = NULL; expect_rejected();
 
@@ -115,7 +123,26 @@ int main(void) {
             }
         }
     }
+    /* Later family keeps the ABI/offsets and moves the native import veneers. */
+    const uint32_t later_nids[] = {UINT32_C(0x781c6f50), UINT32_C(0x8f483354)};
+    for (size_t i = 0; i < sizeof(later_nids) / sizeof(later_nids[0]); ++i) {
+        reset();
+        fixture.segments[0].memsz = fixture.segments[0].filesz = 0xf034;
+        strcpy((char *)text + 0xba84, "SceKernelModulemgr");
+        text[0xba9f] = 6;
+        memcpy(text + 0xbab4, &later_nids[i], sizeof(later_nids[i]));
+        text[0x2386] = 0x60;
+        text[0x23fe] = 0x9c;
+#if TLS_FIXER_BROWSER_POST_START
+        text[0x29d0] = 0x0c;
+        text[0x29d1] = 0xec;
+#endif
+        assert(tls_fixer_validate_loader_hook(MODULE_ID) == 0);
+        text[0x2386] ^= 1;
+        expect_rejected();
+    }
+    reset();
     assert(tls_fixer_validate_loader_hook(MODULE_ID) == 0);
-    puts("kernel hook guard: metadata, bounds, changed instructions and relocated immediates PASS");
+    puts("kernel hook guard: identities, firmware families, bounds and relocated instructions PASS");
     return 0;
 }

@@ -3,7 +3,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "tls_fixer/firmware_profiles.h"
 
+/* 3.60 reference constants for regression fixtures. Runtime uses the profile table. */
 #define TLS_FIXER_WEBKIT_MODULE_NAME "SceWebKit"
 #define TLS_FIXER_WEBKIT_TEXT_FILESZ ((size_t)0xAF2EBC)
 #define TLS_FIXER_WEBKIT_TEXT_MEMSZ ((size_t)0xAF2EBC)
@@ -27,7 +29,8 @@ enum TlsFixerWebKitCallbackRejectReason {
     TLS_FIXER_WEBKIT_REJECT_USERDATA_RANGE,
     TLS_FIXER_WEBKIT_REJECT_USERDATA_ACCESS,
     TLS_FIXER_WEBKIT_REJECT_VTABLE_RANGE,
-    TLS_FIXER_WEBKIT_REJECT_VTABLE_VALUE
+    TLS_FIXER_WEBKIT_REJECT_VTABLE_VALUE,
+    TLS_FIXER_WEBKIT_REJECT_MODULE_IDENTITY
 };
 
 static const uint8_t tls_fixer_webkit_ctx_callback_signature[] = {

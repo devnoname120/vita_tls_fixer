@@ -103,7 +103,7 @@ int sceKernelGetMemBlockInfoByAddr(void *base, SceKernelMemBlockInfo *info) {
 }
 
 static void setup_webkit_fixture(void) {
-    webkit_text = mmap((void *)(uintptr_t)0x26000000, 0x200000, PROT_READ | PROT_WRITE,
+    webkit_text = mmap((void *)(uintptr_t)0x26000000, 0xb00000, PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
     webkit_userdata = mmap((void *)(uintptr_t)0x27000000, 0x1000, PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
@@ -116,6 +116,11 @@ static void setup_webkit_fixture(void) {
     webkit_mapped.segments[1] = (SceKernelSegmentInfo){.vaddr = webkit_text + 0x1000,
         /* Original filesz from the 440-byte 3.60 module-info capture, not the memory dump. */
         .filesz = 52788, .memsz = TLS_FIXER_WEBKIT_DATA_MEMSZ};
+    /* Original module identity is distinct from memory-dump geometry. */
+    strcpy((char *)webkit_text + 0x85fb08, "SceWebKit");
+    webkit_text[0x85fb23] = 6;
+    uint32_t webkit_nid = UINT32_C(0x20163df2);
+    memcpy(webkit_text + 0x85fb38, &webkit_nid, sizeof(webkit_nid));
     memcpy(webkit_text + TLS_FIXER_WEBKIT_CTX_CALLBACK_OFFSET,
         tls_fixer_webkit_ctx_callback_signature, sizeof(tls_fixer_webkit_ctx_callback_signature));
     *(uint32_t *)webkit_userdata = (uint32_t)(uintptr_t)
@@ -129,7 +134,7 @@ static void setup_webkit_fixture(void) {
 }
 
 static void teardown_webkit_fixture(void) {
-    assert(munmap(webkit_text, 0x200000) == 0);
+    assert(munmap(webkit_text, 0xb00000) == 0);
     assert(munmap(webkit_userdata, 0x1000) == 0);
     webkit_text = NULL;
     webkit_userdata = NULL;

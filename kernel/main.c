@@ -20,6 +20,7 @@
 #include "self_disarm.h"
 #include "disarm_result.h"
 #include "hook_guard.h"
+#include "native_module_api.h"
 
 #ifndef TLS_FIXER_DISARM_RESULT_ONLY
 #define TLS_FIXER_DISARM_RESULT_ONLY 0
@@ -278,6 +279,13 @@ int module_start(SceSize argc, const void *args) {
         }
     }
     if (trace_result < 0) return SCE_KERNEL_START_FAILED;
+#if defined(__arm__) && !TLS_FIXER_SELF_DISARM_ONLY && !TLS_FIXER_DISARM_RESULT_ONLY
+    /* Disarming is durable; resolve once here, never from a loader-hook callback. */
+    if (tls_fixer_boot_trace_event("native.bind.enter", 0, 0, 0) < 0) goto failed_before_hook;
+    int bind_result = tls_fixer_native_module_api_init();
+    if (tls_fixer_boot_trace_event("native.bind.return", 0, 0, bind_result) < 0 || bind_result < 0)
+        goto failed_before_hook;
+#endif
     if (tls_fixer_boot_trace_event("startup.checks.enter", 0, 0, 0) < 0) goto failed_before_hook;
 
     ksceDebugPrintf("tls_fixer module loaded\n");

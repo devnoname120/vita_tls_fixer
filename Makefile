@@ -23,6 +23,7 @@ MBEDTLS_ARCHIVE ?= $(CURDIR)/build/deps/mbedtls-4.2.0.tar.bz2
 CURL_ARCHIVE ?= $(CURDIR)/build/deps/curl-8.17.0.tar.gz
 CURL_LIBRARY = $(BUILD_DIR)/curl-vita/_deps/installer_curl-build/lib/libcurl.a
 TLS13_SOURCES = $(shell find tls13 -type f -not -path '*/build/*' -not -path '*/__pycache__/*')
+FIRMWARE_PROFILES = tls13/include/tls_fixer/firmware_profiles.h
 LICENSE_FILES = licenses/Mbed-TLS-LICENSE.txt licenses/TF-PSA-Crypto-LICENSE.txt licenses/mldsa-native-LICENSE.txt \
 	licenses/curl-LICENSE.txt licenses/OpenSSL-LICENSE.txt licenses/Mozilla-MPL-2.0.txt \
 	licenses/zlib-LICENSE.txt licenses/zstd-LICENSE.txt
@@ -58,7 +59,7 @@ main.o: installer/certificates.h installer/network_vita.h
 installer/certificates.o: installer/certificates.h
 installer/network_vita.o: installer/network_vita.h
 
-$(KERNEL_MODULE): kernel/main.c kernel/self_disarm.c kernel/self_disarm.h kernel/hook_guard.c kernel/hook_guard.h kernel/tls13_loader.c kernel/tls13_loader.h kernel/tls_fixer.yml kernel/CMakeLists.txt tools/verify_kernel_registers.py tls13/src/path.c tls13/include/tls_fixer/path.h tls13/include/tls_fixer/sony_abi.h tls13/include/tls_fixer/browser_abi.h
+$(KERNEL_MODULE): kernel/main.c kernel/self_disarm.c kernel/self_disarm.h kernel/hook_guard.c kernel/hook_guard.h kernel/native_module_api.c kernel/native_module_api.h kernel/tls13_loader.c kernel/tls13_loader.h kernel/tls_fixer.yml kernel/CMakeLists.txt tools/verify_kernel_registers.py tls13/src/path.c tls13/include/tls_fixer/path.h tls13/include/tls_fixer/sony_abi.h tls13/include/tls_fixer/browser_abi.h $(FIRMWARE_PROFILES)
 	cmake -S kernel -B $(BUILD_DIR)/kernel
 	cmake --build $(BUILD_DIR)/kernel --clean-first
 

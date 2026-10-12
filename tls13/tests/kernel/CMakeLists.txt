@@ -16,8 +16,14 @@ add_test(NAME tls_fixer_module_status COMMAND tls_fixer_module_status_tests)
 
 add_executable(tls_fixer_hook_guard_tests test_hook_guard.c ../../../kernel/hook_guard.c)
 target_include_directories(tls_fixer_hook_guard_tests PRIVATE include ../transport/include ../../../kernel)
+target_include_directories(tls_fixer_hook_guard_tests PRIVATE ../../include)
 target_compile_options(tls_fixer_hook_guard_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_test(NAME tls_fixer_hook_guard COMMAND tls_fixer_hook_guard_tests)
+
+add_executable(tls_fixer_native_module_api_tests test_native_module_api.c ../../../kernel/native_module_api.c)
+target_include_directories(tls_fixer_native_module_api_tests PRIVATE include ../transport/include ../../../kernel ../../include)
+target_compile_options(tls_fixer_native_module_api_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+add_test(NAME tls_fixer_native_module_api COMMAND tls_fixer_native_module_api_tests)
 
 add_executable(tls_fixer_kernel_disarm_probe_tests test_route.c)
 target_include_directories(tls_fixer_kernel_disarm_probe_tests PRIVATE include ../transport/include ../../../kernel)
@@ -226,6 +232,7 @@ endforeach()
 
 find_package(Threads REQUIRED)
 add_executable(tls_fixer_post_start_guard_tests test_hook_guard.c ../../../kernel/hook_guard.c)
+target_include_directories(tls_fixer_post_start_guard_tests PRIVATE ../../include)
 target_include_directories(tls_fixer_post_start_guard_tests PRIVATE include ../transport/include ../../../kernel)
 target_compile_definitions(tls_fixer_post_start_guard_tests PRIVATE TLS_FIXER_BROWSER_POST_START=1)
 target_compile_options(tls_fixer_post_start_guard_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
