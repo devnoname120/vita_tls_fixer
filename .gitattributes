@@ -1,2 +1,4 @@
 # Preserve bundled certificate bytes without newline conversion.
 misc/certs.cer -text
+misc/sony-certs.pem -text
+misc/mozilla-certs.pem -text

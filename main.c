@@ -16,12 +16,16 @@
 #include <psp2/vshbridge.h>
 
 #include "graphics.h"
+#include "installer/certificates.h"
+#include "installer/network_vita.h"
 
 #define printf psvDebugScreenPrintf
 
 #define MENU_COUNT 6
 #define COPY_BUFFER_SIZE 0x4000
 #define CONFIG_MAX_SIZE 0x100000
+
+unsigned int _newlib_heap_size_user = 8u * 1024u * 1024u;
 
 static const char tls_fixer_config_block[] =
     "# TLS_FIXER\n*KERNEL\nur0:tai/tls_fixer.skprx\n\n";
@@ -527,7 +531,7 @@ static int install_http_modules(int requested_state) {
 static int install_certificates(int requested_state) {
     static const char certificate_path[] = "vs0:/data/external/cert/CA_LIST.cer";
     static const char backup_path[] = "vs0:/data/external/cert/CA_LIST.cer_old";
-    static const char temporary_path[] = "vs0:/data/external/cert/CA_LIST.cer.tmp";
+    static const char temporary_path[] = "vs0:/data/external/cert/CA_LIST.cer.prepared";
     static const char rollback_path[] = "vs0:/data/external/cert/CA_LIST.cer.tls_fixer-remove";
     int result;
     int removing = requested_state == 69 ? installed[4] : requested_state == 1;
@@ -561,13 +565,32 @@ static int install_certificates(int requested_state) {
         return had_current ? remove_if_exists(rollback_path) : 0;
     }
 
-    printf("Adding tls_fixer CA certs... \n");
-    if (path_exists(backup_path)) {
-        return replace_file("app0:certs.cer", certificate_path);
-    }
+    TlsFixerCertificateBundle bundle;
+    TlsFixerInstallerNetwork network;
+    printf("Fetching latest curl/Mozilla certificates...\n");
+    int online = tls_fixer_installer_network_start(&network) == 0;
+    result = tls_fixer_prepare_certificates("app0:sony-certs.pem", "app0:mozilla-certs.pem",
+        online ? TLS_FIXER_CA_UPDATE_URL : NULL, 30, &bundle);
+    tls_fixer_installer_network_stop(&network);
+    if (result < 0) return result;
+    printf(bundle.downloaded ? "Using downloaded Mozilla certificates.\n" :
+        "Download unavailable; using embedded Mozilla certificates.\n");
+    printf("Sony: %u, Mozilla: %u, combined: %u certificates.\n",
+        (unsigned int)bundle.sony_count, (unsigned int)bundle.mozilla_count,
+        (unsigned int)bundle.combined_count);
     (void)remove_if_exists(temporary_path);
-    result = copy_file("app0:certs.cer", temporary_path);
-    if (result < 0) {
+    SceUID descriptor = sceIoOpen(temporary_path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
+    result = descriptor < 0 ? descriptor : write_all(descriptor, bundle.data, (SceSize)bundle.size);
+    if (descriptor >= 0) {
+        int close_result = sceIoClose(descriptor);
+        if (result >= 0 && close_result < 0) result = close_result;
+    }
+    tls_fixer_free_certificates(&bundle);
+    if (result >= 0) result = sceIoSync("vs0:", 0);
+    if (result < 0) { (void)remove_if_exists(temporary_path); return result; }
+    if (path_exists(backup_path)) {
+        result = replace_file(temporary_path, certificate_path);
+        (void)remove_if_exists(temporary_path);
         return result;
     }
     result = remove_if_exists(backup_path);

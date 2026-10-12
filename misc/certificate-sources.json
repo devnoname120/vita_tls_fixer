@@ -1,0 +1,28 @@
+{
+  "sony": {
+    "source": "Sony retail firmware 3.74 vs0/data/external/cert/CA_LIST.cer",
+    "path": "sony-certs.pem",
+    "bytes": 103598,
+    "sha256": "61f25856c8d1e862599f06580a7a83e1a74fda9aa889aee750c6d581edb05761",
+    "certificate_blocks": 69,
+    "unique_certificates": 69
+  },
+  "mozilla": {
+    "source": "https://curl.se/ca/cacert.pem",
+    "path": "mozilla-certs.pem",
+    "source_date": "2026-09-25",
+    "fetched_date": "2026-10-12",
+    "bytes": 188900,
+    "sha256": "a41b5d356aea97a529fe27e0f7316d2f9d946d75927476cf9cf1b90637d00505",
+    "certificate_blocks": 121,
+    "unique_certificates": 121
+  },
+  "combined": {
+    "path": "certs.cer",
+    "policy": "Sony plus selected Mozilla certificates; duplicate DER identities removed; no system-store input",
+    "bytes": 257799,
+    "sha256": "fa1bb62997d6f14b0532310a9a04bd3c0b6a45225c879b0b36cb04658bd111f7",
+    "certificate_blocks": 176,
+    "unique_certificates": 176
+  }
+}

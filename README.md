@@ -105,6 +105,7 @@ Fetch the pinned upstream source archive on the host using authenticated `gh`, t
 
 ```sh
 python3 tools/fetch_mbedtls.py
+python3 tools/fetch_curl.py
 docker run --rm -v "$PWD":/src -w /src vitasdk/vitasdk:latest \
   sh -lc 'make clean && make'
 ```
@@ -141,8 +142,17 @@ The unpacked analysis ELF is not distributed by the repository and must be produ
 ## Firmware modules and CA sources
 
 - bundled HTTP/SSL modules: firmware 3.73
-- bundled Sony CA base: firmware 3.74
-- additional roots: external CA update maintained by the project
+- embedded Sony CA bundle: the complete firmware 3.74 file, 69 certificates
+- embedded curl/Mozilla bundle: snapshot dated 2026-09-25, fetched 2026-10-12, 121 certificates
+- embedded combined fallback: 176 unique certificates after deduplication
+
+When installing or refreshing certificates, the installer attempts to download the latest [curl/Mozilla PEM bundle](https://curl.se/ca/cacert.pem). That HTTPS request uses libcurl with peer and hostname verification enabled and **only the embedded Mozilla bundle** as its trust source. Default CA files/directories, native CA fallback, environment proxies and redirects are disabled; an OpenSSL callback replaces the verification store with the embedded Mozilla roots.
+
+If networking is unavailable, the transfer fails, or the response is not a complete usable CA bundle, the installer uses the Mozilla snapshot embedded in the VPK. It combines the selected Mozilla certificates with the embedded Sony bundle and removes duplicate certificates before installation. Successful downloads replace the Mozilla component rather than accumulating roots from older snapshots. Download and merge limits are bounded, with a five-second network-readiness wait and a 30-second libcurl transfer timeout.
+
+The **embedded Sony bundle plus the selected curl/Mozilla bundle are authoritative**. The existing system `CA_LIST.cer` is never an input to this merge or to the download's trust store. It is retained only as the original uninstall backup. Missing or corrupt embedded inputs stop certificate installation rather than importing system roots. `certificate-sources.json` records the packaged snapshot hashes and provenance.
+
+The separate Sony, Mozilla and combined PEM files are shipped inside the VPK. The combined file is also the fixture used by provider trust-store tests; the installer constructs its actual installation bytes from the two authoritative source bundles. The updater has passed live-endpoint and controlled HTTPS tests on the host and cross-compiles into the VPK. Its on-device execution and the installer's persistent-file replacement remain unverified.
 
 ## Third-party software
 

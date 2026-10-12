@@ -7,4 +7,4 @@ __pycache__/
 /*.vpk
 /eboot.bin
 /param.sfo
-/*.o
+*.o
