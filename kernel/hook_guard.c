@@ -1,0 +1,109 @@
+#include "hook_guard.h"
+
+#include <psp2kern/kernel/modulemgr.h>
+#include <psp2kern/kernel/sysclib.h>
+#include <stdint.h>
+#include <taihen.h>
+
+#define MODULEMGR_TEXT_SIZE UINT32_C(0xef84)
+#define MODULEMGR_START_OFFSET UINT32_C(0x378d)
+
+static const uint8_t entry[] = {
+    0x2d, 0xe9, 0xf0, 0x4f, 0x4a, 0xf2, 0x04, 0x07, 0xc0, 0xf2, 0xae, 0x07
+};
+/* Only the stack-cookie address immediates change under relocation. */
+static const uint8_t entry_mask[] = {
+    0xff, 0xff, 0xff, 0xff, 0xf0, 0xfb, 0x00, 0x8f, 0xf0, 0xfb, 0x00, 0x8f
+};
+static const uint8_t argument_checks[] = {
+    0x06, 0x46, 0x89, 0xb0, 0x0c, 0x46, 0x38, 0x68,
+    0x90, 0x46, 0x07, 0x90, 0x1b, 0xb1, 0x1b, 0x68,
+    0x04, 0x2b, 0x40, 0xf0, 0xef, 0x80, 0x00, 0x2e,
+    0x00, 0xf0, 0xb8, 0x80, 0x18, 0xf0, 0x01, 0x05,
+    0x4f, 0xf0, 0x05, 0x03, 0xc0, 0xf2, 0x01, 0x03,
+    0x00, 0xf0, 0xac, 0x80, 0x9e, 0x42, 0x00, 0xf0,
+    0xb2, 0x81, 0x30, 0x46, 0xff, 0xf7, 0x4a, 0xfe,
+    0x00, 0x28, 0xc0, 0xf2, 0x7b, 0x81
+};
+static const uint8_t current_pid[] = {
+    0x09, 0xf0, 0x0a, 0xe9, 0x06, 0x46, 0x43, 0xe7
+};
+static const uint8_t process_open[] = {
+    0x01, 0x22, 0x00, 0x23, 0x08, 0xf0, 0x46, 0xee, 0x05, 0x46, 0x64, 0xe7
+};
+
+#if TLS_FIXER_BROWSER_POST_START
+static const uint8_t start_entry[] = {
+    0x2d, 0xe9, 0xf0, 0x4f, 0x4a, 0xf2, 0x04, 0x06,
+    0x89, 0xb0, 0xc0, 0xf2, 0xae, 0x06
+};
+static const uint8_t start_entry_mask[] = {
+    0xff, 0xff, 0xff, 0xff, 0xf0, 0xfb, 0x00, 0x8f,
+    0xff, 0xff, 0xf0, 0xfb, 0x00, 0x8f
+};
+static const uint8_t start_arguments[] = {
+    0x00, 0x25, 0x07, 0x46, 0x34, 0x68, 0x88, 0x46,
+    0xdd, 0xf8, 0x4c, 0xe0, 0x92, 0x46, 0x05, 0x95,
+    0x99, 0x46, 0x07, 0x94, 0x12, 0x9d, 0x14, 0x9c,
+    0xbe, 0xf1, 0x00, 0x0f, 0x25, 0xd0, 0xde, 0xf8,
+    0x00, 0x30, 0x10, 0x2b, 0x1c, 0xbf
+};
+static const uint8_t start_dispatch[] = {
+    0x0d, 0xf1, 0x14, 0x0e, 0x00, 0x20, 0x4a, 0x46,
+    0x2b, 0x46, 0xcd, 0xe9, 0x00, 0xe0, 0x51, 0x46,
+    0x0b, 0xf1, 0x08, 0x00, 0xff, 0xf7, 0xf9, 0xf8,
+    0x81, 0x46, 0x40, 0x46, 0x08, 0xf0, 0xb6, 0xeb,
+    0x05, 0x9b, 0x01, 0x2b, 0x1c, 0xd0, 0x02, 0x2b,
+    0x15, 0xd0, 0xb9, 0xf1
+};
+#endif
+
+typedef struct HookSignature {
+    size_t offset;
+    const uint8_t *bytes;
+    const uint8_t *mask;
+    size_t size;
+} HookSignature;
+
+static const HookSignature signatures[] = {
+    {TLS_FIXER_MODULEMGR_LOAD_OFFSET, entry, entry_mask, sizeof(entry)},
+    {0x21f8, argument_checks, NULL, sizeof(argument_checks)},
+    {0x2384, current_pid, NULL, sizeof(current_pid)},
+    {0x23f8, process_open, NULL, sizeof(process_open)},
+#if TLS_FIXER_BROWSER_POST_START
+    {TLS_FIXER_MODULEMGR_START_OFFSET, start_entry, start_entry_mask, sizeof(start_entry)},
+    {0x287a, start_arguments, NULL, sizeof(start_arguments)},
+    {0x29b2, start_dispatch, NULL, sizeof(start_dispatch)},
+#endif
+};
+
+int tls_fixer_validate_loader_hook(SceUID module_id) {
+    SceKernelModuleInfo info;
+    if (module_id <= 0) return -1;
+    memset(&info, 0, sizeof(info));
+    info.size = sizeof(info);
+    int result = ksceKernelGetModuleInfo(KERNEL_PID, module_id, &info);
+    if (result < 0) return result;
+    if (info.modid != module_id || info.modattr != 7 ||
+        info.modver[0] != 1 || info.modver[1] != 1 ||
+        memcmp(info.module_name, "SceKernelModulemgr", sizeof("SceKernelModulemgr")) != 0) return -1;
+
+    const SceKernelSegmentInfo *segment = &info.segments[0];
+    uintptr_t base = (uintptr_t)segment->vaddr;
+    if (segment->size != sizeof(*segment) || (segment->perms & 7u) != 5u ||
+        segment->filesz != MODULEMGR_TEXT_SIZE || segment->memsz < segment->filesz ||
+        base == 0 || (base & 3u) != 0 || base > UINTPTR_MAX - segment->memsz) return -1;
+    if ((uintptr_t)info.start_entry != base + MODULEMGR_START_OFFSET) return -1;
+
+    for (size_t i = 0; i < sizeof(signatures) / sizeof(signatures[0]); ++i) {
+        const HookSignature *signature = &signatures[i];
+        if (signature->offset > segment->filesz ||
+            signature->size > segment->filesz - signature->offset) return -1;
+        const volatile uint8_t *code = (const volatile uint8_t *)(base + signature->offset);
+        for (size_t n = 0; n < signature->size; ++n) {
+            uint8_t mask = signature->mask == NULL ? 0xff : signature->mask[n];
+            if (((code[n] ^ signature->bytes[n]) & mask) != 0) return -1;
+        }
+    }
+    return 0;
+}

@@ -1,0 +1,2 @@
+# Preserve bundled certificate bytes without newline conversion.
+misc/certs.cer -text

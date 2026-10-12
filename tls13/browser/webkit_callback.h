@@ -1,0 +1,40 @@
+#ifndef TLS_FIXER_WEBKIT_CALLBACK_H
+#define TLS_FIXER_WEBKIT_CALLBACK_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#define TLS_FIXER_WEBKIT_MODULE_NAME "SceWebKit"
+#define TLS_FIXER_WEBKIT_TEXT_FILESZ ((size_t)0xAF2EBC)
+#define TLS_FIXER_WEBKIT_TEXT_MEMSZ ((size_t)0xAF2EBC)
+/* Original initialized data extent from native module info; the memory dump includes BSS. */
+#define TLS_FIXER_WEBKIT_DATA_FILESZ ((size_t)0xCE34)
+#define TLS_FIXER_WEBKIT_DATA_MEMSZ ((size_t)0x115C0)
+#define TLS_FIXER_WEBKIT_CTX_CALLBACK_OFFSET ((size_t)0x16C7B6)
+#define TLS_FIXER_WEBKIT_REQUEST_VTABLE_OFFSET ((size_t)0xA98084)
+#define TLS_FIXER_WEBKIT_REQUEST_SIZE ((size_t)0x4E0)
+
+enum TlsFixerWebKitCallbackRejectReason {
+    TLS_FIXER_WEBKIT_REJECT_ARGUMENT = 1,
+    TLS_FIXER_WEBKIT_REJECT_MODULE_LOOKUP,
+    TLS_FIXER_WEBKIT_REJECT_MODULE_INFO,
+    TLS_FIXER_WEBKIT_REJECT_MODULE_NAME,
+    TLS_FIXER_WEBKIT_REJECT_SEGMENT_ADDRESS,
+    TLS_FIXER_WEBKIT_REJECT_SEGMENT_GEOMETRY,
+    TLS_FIXER_WEBKIT_REJECT_CALLBACK_ADDRESS,
+    TLS_FIXER_WEBKIT_REJECT_CALLBACK_SIGNATURE,
+    TLS_FIXER_WEBKIT_REJECT_USERDATA_INFO,
+    TLS_FIXER_WEBKIT_REJECT_USERDATA_RANGE,
+    TLS_FIXER_WEBKIT_REJECT_USERDATA_ACCESS,
+    TLS_FIXER_WEBKIT_REJECT_VTABLE_RANGE,
+    TLS_FIXER_WEBKIT_REJECT_VTABLE_VALUE
+};
+
+static const uint8_t tls_fixer_webkit_ctx_callback_signature[] = {
+    0x10, 0xB5, 0x08, 0x1C, 0x11, 0x1C, 0xF1,
+    0xF2, 0xBA, 0xE5, 0x00, 0x20, 0x10, 0xBD
+};
+
+int tls_fixer_webkit_is_default_ctx_callback(const void *callback, const void *userdata);
+
+#endif

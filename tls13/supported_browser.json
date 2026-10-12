@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "module_name": "ScePsp2Compat",
+  "compressed_sha256": "738862133819fc37bc21f714da7ca76c72d73a620afafbe6a940d87dd4e6dc58",
+  "text_filesz": 3798280,
+  "text_memsz": 3798576,
+  "data_filesz": 39976,
+  "data_memsz": 53812,
+  "hooks": [
+    {
+      "name": "connect",
+      "offset": 679630,
+      "bytes": "2de9f04fc7b04df2c024c8f22c14246846940f1cbc008146d9f80000191ccde9",
+      "mask": "xxxxxx????????xxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "close",
+      "offset": 669370,
+      "bytes": "10b5c1eb810400ebc404d4f8700160b1",
+      "mask": "xxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "pending",
+      "offset": 680512,
+      "bytes": "10b5c1eb810100ebc100d0f87001002420b1",
+      "mask": "xxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "timeleft",
+      "offset": 605976,
+      "bytes": "f0b589b04df2c027c8f22c173b6808930023051c",
+      "mask": "xxxx????????xxxxxxxx"
+    },
+    {
+      "name": "socket_wait",
+      "offset": 622210,
+      "bytes": "2de9f04f97b04df2c024c8f22c14246815940d1c",
+      "mask": "xxxxxx????????xxxxxx"
+    },
+    {
+      "name": "check",
+      "offset": 669004,
+      "bytes": "10b582b04df2c024c8f22c142168019100a9d0f87001012260f184f90028",
+      "mask": "xxxx????????xxxxxxxxxxxxxxxxxx"
+    }
+  ],
+  "default_cipher_offset": 3100824,
+  "default_ciphers": "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA256:ECDHE-ECDSA-RC4-SHA:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-RC4-SHA:ECDH-ECDSA-AES256-SHA:ECDH-ECDSA-AES128-SHA:ECDH-ECDSA-DES-CBC3-SHA:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:AES256-SHA256:AES256-SHA:AES128-SHA256:AES128-SHA :DES-CBC3-SHA:RC4-SHA:RC4-MD5:DHE-DSS-DES-CBC3-SHA"
+}

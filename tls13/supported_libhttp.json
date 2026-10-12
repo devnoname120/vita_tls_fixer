@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "module_name": "SceLibHttp",
+  "compressed_sha256": "42bc7e34077964ac7edc4365abad8af9bf41793a34d2c7efd631976f7d2739c1",
+  "text_filesz": 119120,
+  "text_memsz": 119120,
+  "data_filesz": 1444,
+  "data_memsz": 1600,
+  "hooks": [
+    {
+      "name": "create",
+      "offset": 33072,
+      "bytes": "2de9f04188b049f60018c8f20118d8f80020",
+      "mask": "???xxx???????x???x"
+    },
+    {
+      "name": "connect",
+      "offset": 33634,
+      "bytes": "70b5041c06f077fe",
+      "mask": "xxxx???x"
+    },
+    {
+      "name": "map_io",
+      "offset": 34302,
+      "bytes": "70b5041c206c",
+      "mask": "xxxxxx"
+    },
+    {
+      "name": "read",
+      "offset": 34460,
+      "bytes": "2de9f041141c0d1c061c10f084e9071c002f1edb40f2dc50221c824201d940f2dc52306c291c10f086e9",
+      "mask": "???xxxxxxx???xxxxxxx???xxxxxxx???xxxxx???x"
+    },
+    {
+      "name": "write",
+      "offset": 34548,
+      "bytes": "2de9f041141c0d1c061c10f058e9071c002f1edb40f2dc50221c824201d940f2dc52306c291c10f07aea",
+      "mask": "???xxxxxxx???xxxxxxx???xxxxxxx???xxxxx???x"
+    },
+    {
+      "name": "shutdown",
+      "offset": 34636,
+      "bytes": "10b5041c10f02ee9",
+      "mask": "xxxx???x"
+    }
+  ]
+}

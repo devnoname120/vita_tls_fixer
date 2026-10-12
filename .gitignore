@@ -1,0 +1,10 @@
+/.reverse-tmp/
+/build/
+__pycache__/
+
+/*.elf
+/*.velf
+/*.vpk
+/eboot.bin
+/param.sfo
+/*.o
