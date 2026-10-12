@@ -254,6 +254,21 @@ foreach(scenario valid disarm-fail guard-fail init-fail start-install-fail load-
     add_test(NAME tls_fixer_post_start_route_${scenario} COMMAND tls_fixer_post_start_route_tests ${scenario})
 endforeach()
 
+add_executable(tls_fixer_post_start_production_tests test_post_start_production.c ../../../kernel/post_start.c)
+target_include_directories(tls_fixer_post_start_production_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_post_start_production_tests PRIVATE TLS_FIXER_BROWSER_POST_START=1)
+target_compile_options(tls_fixer_post_start_production_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_post_start_production_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_post_start_production COMMAND tls_fixer_post_start_production_tests)
+
+add_executable(tls_fixer_production_context_tests test_production_context.c ../../../kernel/tls13_loader.c)
+target_include_directories(tls_fixer_production_context_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_production_context_tests PRIVATE TLS_FIXER_PREPARE_EXTENDED_STACK=1
+    TLS_FIXER_PREPARE_NAME_QUERY=1)
+target_compile_options(tls_fixer_production_context_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_production_context_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_production_context COMMAND tls_fixer_production_context_tests)
+
 add_executable(tls_fixer_code_snapshot_tests test_code_snapshot.c ../../../kernel/code_snapshot.c)
 target_include_directories(tls_fixer_code_snapshot_tests PRIVATE include ../transport/include ../../../kernel)
 target_compile_definitions(tls_fixer_code_snapshot_tests PRIVATE TLS_FIXER_ENABLE_BOOT_TRACE=1)

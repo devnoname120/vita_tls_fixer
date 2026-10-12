@@ -3,8 +3,8 @@
   "evidence": "compiled guards plus decrypted firmware; not hardware execution",
   "linked_artifacts": {
     "build/kernel/tls_fixer.elf": {
-      "sha256": "b91035e4747512447502133654249c6bbbd8c49dabb29224629849a79e01c5fb",
-      "firmware_imports": 32
+      "sha256": "36af01ca9fbf5044726edbec080a6f2d91e2a2bff902e07595cd045a2d849023",
+      "firmware_imports": 35
     },
     "build/tls13-vita/browser/tls_fixer": {
       "sha256": "e8d1a62d3fa262e9ea4f968ee983cae68375a57765513e9de5fbc30c9f9a2eb8",
@@ -78,7 +78,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -128,7 +128,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -175,7 +175,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -222,7 +222,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -269,7 +269,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -316,7 +316,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -363,7 +363,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -410,7 +410,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -457,7 +457,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -504,7 +504,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -551,7 +551,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -598,7 +598,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -645,7 +645,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -695,7 +695,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -742,7 +742,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -789,7 +789,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -836,7 +836,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -883,7 +883,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -930,7 +930,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -977,7 +977,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1024,7 +1024,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1071,7 +1071,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1121,7 +1121,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1168,7 +1168,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1215,7 +1215,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1262,7 +1262,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1309,7 +1309,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1356,7 +1356,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1403,7 +1403,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1450,7 +1450,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104
@@ -1497,7 +1497,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 32,
+        "build/kernel/tls_fixer.elf": 35,
         "build/tls13-vita/browser/tls_fixer": 44,
         "build/tls13-vita/provider/tls_fixer_http": 42,
         "tls_fixer.elf": 104

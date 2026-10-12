@@ -63,9 +63,6 @@ SceUID ksceIoOpenForPid(SceUID pid, const char *filename, int flags, unsigned in
 _Static_assert(sizeof(tai_module_info_t) == 0x38, "taiHEN ARM32 module-info extent");
 #endif
 #endif
-#if TLS_FIXER_PREPARE_EXTENDED_STACK && !TLS_FIXER_PREPARE_ONLY && !TLS_FIXER_BROWSER_ACTIVATION
-#error "The extended-stack experiment requires preparation-only or explicit browser activation"
-#endif
 #if TLS_FIXER_PREPARE_NO_MODULE_QUERIES && (!TLS_FIXER_PREPARE_ONLY || !TLS_FIXER_PREPARE_EXTENDED_STACK || !TLS_FIXER_ENABLE_BOOT_TRACE)
 #error "Omitting module queries is restricted to traced native-stack preparation diagnostics"
 #endif
@@ -75,8 +72,10 @@ _Static_assert(sizeof(tai_module_info_t) == 0x38, "taiHEN ARM32 module-info exte
 #if TLS_FIXER_PREPARE_LIST_TARGET_ONLY && (!TLS_FIXER_PREPARE_ONLY || !TLS_FIXER_PREPARE_EXTENDED_STACK || !TLS_FIXER_ENABLE_BOOT_TRACE || TLS_FIXER_PREPARE_NO_MODULE_QUERIES || TLS_FIXER_PREPARE_TARGET_QUERY_ONLY)
 #error "List-and-target queries require an exclusive traced native-stack preparation diagnostic"
 #endif
-#if TLS_FIXER_PREPARE_NAME_QUERY && ((!TLS_FIXER_PREPARE_ONLY && !TLS_FIXER_BROWSER_ACTIVATION) || !TLS_FIXER_PREPARE_EXTENDED_STACK || !TLS_FIXER_ENABLE_BOOT_TRACE || TLS_FIXER_PREPARE_NO_MODULE_QUERIES || TLS_FIXER_PREPARE_TARGET_QUERY_ONLY || TLS_FIXER_PREPARE_LIST_TARGET_ONLY)
-#error "Name queries require an exclusive traced native-stack preparation diagnostic"
+#if TLS_FIXER_PREPARE_NAME_QUERY && (!TLS_FIXER_PREPARE_EXTENDED_STACK || \
+    ((TLS_FIXER_PREPARE_ONLY || TLS_FIXER_BROWSER_ACTIVATION) && !TLS_FIXER_ENABLE_BOOT_TRACE) || \
+    TLS_FIXER_PREPARE_NO_MODULE_QUERIES || TLS_FIXER_PREPARE_TARGET_QUERY_ONLY || TLS_FIXER_PREPARE_LIST_TARGET_ONLY)
+#error "Name queries require the native stack and an unambiguous target-query strategy"
 #endif
 #if TLS_FIXER_BROWSER_ACTIVATION && (TLS_FIXER_PREPARE_ONLY || TLS_FIXER_REDIRECTION_ONLY || !TLS_FIXER_PREPARE_NAME_QUERY || !TLS_FIXER_PREPARE_EXTENDED_STACK || !TLS_FIXER_ENABLE_BOOT_TRACE)
 #error "Browser activation requires exclusive traced native-stack name lookup with preparation-only disabled"
@@ -546,8 +545,7 @@ static int inject_target(SceUID pid, SceUID module_id, unsigned int target_index
         goto cleanup;
     }
 
-    if (TLS_FIXER_BROWSER_ACTIVATION &&
-        tls_fixer_boot_trace_event("provider.start.enter", pid, module_id, target_info->modid) < 0) {
+    if (tls_fixer_boot_trace_event("provider.start.enter", pid, module_id, target_info->modid) < 0) {
         memset(&arguments, 0, sizeof(arguments));
         result = -1;
         goto cleanup;
@@ -562,9 +560,8 @@ static int inject_target(SceUID pid, SceUID module_id, unsigned int target_index
         &start_status);
     memset(&arguments, 0, sizeof(arguments));
 
-    if (TLS_FIXER_BROWSER_ACTIVATION &&
-        (tls_fixer_boot_trace_event("provider.start.return", pid, module_id, provider_modid) < 0 ||
-         tls_fixer_boot_trace_event("provider.status", pid, provider_modid, start_status) < 0)) {
+    if (tls_fixer_boot_trace_event("provider.start.return", pid, module_id, provider_modid) < 0 ||
+        tls_fixer_boot_trace_event("provider.status", pid, provider_modid, start_status) < 0) {
         /* A completed user entry may already have published hooks, even if logging fails. */
         result = -1;
         goto cleanup;

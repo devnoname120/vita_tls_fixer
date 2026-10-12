@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 static int mutex_live, locked, create_failure, lock_failure, delete_failure;
-static unsigned int locks, injections, pid_queries;
+static unsigned int locks, injections, pid_queries, http_injections;
 static SceUID expected_pid = 99, expected_module = 88;
 static const char *expected_path = "wb0:/tls_fixer/tls_fixer_startdiag.suprx";
 static const char *fail_stage;
@@ -44,6 +44,13 @@ int tls_fixer_kernel_inject_browser_for_pid(SceUID pid, SceUID module, const cha
     assert(!locked && pid == expected_pid && module == expected_module);
     assert(strcmp(path, expected_path) == 0);
     ++injections;
+    assert(tls_fixer_post_start_complete(pid, module, 0) == 0);
+    return injection_result;
+}
+
+int tls_fixer_kernel_inject_for_pid(SceUID pid, SceUID module) {
+    assert(!locked && pid == expected_pid && module == expected_module);
+    ++http_injections;
     assert(tls_fixer_post_start_complete(pid, module, 0) == 0);
     return injection_result;
 }
@@ -91,7 +98,16 @@ int main(void) {
         assert(tls_fixer_post_start_complete(99, 88, 0) == 0);
     }
     fail_stage = NULL;
+    assert(tls_fixer_post_start_defer_http(99, 88) == 0 && http_injections == 0);
+    assert(tls_fixer_post_start_defer_http(99, 88) == 1);
+    assert(tls_fixer_post_start_defer(99, 88, expected_path) < 0);
+    assert(tls_fixer_post_start_complete(99, 88, -73) == -73 && http_injections == 0);
+    assert(tls_fixer_post_start_defer_http(99, 88) == 0);
+    assert(tls_fixer_post_start_complete(99, 88, 0) == 0 && http_injections == 1);
+    assert(tls_fixer_post_start_complete(99, 88, 0) == 0 && http_injections == 1);
     injection_result = -81;
+    assert(tls_fixer_post_start_defer_http(99, 88) == 0);
+    assert(tls_fixer_post_start_complete(99, 88, 0) == -81 && http_injections == 2);
     assert(tls_fixer_post_start_defer(99, 88, expected_path) == 0);
     assert(tls_fixer_post_start_complete(99, 88, 0) == -81);
     assert(tls_fixer_post_start_defer(0, 88, expected_path) < 0);

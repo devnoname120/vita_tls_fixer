@@ -17,7 +17,9 @@ int taiGetModuleInfoForKernel(SceUID pid, const char *name, tai_module_info_t *i
     int browser = strstr(expected_path, "/" TLS_FIXER_BROWSER_PROVIDER_FILENAME) != NULL;
     assert(strcmp(name, target ? (browser ? "ScePsp2Compat" : "SceLibHttp")
                               : (browser ? "tls_fixer" : "tls_fixer_http")) == 0);
+#if TLS_FIXER_ENABLE_BOOT_TRACE
     assert(strcmp(last_stage, target ? "name.target.enter" : "name.provider.enter") == 0);
+#endif
     if (target) ++name_target_calls;
     else ++name_provider_calls;
     int result = target ? target_name_result : provider_name_result;
@@ -29,6 +31,7 @@ int taiGetModuleInfoForKernel(SceUID pid, const char *name, tai_module_info_t *i
     return 0;
 }
 
+#ifndef TLS_FIXER_NAME_QUERY_FIXTURE_ONLY
 static void assert_clean(void) {
     assert(!query_live && query_allocations == query_frees);
     assert(!workspace_live && allocations == frees && open_descriptors == 0);
@@ -131,3 +134,4 @@ int main(void) {
     puts("name lookup: positive target control, explicit provider absence, duplicate rejection and cleanup PASS");
     return 0;
 }
+#endif

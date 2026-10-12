@@ -52,14 +52,11 @@
 #endif
 #if TLS_FIXER_BROWSER_POST_START
 #include "post_start.h"
-#if !TLS_FIXER_BROWSER_ACTIVATION || !TLS_FIXER_TRACE_MODULE_PATHS
-#error Post-start browser activation requires the queued browser-only profile
-#endif
 #endif
 
 #if TLS_FIXER_TRACE_MODULE_PATHS && (!TLS_FIXER_ENABLE_BOOT_TRACE || \
     (TLS_FIXER_REDIRECTION_ONLY && TLS_FIXER_BROWSER_ACTIVATION) || \
-    (!TLS_FIXER_REDIRECTION_ONLY && !TLS_FIXER_BROWSER_ACTIVATION))
+    (!TLS_FIXER_REDIRECTION_ONLY && !TLS_FIXER_BROWSER_ACTIVATION && !TLS_FIXER_BROWSER_POST_START))
 #error Queued path diagnostics require exclusive redirection-only or browser-only activation
 #endif
 
@@ -178,6 +175,11 @@ static SceUID load_for_pid_patched(
     if (TLS_FIXER_REDIRECTION_ONLY || !trace_ok) goto hook_return;
 
     if (!TLS_FIXER_BROWSER_ACTIVATION && result >= 0 && loads_replacement_libhttp && tls_fixer_kernel_loader_ready()) {
+#if TLS_FIXER_BROWSER_POST_START
+        if (tls_fixer_boot_trace_event("http.defer.enter", target_pid, result, 0) < 0) goto hook_return;
+        int deferred_http = tls_fixer_post_start_defer_http(target_pid, result);
+        (void)tls_fixer_boot_trace_event("http.defer.return", target_pid, result, deferred_http);
+#else
         int print_result;
         if (tls_fixer_boot_trace_event("prepare.enter", target_pid, result, 0) < 0) goto hook_return;
         int inject_result = tls_fixer_kernel_inject_for_pid(target_pid, result);
@@ -197,6 +199,7 @@ static SceUID load_for_pid_patched(
                 result);
         }
         if (tls_fixer_boot_trace_event("print.return", target_pid, result, print_result) < 0) goto hook_return;
+#endif
     }
 
     if (result >= 0 && loads_replacement_browser && tls_fixer_kernel_browser_loader_ready() &&

@@ -19,6 +19,16 @@ ASFLAGS = $(CFLAGS)
 BUILD_DIR ?= build
 VITA_TOOLCHAIN = $(VITASDK)/share/vita.toolchain.cmake
 KERNEL_MODULE = $(BUILD_DIR)/kernel/tls_fixer.skprx
+# A VPK always contains the normal coordinator, even after a diagnostic CMake cache.
+KERNEL_CMAKE_FLAGS = -DTLS_FIXER_SELF_DISARM_ONLY=OFF -DTLS_FIXER_INITIALIZE_ONLY=OFF \
+	-DTLS_FIXER_REDIRECTION_ONLY=OFF -DTLS_FIXER_PREPARE_ONLY=OFF \
+	-DTLS_FIXER_ENABLE_BOOT_TRACE=OFF -DTLS_FIXER_TRACE_MODULE_PATHS=OFF \
+	-DTLS_FIXER_STACK_HEADROOM=OFF -DTLS_FIXER_PREPARE_EXTENDED_STACK=ON \
+	-DTLS_FIXER_PREPARE_NO_MODULE_QUERIES=OFF -DTLS_FIXER_PREPARE_TARGET_QUERY_ONLY=OFF \
+	-DTLS_FIXER_PREPARE_LIST_TARGET_ONLY=OFF -DTLS_FIXER_PREPARE_NAME_QUERY=ON \
+	-DTLS_FIXER_BROWSER_ACTIVATION=OFF -DTLS_FIXER_BROWSER_START_DIAGNOSTICS=OFF \
+	-DTLS_FIXER_INSPECT_CONNECT_PATCH=OFF -DTLS_FIXER_BROWSER_POST_START=ON \
+	-DTLS_FIXER_DISARM_RESULT_ONLY=OFF
 DNS_FIX_MODULE = $(BUILD_DIR)/old_dns_fix/old_dns_fix.suprx
 TLS13_PROVIDER = $(BUILD_DIR)/tls13-vita/provider/tls_fixer_http.suprx
 BROWSER_PROVIDER = $(BUILD_DIR)/tls13-vita/browser/tls_fixer.suprx
@@ -62,8 +72,8 @@ main.o: installer/certificates.h installer/network_vita.h
 installer/certificates.o: installer/certificates.h
 installer/network_vita.o: installer/network_vita.h
 
-$(KERNEL_MODULE): kernel/main.c kernel/self_disarm.c kernel/self_disarm.h kernel/hook_guard.c kernel/hook_guard.h kernel/native_module_api.c kernel/native_module_api.h kernel/tls13_loader.c kernel/tls13_loader.h kernel/tls_fixer.yml kernel/CMakeLists.txt tools/verify_kernel_registers.py tls13/src/path.c tls13/include/tls_fixer/path.h tls13/include/tls_fixer/sony_abi.h tls13/include/tls_fixer/browser_abi.h $(FIRMWARE_PROFILES)
-	cmake -S kernel -B $(BUILD_DIR)/kernel
+$(KERNEL_MODULE): kernel/main.c kernel/self_disarm.c kernel/self_disarm.h kernel/hook_guard.c kernel/hook_guard.h kernel/native_module_api.c kernel/native_module_api.h kernel/tls13_loader.c kernel/tls13_loader.h kernel/post_start.c kernel/post_start.h kernel/tls_fixer.yml kernel/CMakeLists.txt Makefile tools/verify_kernel_registers.py tls13/src/path.c tls13/include/tls_fixer/path.h tls13/include/tls_fixer/sony_abi.h tls13/include/tls_fixer/browser_abi.h $(FIRMWARE_PROFILES)
+	cmake -S kernel -B $(BUILD_DIR)/kernel $(KERNEL_CMAKE_FLAGS)
 	cmake --build $(BUILD_DIR)/kernel --clean-first
 
 $(DNS_FIX_MODULE): old_dns_fix/main.c old_dns_fix/CMakeLists.txt old_dns_fix/exports.yml

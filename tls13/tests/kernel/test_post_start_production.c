@@ -1,0 +1,61 @@
+#define main unused_route_suite
+#include "test_route.c"
+#undef main
+
+static int mutex_live, mutex_locked, native_starts;
+SceUID ksceKernelCreateMutex(const char *name, unsigned int attr, int count, const void *options) {
+    assert(disarm_calls == 1 && disarm_result == 0 && hook_installations == 0);
+    assert(name != NULL && attr == 0 && count == 0 && options == NULL && !mutex_live);
+    mutex_live = 1;
+    return 41;
+}
+int ksceKernelDeleteMutex(SceUID id) {
+    assert(id == 41 && mutex_live && !mutex_locked && installed_start == NULL);
+    mutex_live = 0;
+    return 0;
+}
+int ksceKernelLockMutex(SceUID id, int count, unsigned int *timeout) {
+    assert(id == 41 && mutex_live && !mutex_locked && count == 1 && timeout == NULL);
+    mutex_locked = 1;
+    return 0;
+}
+int ksceKernelUnlockMutex(SceUID id, int count) {
+    assert(id == 41 && mutex_locked && count == 1);
+    mutex_locked = 0;
+    return 0;
+}
+static int original_start(SceUID pid, SceUID module, SceSize size, const void *data,
+    uint32_t flags, const void *options, int *status) {
+    assert(pid == 0 && module == 88 && size == 3 && data == (void *)(uintptr_t)0x12340000);
+    assert(flags == 0x8001 && options == (void *)(uintptr_t)0x56780000 && status != NULL);
+    assert(!mutex_locked && injections == 0);
+    ++native_starts;
+    native_link_finished = 1;
+    *status = 19;
+    return 0;
+}
+int main(void) {
+    reset(); checking_startup = 1;
+    assert(module_start(0, NULL) == SCE_KERNEL_START_SUCCESS);
+    assert(hook_installations == 2 && installed_start != NULL && mutex_live);
+    checking_startup = 0;
+    int options = 4, status = -999;
+    assert(load_for_pid_patched(0,"wb0:/webcore/ScePsp2Compat.suprx",0x8001,&options)==88);
+    assert(injections == 0 && dns_loads == 0);
+    current_pid = 99;
+    assert(installed_start(0,88,3,(void *)(uintptr_t)0x12340000,0x8001,
+        (void *)(uintptr_t)0x56780000,&status)==0);
+    assert(native_starts == 1 && status == 19 && injections == 1 && injected_pid == 99);
+    assert(strcmp(provider_path,"wb0:/tls_fixer/tls_fixer.suprx")==0);
+    /* Both providers remain enabled in the ordinary, non-diagnostic build. */
+    reset();
+    assert(load_for_pid_patched(0,"vs0:sys/external/libhttp.suprx",0,&options)==88);
+    assert(injections == 0);
+    current_pid = 99;
+    assert(installed_start(0,88,3,(void *)(uintptr_t)0x12340000,0x8001,
+        (void *)(uintptr_t)0x56780000,&status)==0);
+    assert(native_starts == 2 && status == 19);
+    assert(injections == 1 && injected_pid == 99);
+    assert(module_stop(0,NULL)==SCE_KERNEL_STOP_FAIL);
+    puts("production post-start: browser deferral, native results and application provider retained PASS");
+}

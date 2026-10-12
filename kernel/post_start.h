@@ -9,6 +9,7 @@
 int tls_fixer_post_start_init(void);
 int tls_fixer_post_start_destroy(void);
 int tls_fixer_post_start_defer(SceUID pid, SceUID module, const char *path);
+int tls_fixer_post_start_defer_http(SceUID pid, SceUID module);
 int tls_fixer_post_start_complete(SceUID pid, SceUID module, int native_result);
 
 #endif

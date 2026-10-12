@@ -55,6 +55,8 @@ It hooks the complete connection driver, pending-data check, keep-alive health c
 Activation is intentionally narrow:
 
 - the kernel plugin hashes each installed replacement module and injects only its matching provider;
+- Browser and HTTP injection wait until native module start/import linking returns successfully; the normal kernel build requires this ordering and rejects early injection;
+- normal provider preparation uses the native 16 KiB stack and target/provider name lookup; VPK builds explicitly clear diagnostic options so a cached experiment cannot change the packaged coordinator;
 - the provider validates the mapped executable/data segment dimensions and masked bytes at every hook site;
 - browser connect interception is installed last and TLS ownership is enabled only after the complete hook set succeeds; on an earlier partially published hook failure, inert forwarding hooks stay resident rather than unloading code another thread might execute;
 - unknown or mismatched modules stay on their original TLS backend; active user providers and the kernel loader reject hot unload and remain until process exit or reboot.
