@@ -13,6 +13,9 @@ typedef struct TlsFixerCertificateBundle {
     int downloaded;
     int download_error;
     long http_status;
+    const char *failure_stage;
+    int failure_errno;
+    unsigned long failure_crypto_error;
 } TlsFixerCertificateBundle;
 
 /* URL is NULL when networking is unavailable. Inputs always come from the VPK. */

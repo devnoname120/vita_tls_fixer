@@ -15,7 +15,7 @@
       "firmware_imports": 42
     },
     "tls_fixer.elf": {
-      "sha256": "c0652a964a25cb735ad7c11d7a73ad8150924130d542a1d6a067a938fd28b821",
+      "sha256": "de23df6718c27bb18854eb0f7072d11c074256587100fc6b4c663fe61f35f3c9",
       "firmware_imports": 104
     }
   },

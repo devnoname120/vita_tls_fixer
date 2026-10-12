@@ -7,6 +7,7 @@
 #include <openssl/x509v3.h>
 
 #include <stdint.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,7 +79,6 @@ static STACK_OF(X509) *parse_bundle(const unsigned char *data, size_t size) {
     return chain;
 failed:
     free_chain(chain);
-    ERR_clear_error();
     return NULL;
 }
 
@@ -144,7 +144,7 @@ static STACK_OF(X509) *fetch_bundle(const char *url, const char *mozilla_path,
     SET(CURLOPT_NETRC, CURL_NETRC_IGNORED);
     SET(CURLOPT_SSL_VERIFYPEER, 1L);
     SET(CURLOPT_SSL_VERIFYHOST, 2L);
-    SET(CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+    SET(CURLOPT_SSLVERSION, (long)CURL_SSLVERSION_TLSv1_2);
     SET(CURLOPT_CAINFO, mozilla_path);
     SET(CURLOPT_CAPATH, NULL);
     SET(CURLOPT_SSL_OPTIONS, 0L);
@@ -196,37 +196,58 @@ int tls_fixer_prepare_certificates(const char *sony_path, const char *mozilla_pa
     STACK_OF(X509) *sony = NULL, *embedded = NULL, *downloaded = NULL, *combined = NULL;
     BIO *output = NULL;
     int result = -1;
+    const char *failure_stage;
+    int failure_errno;
+    unsigned long failure_crypto_error;
     if (bundle == NULL) return -1;
     memset(bundle, 0, sizeof(*bundle));
     if (sony_path == NULL || mozilla_path == NULL || timeout_seconds < 1 || timeout_seconds > 60) return -1;
-    if (read_file(sony_path, &sony_data, &sony_size) != 0 ||
-        read_file(mozilla_path, &mozilla_data, &mozilla_size) != 0) goto done;
+    errno = 0;
+    ERR_clear_error();
+    bundle->failure_stage = "reading embedded Sony certificates";
+    if (read_file(sony_path, &sony_data, &sony_size) != 0) goto done;
+    bundle->failure_stage = "reading embedded Mozilla certificates";
+    if (read_file(mozilla_path, &mozilla_data, &mozilla_size) != 0) goto done;
+    bundle->failure_stage = "parsing embedded Sony certificates";
     sony = parse_bundle(sony_data, sony_size);
+    if (sony == NULL) goto done;
+    bundle->failure_stage = "parsing embedded Mozilla certificates";
     embedded = parse_bundle(mozilla_data, mozilla_size);
-    if (sony == NULL || embedded == NULL) goto done;
+    if (embedded == NULL) goto done;
     bundle->sony_count = (size_t)sk_X509_num(sony);
     downloaded = fetch_bundle(url, mozilla_path, timeout_seconds, embedded, bundle);
     STACK_OF(X509) *selected = downloaded == NULL ? embedded : downloaded;
     bundle->downloaded = downloaded != NULL;
     bundle->mozilla_count = (size_t)sk_X509_num(selected);
+    ERR_clear_error();
+    errno = 0;
+    bundle->failure_stage = "combining certificate identities";
     combined = sk_X509_new_null();
     if (combined == NULL || append_unique(combined, sony) != 0 || append_unique(combined, selected) != 0) goto done;
+    bundle->failure_stage = "creating combined PEM buffer";
     output = BIO_new(BIO_s_mem());
     if (output == NULL || BIO_puts(output, "# tls_fixer: authoritative Sony + curl/Mozilla CA bundle\n") <= 0) goto done;
+    bundle->failure_stage = "encoding combined certificates";
     for (int i = 0; i < sk_X509_num(combined); ++i) {
         if (!PEM_write_bio_X509(output, sk_X509_value(combined, i))) goto done;
     }
     char *bytes = NULL;
+    bundle->failure_stage = "reading combined PEM buffer";
     long size = BIO_get_mem_data(output, &bytes);
     if (size <= 0 || (unsigned long)size > TLS_FIXER_CA_BUNDLE_LIMIT) goto done;
+    bundle->failure_stage = "allocating combined certificate output";
     bundle->data = malloc((size_t)size + 1);
     if (bundle->data == NULL) goto done;
     memcpy(bundle->data, bytes, (size_t)size);
     bundle->data[size] = 0;
     bundle->size = (size_t)size;
     bundle->combined_count = (size_t)sk_X509_num(combined);
+    bundle->failure_stage = NULL;
     result = 0;
 done:
+    failure_stage = bundle->failure_stage;
+    failure_errno = errno;
+    failure_crypto_error = ERR_peek_last_error();
     BIO_free(output);
     free_chain(combined);
     free_chain(downloaded);
@@ -234,7 +255,12 @@ done:
     free_chain(sony);
     free(sony_data);
     free(mozilla_data);
-    if (result != 0) tls_fixer_free_certificates(bundle);
+    if (result != 0) {
+        tls_fixer_free_certificates(bundle);
+        bundle->failure_stage = failure_stage;
+        bundle->failure_errno = failure_errno;
+        bundle->failure_crypto_error = failure_crypto_error;
+    }
     return result;
 }
 

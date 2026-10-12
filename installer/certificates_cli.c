@@ -9,7 +9,12 @@ int main(int argc, char **argv) {
     if (argc != 5 && argc != 6) return 2;
     const char *url = strcmp(argv[3], "offline") == 0 ? NULL : argv[3];
     long timeout = argc == 6 ? strtol(argv[5], NULL, 10) : 30;
-    if (tls_fixer_prepare_certificates(argv[1], argv[2], url, timeout, &bundle) != 0) return 1;
+    if (tls_fixer_prepare_certificates(argv[1], argv[2], url, timeout, &bundle) != 0) {
+        fprintf(stderr, "Certificate preparation failed: %s; errno=%d crypto=0x%08lX\n",
+            bundle.failure_stage != NULL ? bundle.failure_stage : "invalid input",
+            bundle.failure_errno, bundle.failure_crypto_error);
+        return 1;
+    }
     FILE *file = fopen(argv[4], "wb");
     if (file == NULL) { tls_fixer_free_certificates(&bundle); return 1; }
     int result = fwrite(bundle.data, 1, bundle.size, file) == bundle.size ? 0 : 1;

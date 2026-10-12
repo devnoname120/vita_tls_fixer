@@ -572,7 +572,11 @@ static int install_certificates(int requested_state) {
     result = tls_fixer_prepare_certificates("app0:sony-certs.pem", "app0:mozilla-certs.pem",
         online ? TLS_FIXER_CA_UPDATE_URL : NULL, 30, &bundle);
     tls_fixer_installer_network_stop(&network);
-    if (result < 0) return result;
+    if (result < 0) {
+        printf("Certificate preparation failed: %s\n", bundle.failure_stage != NULL ? bundle.failure_stage : "invalid input");
+        printf("errno=%d crypto=0x%08lX\n", bundle.failure_errno, bundle.failure_crypto_error);
+        return result;
+    }
     printf(bundle.downloaded ? "Using downloaded Mozilla certificates.\n" :
         "Download unavailable; using embedded Mozilla certificates.\n");
     printf("Sony: %u, Mozilla: %u, combined: %u certificates.\n",

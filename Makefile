@@ -1,6 +1,9 @@
 TARGET = tls_fixer
 TITLE_ID = TLSF00001
-OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o
+OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o installer/crypto_lock_vita.o
+CRYPTO_LOCK_FUNCTIONS = CRYPTO_THREAD_lock_new CRYPTO_THREAD_read_lock CRYPTO_THREAD_write_lock \
+	CRYPTO_THREAD_unlock CRYPTO_THREAD_lock_free CRYPTO_atomic_add
+CRYPTO_LOCK_LINK_FLAGS = $(foreach function,$(CRYPTO_LOCK_FUNCTIONS),-Wl,--wrap=$(function))
 
 LIBS = $(CURL_LIBRARY) -lssl -lcrypto -lpthread -lz -lzstd -lm \
 	-lSceCtrl_stub -lSceDisplay_stub -lScePower_stub -lSceVshBridge_stub \
@@ -98,8 +101,8 @@ eboot.bin: $(TARGET).velf
 %.velf: %.elf
 	vita-elf-create $< $@
 
-$(TARGET).elf: $(OBJS) $(CURL_LIBRARY)
-	$(CC) $(CFLAGS) $(OBJS) $(LIBS) -o $@
+$(TARGET).elf: $(OBJS) $(CURL_LIBRARY) Makefile
+	$(CC) $(CFLAGS) $(CRYPTO_LOCK_LINK_FLAGS) $(OBJS) $(LIBS) -o $@
 
 %.o: %.png
 	$(PREFIX)-ld -r -b binary -o $@ $^

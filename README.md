@@ -2,7 +2,7 @@
 
 tls_fixer updates the PlayStation Vita HTTPS stack on systems using enso. This development build adds separate TLS 1.2/1.3 providers for applications using Sony's `SceHttp` and for the browser's libcurl backend in the exact bundled `ScePsp2Compat` module. Both use source-built Mbed TLS 4.2.0 and TF-PSA-Crypto 1.2.0.
 
-**Earlier test packages are withdrawn:** a previous test installation caused a boot failure on the primary Vita. The device was recovered, and a later controlled one-shot Browser test verified TLS 1.3 with the boot entry disabled afterward. Renamed builds have been cross-compiled and tested on the host; they have not been installed on the Vita. This result does not establish production readiness or resolve the original boot defect. See `AGENTS.md` and `TLS13_PROGRESS.md` section 23.
+**Earlier test packages are withdrawn:** a previous test installation caused a boot failure on the primary Vita. The device was recovered, and a later controlled one-shot Browser test verified TLS 1.3 with the boot entry disabled afterward. Current kernel/browser firmware profiles remain hardware-unverified. The renamed certificate updater has passed live download and isolated install/refresh checks on retail 3.60. These results do not establish production readiness or resolve the original boot defect. See `AGENTS.md` and `TLS13_PROGRESS.md` section 23.
 
 The experimental kernel now disables its own taiHEN boot entries before other initialization. It does not re-enable them automatically. This is a single-use test safeguard, not permanent production activation or restoration of previously overwritten files.
 
@@ -154,7 +154,7 @@ If networking is unavailable, the transfer fails, or the response is not a compl
 
 The **embedded Sony bundle plus the selected curl/Mozilla bundle are authoritative**. The existing system `CA_LIST.cer` is never an input to this merge or to the download's trust store. It is retained only as the original uninstall backup. Missing or corrupt embedded inputs stop certificate installation rather than importing system roots. `certificate-sources.json` records the packaged snapshot hashes and provenance.
 
-The separate Sony, Mozilla and combined PEM files are shipped inside the VPK. The combined file is also the fixture used by provider trust-store tests; the installer constructs its actual installation bytes from the two authoritative source bundles. The updater has passed live-endpoint and controlled HTTPS tests on the host and cross-compiles into the VPK. Its on-device execution and the installer's persistent-file replacement remain unverified.
+The separate Sony, Mozilla and combined PEM files are shipped inside the VPK. The combined file is also the fixture used by provider trust-store tests; the installer constructs its actual installation bytes from the two authoritative source bundles. The updater has passed live-endpoint and controlled HTTPS tests on the host, plus live HTTPS download, embedded fallback preparation and isolated install/refresh checks on retail 3.60. The Vita installer uses native lightweight mutexes for OpenSSL's opaque locks: VitaSDK's pthread rwlocks exhausted synchronization resources while parsing the complete bundles, producing a misleading malloc failure. The 8 MiB newlib heap is retained. The system CA replacement's existing interruption window remains; the isolated test does not establish crash durability.
 
 ## Third-party software
 
