@@ -110,6 +110,8 @@ On 2026-10-13, the ordinary combined coordinator passed two cold-boot Browser te
 
 See `docs/tls13-hardware-validation.md` for the validation protocol and `TLS13_PROGRESS.md` for the reverse-engineering and implementation record.
 
+An independent [Vita TLS Check sample](samples/scehttp_tls_check/README.md) now exercises public `sceHttp`/`sceHttps` calls against BrowserLeaks and SSL Labs. It has a compact native-font interface, protocol results, server-reported cipher details, and per-request error logs. It links no third-party HTTP/TLS implementation and performs no plugin installation or trust-store changes, so the same VPK can compare the stock stack and installed providers. Native request failures are recorded separately from the successful Browser tests above.
+
 ## Building
 
 Fetch the pinned upstream source archive on the host using authenticated `gh`, then build with the hard-float VitaSDK toolchain. The development container command is:
