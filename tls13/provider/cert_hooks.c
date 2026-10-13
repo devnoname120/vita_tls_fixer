@@ -481,6 +481,8 @@ int tls_fixer_cert_hooks_install(void) {
             TLS_FIXER_SCE_SSL_LIBRARY_NID,
             g_cert_hook_descriptors[index].nid,
             g_cert_hook_descriptors[index].function);
+        TLS_FIXER_LOG("event=hook.install kind=certificate index=%u nid=%08X rc=%08X",
+            (unsigned int)index, g_cert_hook_descriptors[index].nid, hook_id);
         if (hook_id < 0) {
             tls_fixer_cert_hooks_release();
             return hook_id;
@@ -494,6 +496,8 @@ int tls_fixer_cert_hooks_install(void) {
         TLS_FIXER_SCE_HTTP_LIBRARY_NID,
         TLS_FIXER_NID_HTTPS_LOAD_CERT,
         hook_https_load_cert);
+    TLS_FIXER_LOG("event=hook.install kind=load_cert nid=%08X rc=%08X",
+        TLS_FIXER_NID_HTTPS_LOAD_CERT, g_https_load_cert_hook_id);
     if (g_https_load_cert_hook_id < 0) {
         tls_fixer_cert_hooks_release();
         return g_https_load_cert_hook_id;
@@ -505,6 +509,8 @@ int tls_fixer_cert_hooks_install(void) {
         TLS_FIXER_SCE_HTTP_LIBRARY_NID,
         TLS_FIXER_NID_HTTPS_UNLOAD_CERT,
         hook_https_unload_cert);
+    TLS_FIXER_LOG("event=hook.install kind=unload_cert nid=%08X rc=%08X",
+        TLS_FIXER_NID_HTTPS_UNLOAD_CERT, g_https_unload_cert_hook_id);
     if (g_https_unload_cert_hook_id < 0) {
         tls_fixer_cert_hooks_release();
         return g_https_unload_cert_hook_id;

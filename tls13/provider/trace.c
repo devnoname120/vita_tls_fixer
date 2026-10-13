@@ -3,6 +3,7 @@
 #include <psp2/io/fcntl.h>
 #include <psp2/kernel/clib.h>
 #include <psp2/kernel/processmgr.h>
+#include <psp2/kernel/threadmgr/thread.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -19,33 +20,46 @@ void tls_fixer_trace(const char *format, ...) {
     size_t length;
     va_list args;
 
+    if (format == NULL) return;
+
     do {
         if (observed >= TLS_FIXER_TRACE_RECORD_LIMIT) return;
     } while (!__atomic_compare_exchange_n(&records, &observed, observed + 1, 0,
         __ATOMIC_RELAXED, __ATOMIC_RELAXED));
-    if (format == NULL) return;
     pid = sceKernelGetProcessId();
-    prefix = snprintf(line, sizeof(line), "tls_fixer: pid=%08X t=%llu ", (unsigned int)pid,
+    prefix = snprintf(line, sizeof(line), "tls_fixer: component=%s seq=%u pid=%08X tid=%08X t=%llu ",
+        TLS_FIXER_TRACE_COMPONENT, observed, (unsigned int)pid, (unsigned int)sceKernelGetThreadId(),
         (unsigned long long)sceKernelGetSystemTimeWide());
     if (prefix < 0 || (size_t)prefix >= sizeof(line) - 2) return;
-    va_start(args, format);
-    formatted = vsnprintf(line + prefix, sizeof(line) - (size_t)prefix - 1, format, args);
-    va_end(args);
+    if (observed + 1 == TLS_FIXER_TRACE_RECORD_LIMIT) {
+        formatted = snprintf(line + prefix, sizeof(line) - (size_t)prefix - 1,
+            "event=log.limit budget=%u further_records_suppressed=1", TLS_FIXER_TRACE_RECORD_LIMIT);
+    } else {
+        va_start(args, format);
+        formatted = vsnprintf(line + prefix, sizeof(line) - (size_t)prefix - 1, format, args);
+        va_end(args);
+    }
     if (formatted < 0) return;
     length = strlen(line);
     line[length++] = '\n';
     line[length] = '\0';
     (void)sceClibPrintf("%s", line);
-    formatted = snprintf(path, sizeof(path), "ux0:/data/tls_fixer-browser-%08X.log", (unsigned int)pid);
+    formatted = snprintf(path, sizeof(path), "ux0:/data/tls_fixer-%s-%08X.log",
+        TLS_FIXER_TRACE_COMPONENT, (unsigned int)pid);
     if (formatted < 0 || (size_t)formatted >= sizeof(path)) return;
     fd = sceIoOpen(path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0600);
     if (fd < 0) {
         formatted = snprintf(path, sizeof(path),
-            "savedata0:/temp/tls_fixer-browser-%08X.log", (unsigned int)pid);
+            "savedata0:/temp/tls_fixer-%s-%08X.log", TLS_FIXER_TRACE_COMPONENT, (unsigned int)pid);
         if (formatted < 0 || (size_t)formatted >= sizeof(path)) return;
         fd = sceIoOpen(path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0600);
         if (fd < 0) return;
     }
-    (void)sceIoWrite(fd, line, (SceSize)length);
+    size_t sent = 0;
+    while (sent < length) {
+        int written = sceIoWrite(fd, line + sent, (SceSize)(length - sent));
+        if (written <= 0 || (size_t)written > length - sent) break;
+        sent += (size_t)written;
+    }
     (void)sceIoClose(fd);
 }

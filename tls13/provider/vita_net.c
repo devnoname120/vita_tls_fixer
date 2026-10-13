@@ -1,4 +1,5 @@
 #include "transport.h"
+#include "diagnostics.h"
 
 #include <psp2/net/net.h>
 #include <psp2common/net.h>
@@ -27,6 +28,9 @@ int tls_fixer_vita_send(void *context, const unsigned char *buffer, size_t lengt
 
     connection->last_net_error = 0;
     result = sceNetSend(connection->socket, buffer, net_length(length), 0);
+    TLS_FIXER_LOG("event=socket.io direction=send connection=%08X socket=%d requested=%u rc=%08X",
+        (unsigned int)(uintptr_t)connection->sony_connection, connection->socket,
+        net_length(length), result);
     if (result > 0 || (result == 0 && length == 0)) {
         return result;
     }
@@ -58,6 +62,9 @@ int tls_fixer_vita_recv(void *context, unsigned char *buffer, size_t length) {
 
     connection->last_net_error = 0;
     result = sceNetRecv(connection->socket, buffer, net_length(length), 0);
+    TLS_FIXER_LOG("event=socket.io direction=recv connection=%08X socket=%d requested=%u rc=%08X",
+        (unsigned int)(uintptr_t)connection->sony_connection, connection->socket,
+        net_length(length), result);
     if (result >= 0) {
         return result;
     }

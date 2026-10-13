@@ -26,12 +26,12 @@ else()
         set(VITASDK "$ENV{VITASDK}")
     endif()
     include("${VITASDK}/share/vita.cmake" REQUIRED)
-    add_executable(vita_tls_check main.c model.c ui.c font.c font_vita.c)
+    add_executable(vita_tls_check main.c diagnostics.c model.c ui.c font.c font_vita.c)
     target_compile_options(vita_tls_check PRIVATE -Wall -Wextra -Werror -O2)
     target_link_options(vita_tls_check PRIVATE -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/vita_tls_check.map)
     target_link_libraries(vita_tls_check ScePvf_stub SceHttp_stub SceSsl_stub SceNet_stub SceNetCtl_stub
         SceSysmodule_stub SceDisplay_stub SceCtrl_stub SceLibKernel_stub
-        SceKernelThreadMgr_stub SceIofilemgr_stub)
+        SceKernelThreadMgr_stub SceKernelModulemgr_stub SceIofilemgr_stub)
     vita_create_self(vita_tls_check.self vita_tls_check)
     vita_create_vpk(vita_tls_check.vpk TLSCK0001 vita_tls_check.self
         VERSION "01.00" NAME "Vita TLS Check")

@@ -6,6 +6,7 @@ add_executable(tls_fixer_http
     provider.c
     platform_shims.c
     transport.c
+    trace.c
     trust_store.c
     vita_net.c
 )
@@ -18,6 +19,9 @@ target_include_directories(tls_fixer_http PRIVATE
 target_compile_features(tls_fixer_http PRIVATE c_std_11)
 target_compile_definitions(tls_fixer_http PRIVATE
     TLS_FIXER_ENABLE_DEBUG_LOG=$<BOOL:${TLS_FIXER_ENABLE_DEBUG_LOG}>
+    TLS_FIXER_FILE_LOG=1
+    TLS_FIXER_TRACE_COMPONENT="http"
+    TLS_FIXER_TRACE_RECORD_LIMIT=4096
 )
 target_compile_options(tls_fixer_http PRIVATE
     -std=gnu11

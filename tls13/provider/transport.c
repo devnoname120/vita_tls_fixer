@@ -193,6 +193,9 @@ static int store_outcome(
     TlsFixerOutcome outcome,
     uint32_t detail) {
     TlsFixerMappedError mapped = tls_fixer_map_outcome(outcome, detail);
+    TLS_FIXER_LOG("event=error.map connection=%08X state=%d outcome=%d detail=%08X "
+        "sony_rc=%08X ssl=%08X ssl_detail=%08X", (unsigned int)(uintptr_t)connection->sony_connection,
+        connection->state, outcome, detail, mapped.hook_result, mapped.ssl_error, mapped.detail);
 
     if (mapped.ssl_error != 0) {
         tls_fixer_store_ssl_error(
@@ -222,6 +225,9 @@ static int setup_connection(TlsFixerConnection *connection, const char *hostname
     int result;
 
     hostname_length = bounded_string_length(hostname, TLS_FIXER_MAX_HOSTNAME_LENGTH);
+    TLS_FIXER_LOG("event=connection.setup connection=%08X socket=%d hostname_length=%u options=%08X",
+        (unsigned int)(uintptr_t)connection->sony_connection, connection->socket,
+        (unsigned int)hostname_length, connection->https_options);
     if (hostname_length == SIZE_MAX || hostname_length == 0) {
         return -1;
     }
@@ -233,6 +239,7 @@ static int setup_connection(TlsFixerConnection *connection, const char *hostname
     memcpy(connection->hostname, hostname, hostname_length + 1);
 
     connection->mutex = sceKernelCreateMutex("tls_fixer connection", 0, 0, NULL);
+    TLS_FIXER_LOG("event=connection.mutex rc=%08X", connection->mutex);
     if (connection->mutex < 0) {
         return connection->mutex;
     }
@@ -248,6 +255,7 @@ static int setup_connection(TlsFixerConnection *connection, const char *hostname
         MBEDTLS_SSL_IS_CLIENT,
         MBEDTLS_SSL_TRANSPORT_STREAM,
         MBEDTLS_SSL_PRESET_DEFAULT);
+    TLS_FIXER_LOG("event=tls.defaults rc=%08X", result);
     if (result != 0) {
         return result;
     }
@@ -265,10 +273,13 @@ static int setup_connection(TlsFixerConnection *connection, const char *hostname
         NULL);
 
     result = mbedtls_ssl_setup(&connection->ssl, &connection->config);
+    TLS_FIXER_LOG("event=tls.setup rc=%08X min=TLS1.2 max=TLS1.3", result);
     if (result != 0) {
         return result;
     }
     result = mbedtls_ssl_set_hostname(&connection->ssl, connection->hostname);
+    TLS_FIXER_LOG("event=tls.hostname rc=%08X hostname_length=%u", result,
+        (unsigned int)hostname_length);
     if (result != 0) {
         return result;
     }
@@ -296,6 +307,10 @@ static int complete_verification(
         peer_chain,
         verification_detail,
         &accepted);
+    TLS_FIXER_LOG("event=certificate.decision connection=%08X verify=%08X filtered=%08X "
+        "detail=%08X callback_rc=%08X accepted=%d peer_present=%d",
+        (unsigned int)(uintptr_t)connection->sony_connection, verify_flags, provider_flags,
+        verification_detail, result, accepted, peer_chain != NULL);
 
     if (result != 0) {
         connection->state = TLS_FIXER_CONNECTION_FAILED;
@@ -344,6 +359,8 @@ static int acquire_connection(
         &g_tls_fixer_http.registry,
         (uintptr_t)sony_connection,
         handle);
+    TLS_FIXER_LOG("event=registry.acquire connection=%08X rc=%08X",
+        (unsigned int)(uintptr_t)sony_connection, result);
     if (result == TLS_FIXER_REGISTRY_NOT_FOUND || result == TLS_FIXER_REGISTRY_NOT_INITIALIZED) {
         return 0;
     }
@@ -354,6 +371,8 @@ static int acquire_connection(
     *connection = (TlsFixerConnection *)handle->payload;
     /* Reentrant callbacks must neither deadlock nor switch an owned connection to BSAFE. */
     result = sceKernelTryLockMutex((*connection)->mutex, 1);
+    TLS_FIXER_LOG("event=connection.lock connection=%08X rc=%08X",
+        (unsigned int)(uintptr_t)sony_connection, result);
     if (result < 0) {
         tls_fixer_registry_release(&g_tls_fixer_http.registry, handle);
         *connection = NULL;
@@ -400,6 +419,8 @@ int tls_fixer_transport_create(void *request, int socket, int *handled) {
         }
     }
     if (g_tls_fixer_http.state != TLS_FIXER_PROVIDER_ACTIVE) {
+        TLS_FIXER_LOG("event=connection.skip reason=provider_inactive state=%d owned=%d",
+            g_tls_fixer_http.state, already_owned);
         return already_owned ? TLS_FIXER_SCE_HTTP_ERROR_SSL : 0;
     }
     if (tls_fixer_legacy_certificates_loaded()) {
@@ -409,12 +430,16 @@ int tls_fixer_transport_create(void *request, int socket, int *handled) {
 
     sony_connection = tls_fixer_resolve_connection(request);
     if (sony_connection == NULL || socket < 0) {
+        TLS_FIXER_LOG("event=connection.skip reason=invalid_connection connection=%08X socket=%d owned=%d",
+            (unsigned int)(uintptr_t)sony_connection, socket, already_owned);
         return already_owned ? TLS_FIXER_SCE_HTTP_ERROR_SSL : 0;
     }
     hostname = tls_fixer_connection_hostname(sony_connection);
 
     connection = calloc(1, sizeof(*connection));
     if (connection == NULL) {
+        TLS_FIXER_LOG("event=connection.skip reason=allocation_failed bytes=%u owned=%d",
+            (unsigned int)sizeof(*connection), already_owned);
         return already_owned ? TLS_FIXER_SCE_HTTP_ERROR_OUT_OF_MEMORY : 0;
     }
     connection->sony_connection = sony_connection;
@@ -507,7 +532,11 @@ int tls_fixer_transport_connect(void *request, int *handled) {
     }
 
     connection->last_net_error = 0;
+    TLS_FIXER_LOG("event=handshake.enter connection=%08X socket=%d state=%d",
+        (unsigned int)(uintptr_t)sony_connection, connection->socket, connection->state);
     result = mbedtls_ssl_handshake(&connection->ssl);
+    TLS_FIXER_LOG("event=handshake.return connection=%08X tls_rc=%08X net_rc=%08X",
+        (unsigned int)(uintptr_t)sony_connection, result, connection->last_net_error);
     connection->last_tls_error = result;
     if (result == MBEDTLS_ERR_SSL_WANT_READ) {
         mapped_result = store_handshake_wait(

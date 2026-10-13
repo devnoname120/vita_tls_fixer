@@ -445,6 +445,8 @@ static int inject_target(SceUID pid, SceUID module_id, unsigned int target_index
         result = lookup_name(pid, "SceLibc", &workspace->name_info,
             "prereq.libc.enter", "prereq.libc.return");
         if (result != 0 || !named_module_matches(&workspace->name_info, "SceLibc")) {
+            /* Preserve the failed prerequisite rather than collapsing every skip to -1. */
+            (void)tls_fixer_boot_trace_event("prereq.libc.missing", pid, module_id, result);
             if (result >= 0) result = -1;
             goto cleanup;
         }

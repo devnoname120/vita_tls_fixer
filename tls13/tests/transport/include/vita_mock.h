@@ -80,6 +80,8 @@ extern const char *mock_log_file;
 extern const char *mock_savedata_log_file;
 extern int mock_log_primary_failure;
 extern int mock_log_fallback_failure;
+extern unsigned int mock_log_write_chunk;
+extern int mock_log_write_failure;
 extern int mock_send_eagain;
 extern int mock_recv_eagain;
 

@@ -24,6 +24,8 @@ const char *mock_log_file;
 const char *mock_savedata_log_file;
 int mock_log_primary_failure;
 int mock_log_fallback_failure;
+unsigned int mock_log_write_chunk;
+int mock_log_write_failure;
 int mock_send_eagain;
 int mock_recv_eagain;
 
@@ -216,5 +218,9 @@ int sceIoOpen(const char *path, int flags, int mode) {
 }
 int sceIoClose(int fd) { return close(fd); }
 int sceIoRead(int fd, void *buffer, unsigned int size) { return (int)read(fd, buffer, size); }
-int sceIoWrite(int fd, const void *buffer, unsigned int size) { return (int)write(fd, buffer, size); }
+int sceIoWrite(int fd, const void *buffer, unsigned int size) {
+    if (mock_log_write_failure) return -1;
+    if (mock_log_write_chunk && size > mock_log_write_chunk) size = mock_log_write_chunk;
+    return (int)write(fd, buffer, size);
+}
 int64_t sceIoLseek(int fd, int64_t offset, int origin) { return lseek(fd, offset, origin); }

@@ -1,3 +1,4 @@
+#include "diagnostics.h"
 #include "font.h"
 #include "model.h"
 #include "ui.h"
@@ -22,8 +23,10 @@ static CheckService services[2], view, last_view;
 static SceUID guard = -1, worker = -1;
 static int busy, running_service, active_request = -1, cancelled, abort_sent;
 static uint64_t request_begin;
+static unsigned request_identity, next_request_identity, run_identity;
 static char notice[120];
 static void startup_note(const char *stage, int result) {
+    check_diag("event=startup stage=%s rc=%08X", stage, (unsigned)result);
     (void)sceIoMkdir("ux0:/data/vita-tls-check", 0777);
     int fd = sceIoOpen("ux0:/data/vita-tls-check/startup.txt",
                        SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0666);
@@ -54,15 +57,22 @@ static void publish(unsigned row, const CheckResult *r) {
     unlock();
 }
 
-/* Keep request ownership locked across abort/delete, but never across blocking I/O. */
+/* Keep request ownership locked across abort/delete, but never across blocking
+ * I/O. */
 static void abort_current(int user_cancel) {
     lock();
     if (user_cancel)
         cancelled = 1;
-    /* Recheck the current deadline under ownership lock; a new request may have started. */
+    /* Recheck the current deadline under ownership lock; a new request may have
+     * started. */
     if (active_request >= 0 && !abort_sent && (user_cancel || now_ms() - request_begin > 20000)) {
         abort_sent = 1;
-        sceHttpAbortRequest(active_request);
+        check_diag("event=api.enter request=%u handle=%08X "
+                   "call=sceHttpAbortRequest reason=%s",
+                   request_identity, (unsigned)active_request, user_cancel ? "cancel" : "deadline");
+        int abort_result = sceHttpAbortRequest(active_request);
+        check_diag("event=api.return request=%u call=sceHttpAbortRequest rc=%08X", request_identity,
+                   (unsigned)abort_result);
     }
     unlock();
 }
@@ -70,14 +80,21 @@ static int fetch(const char *endpoint, char *body, size_t *length, CheckResult *
     int tmpl = -1, conn = -1, req = -1, rc = 0;
     uint64_t begin = now_ms();
     char url[320];
+    unsigned identity = ++next_request_identity;
     memset(r, 0, sizeof(*r));
     r->state = CHECK_FAIL;
     *length = 0;
     snprintf(url, sizeof(url), "%s%ccheck=%llu", endpoint, strchr(endpoint, '?') ? '&' : '?',
              (unsigned long long)sceKernelGetSystemTimeWide());
+    check_diag("event=request.begin run=%u request=%u service=%s endpoint=%s", run_identity,
+               identity, check_service_name(running_service), endpoint);
 #define REQUIRE(call)                                                                              \
     do {                                                                                           \
+        check_diag("event=api.enter request=%u call=%s", identity, #call);                         \
+        uint64_t call_begin = check_diag_time();                                                   \
         rc = (call);                                                                               \
+        check_diag("event=api.return request=%u rc=%08X elapsed_us=%llu call=%s", identity,        \
+                   (unsigned)rc, (unsigned long long)(check_diag_time() - call_begin), #call);     \
         if (rc < 0)                                                                                \
             goto done;                                                                             \
     } while (0)
@@ -95,6 +112,7 @@ static int fetch(const char *endpoint, char *body, size_t *length, CheckResult *
     REQUIRE(sceHttpAddRequestHeader(req, "Cache-Control", "no-cache", SCE_HTTP_HEADER_OVERWRITE));
     lock();
     active_request = req;
+    request_identity = identity;
     request_begin = now_ms();
     abort_sent = 0;
     int stop = cancelled;
@@ -103,6 +121,7 @@ static int fetch(const char *endpoint, char *body, size_t *length, CheckResult *
         rc = (int)0x80431080;
         goto done;
     }
+    check_diag_sync();
     REQUIRE(sceHttpSendRequest(req, NULL, 0));
     REQUIRE(sceHttpGetStatusCode(req, &r->http_code));
     while (*length < CHECK_BODY_MAX) {
@@ -114,7 +133,13 @@ static int fetch(const char *endpoint, char *body, size_t *length, CheckResult *
             rc = (int)0x80431068;
             goto done;
         }
+        check_diag("event=api.enter request=%u call=sceHttpReadData offset=%u capacity=%u",
+                   identity, (unsigned)*length, (unsigned)(CHECK_BODY_MAX - *length));
+        uint64_t read_begin = check_diag_time();
         int n = sceHttpReadData(req, body + *length, (unsigned)(CHECK_BODY_MAX - *length));
+        check_diag("event=api.return request=%u call=sceHttpReadData rc=%08X "
+                   "elapsed_us=%llu",
+                   identity, (unsigned)n, (unsigned long long)(check_diag_time() - read_begin));
         if (n < 0) {
             rc = n;
             goto done;
@@ -139,11 +164,18 @@ done:
     r->error = rc;
     r->elapsed_ms = (unsigned)(now_ms() - begin);
     if (req >= 0) {
-        if (rc < 0)
-            (void)sceHttpsGetSslError(req, &r->ssl_error, &r->ssl_detail);
+        if (rc < 0) {
+            int ssl_result = sceHttpsGetSslError(req, &r->ssl_error, &r->ssl_detail);
+            check_diag("event=api.return request=%u call=sceHttpsGetSslError rc=%08X "
+                       "ssl=%08X detail=%08X",
+                       identity, (unsigned)ssl_result, (unsigned)r->ssl_error, r->ssl_detail);
+        }
         lock();
         active_request = -1;
         int del = sceHttpDeleteRequest(req);
+        check_diag("event=cleanup request=%u call=sceHttpDeleteRequest handle=%08X "
+                   "rc=%08X",
+                   identity, (unsigned)req, (unsigned)del);
         unlock();
         if (del < 0 && rc >= 0) {
             rc = del;
@@ -153,6 +185,9 @@ done:
     }
     if (conn >= 0) {
         int del = sceHttpDeleteConnection(conn);
+        check_diag("event=cleanup request=%u call=sceHttpDeleteConnection "
+                   "handle=%08X rc=%08X",
+                   identity, (unsigned)conn, (unsigned)del);
         if (del < 0 && rc >= 0) {
             rc = del;
             r->error = del;
@@ -161,6 +196,9 @@ done:
     }
     if (tmpl >= 0) {
         int del = sceHttpDeleteTemplate(tmpl);
+        check_diag("event=cleanup request=%u call=sceHttpDeleteTemplate "
+                   "handle=%08X rc=%08X",
+                   identity, (unsigned)tmpl, (unsigned)del);
         if (del < 0 && rc >= 0) {
             rc = del;
             r->error = del;
@@ -170,6 +208,12 @@ done:
     if (rc < 0 && !r->message[0])
         snprintf(r->message, sizeof(r->message), "%s",
                  check_error_name(rc, r->ssl_error, r->ssl_detail));
+    check_diag("event=request.end run=%u request=%u rc=%08X http=%d ssl=%08X "
+               "detail=%08X "
+               "body_bytes=%u elapsed_ms=%u",
+               run_identity, identity, (unsigned)rc, r->http_code, (unsigned)r->ssl_error,
+               r->ssl_detail, (unsigned)*length, r->elapsed_ms);
+    check_diag_sync();
     return rc;
 #undef REQUIRE
 }
@@ -186,15 +230,17 @@ static void save_report(const CheckService *s, int id) {
         unlock();
         return;
     }
-    fprintf(
-        f,
-        "Vita TLS Check 1.0\nAPI=sceHttp\nservice=%s\nCertificate verification=enabled\nConnection "
-        "reuse=disabled\nRedirects=disabled\nGreen means connected, not a security rating.\n",
-        check_service_name(id));
+    fprintf(f,
+            "Vita TLS Check 1.0\nAPI=sceHttp\nservice=%s\nCertificate "
+            "verification=enabled\nConnection "
+            "reuse=disabled\nRedirects=disabled\nGreen means connected, not a "
+            "security rating.\n",
+            check_service_name(id));
     for (unsigned i = 0; i < 5; ++i) {
         const CheckResult *r = i == 4 ? &s->connection : &s->protocols[i];
         fprintf(f,
-                "\nURL=%s\nstate=%d\nHTTP=%d\nerror=0x%08X\nssl_error=0x%08X\nssl_detail=0x%"
+                "\nURL=%s\nstate=%d\nHTTP=%d\nerror=0x%08X\nssl_error=0x%08X\nssl_"
+                "detail=0x%"
                 "08X\nelapsed_ms=%u\nresult=%s\n",
                 check_endpoint(id, i) ? check_endpoint(id, i) : "not available", r->state,
                 r->http_code, (unsigned)r->error, (unsigned)r->ssl_error, r->ssl_detail,
@@ -229,9 +275,12 @@ static int run_checks(SceSize argc, void *argv) {
     (void)argc;
     (void)argv;
     int id = running_service;
+    check_diag("event=run.begin run=%u service=%s", run_identity, check_service_name(id));
+    check_diag_modules("worker.before-requests");
     char *body = malloc(CHECK_BODY_MAX + 1);
     CheckHandshake *h = calloc(1, sizeof(*h));
     if (!body || !h) {
+        check_diag("event=run.error run=%u reason=allocation_failed", run_identity);
         lock();
         snprintf(notice, sizeof(notice), "Out of memory");
         busy = 0;
@@ -305,6 +354,9 @@ static int run_checks(SceSize argc, void *argv) {
     services[id].complete = 1;
     busy = 0;
     unlock();
+    check_diag_modules("worker.after-requests");
+    check_diag("event=run.end run=%u service=%s", run_identity, check_service_name(id));
+    check_diag_sync();
     return 0;
 }
 static void start_checks(int id) {
@@ -317,6 +369,7 @@ static void start_checks(int id) {
     memset(&services[id], 0, sizeof(services[id]));
     services[id].started = 1;
     running_service = id;
+    ++run_identity;
     busy = 1;
     cancelled = 0;
     notice[0] = 0;
@@ -333,6 +386,7 @@ static void start_checks(int id) {
 }
 
 int main(void) {
+    check_diag_init();
     (void)sceIoRemove("ux0:/data/vita-tls-check/startup.txt");
     startup_note("main.enter", 0);
     int exit_code = 1, net_ready = 0, ctl_ready = 0, ssl_ready = 0, http_ready = 0;
@@ -346,8 +400,10 @@ int main(void) {
     int display_active = 0;
     guard = sceKernelCreateMutex("TLS check state", 0, 0, NULL);
     startup_note("state.mutex", guard);
-    if (guard < 0)
+    if (guard < 0) {
+        check_diag_close();
         return 1;
+    }
     SceKernelAllocMemBlockOpt opt = {0};
     opt.size = sizeof(opt);
     opt.attr = 4;
@@ -381,30 +437,49 @@ int main(void) {
     display_active = 1;
     sceDisplayWaitSetFrameBuf();
     int rc = 0;
+    check_diag_modules("main.before-network-load");
     for (int i = 0; i < 2; ++i) {
+        check_diag("event=api.enter call=sceSysmoduleLoadModule module=%04X", module_ids[i]);
+        check_diag_sync();
+        uint64_t module_begin = check_diag_time();
         rc = sceSysmoduleLoadModule(module_ids[i]);
+        check_diag("event=api.return call=sceSysmoduleLoadModule module=%04X rc=%08X "
+                   "elapsed_us=%llu",
+                   module_ids[i], (unsigned)rc,
+                   (unsigned long long)(check_diag_time() - module_begin));
         if (rc < 0)
             goto init_failed;
         modules[i] = 1;
     }
+    check_diag_modules("main.after-network-load");
     net_memory = malloc(1024 * 1024);
     if (!net_memory) {
         rc = -1;
         goto init_failed;
     }
     SceNetInitParam net = {net_memory, 1024 * 1024, 0};
+    check_diag("event=api.enter call=sceNetInit pool_bytes=1048576");
     rc = sceNetInit(&net);
+    check_diag("event=api.return call=sceNetInit rc=%08X pool_bytes=%u", (unsigned)rc,
+               (unsigned)net.size);
     if (rc < 0)
         goto init_failed;
     net_ready = 1;
+    check_diag("event=api.enter call=sceNetCtlInit");
     rc = sceNetCtlInit();
+    check_diag("event=api.return call=sceNetCtlInit rc=%08X", (unsigned)rc);
     if (rc < 0)
         goto init_failed;
     ctl_ready = 1;
     uint64_t deadline = now_ms() + 10000;
+    int last_net_state = -1;
     for (;;) {
         int state = 0;
         rc = sceNetCtlInetGetState(&state);
+        if (state != last_net_state || rc < 0) {
+            check_diag("event=network.state rc=%08X state=%d", (unsigned)rc, state);
+            last_net_state = state;
+        }
         if (rc < 0)
             goto init_failed;
         if (state == SCE_NETCTL_STATE_CONNECTED)
@@ -415,17 +490,27 @@ int main(void) {
         }
         sceKernelDelayThread(50000);
     }
+    check_diag("event=api.enter call=sceSslInit pool_bytes=1048576");
+    check_diag_sync();
     rc = sceSslInit(1024 * 1024);
+    check_diag("event=api.return call=sceSslInit rc=%08X pool_bytes=1048576", (unsigned)rc);
     if (rc < 0)
         goto init_failed;
     ssl_ready = 1;
+    check_diag("event=api.enter call=sceHttpInit pool_bytes=1048576");
+    check_diag_sync();
     rc = sceHttpInit(1024 * 1024);
+    check_diag("event=api.return call=sceHttpInit rc=%08X pool_bytes=1048576", (unsigned)rc);
     if (rc < 0)
         goto init_failed;
     http_ready = 1;
+    check_diag("event=api.enter call=sceHttpsEnableOption verification=enabled");
     rc = sceHttpsEnableOption(SCE_HTTPS_FLAG_SERVER_VERIFY | SCE_HTTPS_FLAG_CN_CHECK |
                               SCE_HTTPS_FLAG_NOT_AFTER_CHECK | SCE_HTTPS_FLAG_NOT_BEFORE_CHECK |
                               SCE_HTTPS_FLAG_KNOWN_CA_CHECK);
+    check_diag("event=api.return call=sceHttpsEnableOption rc=%08X verification=enabled",
+               (unsigned)rc);
+    check_diag_modules("main.after-http-init");
     if (rc < 0)
         goto init_failed;
     exit_code = 0;
@@ -443,7 +528,8 @@ init_failed:
     if (!exit_code)
         start_checks(selected);
     for (;;) {
-        /* Drain queued samples so a short button press is not lost during font rasterization. */
+        /* Drain queued samples so a short button press is not lost during font
+         * rasterization. */
         SceCtrlData pads[64];
         int pad_count = sceCtrlReadBufferPositive(0, pads, 64);
         unsigned pressed = 0, source_presses = 0, page_presses = 0;
@@ -504,7 +590,8 @@ init_failed:
             last_busy != is_busy || strcmp(last_notice, current_notice) != 0 ||
             memcmp(&last_view, &view, sizeof(view)) != 0) {
             /* One scanout buffer: never clear or draw text into the visible image.
-             * Render a complete CPU canvas, then copy at vblank only when state changes. */
+             * Render a complete CPU canvas, then copy at vblank only when state
+             * changes. */
             check_draw(canvas, &view, selected, page, scroll, is_busy, current_notice);
             sceDisplayWaitVblankStart();
             memcpy(pixels, canvas, CHECK_WIDTH * CHECK_HEIGHT * sizeof(*canvas));
@@ -547,5 +634,6 @@ cleanup:
     } else if (display >= 0)
         sceKernelFreeMemBlock(display);
     sceKernelDeleteMutex(guard);
+    check_diag_close();
     return exit_code;
 }

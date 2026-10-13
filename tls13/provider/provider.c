@@ -113,30 +113,49 @@ static void *next_hook_function(tai_hook_ref_t reference) {
 }
 
 static int hook_create(void *request, int socket) {
+    TLS_FIXER_LOG("event=hook.enter hook=create request=%08X socket=%d state=%d",
+        (unsigned int)(uintptr_t)request, socket, g_tls_fixer_http.state);
     int handled;
     int result = tls_fixer_transport_create(request, socket, &handled);
 
     if (handled) {
+        TLS_FIXER_LOG("event=hook.return hook=create backend=provider request=%08X rc=%08X",
+            (unsigned int)(uintptr_t)request, result);
         return result;
     }
-    return ((TlsFixerCreateContinuation)next_hook_function(
+    TLS_FIXER_LOG("event=fallback hook=create backend=sony request=%08X setup_rc=%08X",
+        (unsigned int)(uintptr_t)request, result);
+    result = ((TlsFixerCreateContinuation)next_hook_function(
         g_tls_fixer_http.hook_refs[HOOK_CREATE]))(request, socket);
+    TLS_FIXER_LOG("event=hook.return hook=create backend=sony request=%08X rc=%08X",
+        (unsigned int)(uintptr_t)request, result);
+    return result;
 }
 
 static int hook_connect(void *request) {
+    TLS_FIXER_LOG("event=hook.enter hook=connect request=%08X", (unsigned int)(uintptr_t)request);
     int handled;
     int result = tls_fixer_transport_connect(request, &handled);
 
     if (handled) {
+        TLS_FIXER_LOG("event=hook.return hook=connect backend=provider request=%08X rc=%08X",
+            (unsigned int)(uintptr_t)request, result);
         return result;
     }
-    return ((TlsFixerConnectContinuation)next_hook_function(
+    TLS_FIXER_LOG("event=fallback hook=connect backend=sony request=%08X",
+        (unsigned int)(uintptr_t)request);
+    result = ((TlsFixerConnectContinuation)next_hook_function(
         g_tls_fixer_http.hook_refs[HOOK_CONNECT]))(request);
+    TLS_FIXER_LOG("event=hook.return hook=connect backend=sony request=%08X rc=%08X",
+        (unsigned int)(uintptr_t)request, result);
+    return result;
 }
 
 static int hook_map_io(void *connection, int result) {
     int handled;
     int mapped = tls_fixer_transport_map_io(connection, result, &handled);
+    TLS_FIXER_LOG("event=hook.map_io connection=%08X input=%08X mapped=%08X owned=%d",
+        (unsigned int)(uintptr_t)connection, result, mapped, handled);
 
     if (handled) {
         return mapped;
@@ -148,6 +167,8 @@ static int hook_map_io(void *connection, int result) {
 static int hook_read(void *connection, void *buffer, unsigned int length) {
     int handled;
     int result = tls_fixer_transport_read(connection, buffer, length, &handled);
+    TLS_FIXER_LOG("event=hook.io direction=read connection=%08X requested=%u rc=%08X owned=%d",
+        (unsigned int)(uintptr_t)connection, length, result, handled);
 
     if (handled) {
         return result;
@@ -159,6 +180,8 @@ static int hook_read(void *connection, void *buffer, unsigned int length) {
 static int hook_write(void *connection, const void *buffer, unsigned int length) {
     int handled;
     int result = tls_fixer_transport_write(connection, buffer, length, &handled);
+    TLS_FIXER_LOG("event=hook.io direction=write connection=%08X requested=%u rc=%08X owned=%d",
+        (unsigned int)(uintptr_t)connection, length, result, handled);
 
     if (handled) {
         return result;
@@ -170,6 +193,8 @@ static int hook_write(void *connection, const void *buffer, unsigned int length)
 static int hook_shutdown(void *connection) {
     int handled;
     int result = tls_fixer_transport_shutdown(connection, &handled);
+    TLS_FIXER_LOG("event=hook.shutdown connection=%08X rc=%08X owned=%d",
+        (unsigned int)(uintptr_t)connection, result, handled);
 
     if (handled) {
         return result;
@@ -228,6 +253,11 @@ int tls_fixer_http_validate_module(
     memset(&info, 0, sizeof(info));
     info.size = sizeof(info);
     result = sceKernelGetModuleInfo(modid, &info);
+    TLS_FIXER_LOG("event=module.info uid=%08X rc=%08X name=%.28s text=%08X file=%u mem=%u "
+        "data=%08X file=%u mem=%u", modid, result, info.module_name,
+        (unsigned int)(uintptr_t)info.segments[0].vaddr, info.segments[0].filesz,
+        info.segments[0].memsz, (unsigned int)(uintptr_t)info.segments[1].vaddr,
+        info.segments[1].filesz, info.segments[1].memsz);
     if (result < 0 || strcmp(info.module_name, "SceLibHttp") != 0) {
         return -1;
     }
@@ -249,6 +279,8 @@ int tls_fixer_http_validate_module(
         &failed_signature,
         &failed_byte);
     if (result != TLS_FIXER_MODULE_GATE_OK) {
+        TLS_FIXER_LOG("event=module.gate rc=%08X failed_signature=%u failed_byte=%u",
+            result, (unsigned int)failed_signature, (unsigned int)failed_byte);
         return result;
     }
 
@@ -277,6 +309,9 @@ int tls_fixer_http_install_hooks(void) {
             descriptor->offset,
             1,
             descriptor->function);
+        TLS_FIXER_LOG("event=hook.install kind=offset index=%u name=%s offset=%08X rc=%08X",
+            (unsigned int)index, g_libhttp_signatures[index].name,
+            (unsigned int)descriptor->offset, hook_id);
         if (hook_id < 0) {
             tls_fixer_http_release_hooks();
             return hook_id;
@@ -305,6 +340,7 @@ void tls_fixer_http_release_hooks(void) {
 int module_start(SceSize argc, const void *args) {
     TlsFixerStartArgs start_args;
     size_t index;
+    TLS_FIXER_LOG("event=module.start argc=%u", (unsigned int)argc);
 
     memset(&g_tls_fixer_http, 0, sizeof(g_tls_fixer_http));
     for (index = 0; index < TLS_FIXER_HOOK_COUNT; ++index) {
@@ -319,6 +355,8 @@ int module_start(SceSize argc, const void *args) {
     }
 
     g_tls_fixer_http.libhttp_modid = start_args.libhttp_modid;
+    TLS_FIXER_LOG("event=start.args target=%08X magic=%08X version=%u",
+        start_args.libhttp_modid, start_args.magic, start_args.version);
     if (tls_fixer_http_validate_module(
             start_args.libhttp_modid,
             &g_tls_fixer_http.text_address,
@@ -333,7 +371,9 @@ int module_start(SceSize argc, const void *args) {
         g_tls_fixer_http.data_address + TLS_FIXER_LIBHTTP_GLOBAL_HTTPS_OPTIONS_OFFSET;
 
     {
+        TLS_FIXER_LOG("event=global.init.enter");
         int result = tls_fixer_transport_global_init();
+        TLS_FIXER_LOG("event=global.init.return rc=%08X", result);
         if (result != 0) {
             TLS_FIXER_LOG("global TLS initialization failed: 0x%08X", result);
             g_tls_fixer_http.state = TLS_FIXER_PROVIDER_STOPPED;
@@ -342,7 +382,9 @@ int module_start(SceSize argc, const void *args) {
     }
 
     {
+        TLS_FIXER_LOG("event=certificate.hooks.enter");
         int result = tls_fixer_cert_hooks_install();
+        TLS_FIXER_LOG("event=certificate.hooks.return rc=%08X", result);
         if (result < 0) {
             TLS_FIXER_LOG("certificate hook installation failed: 0x%08X", result);
             (void)tls_fixer_transport_global_destroy();
@@ -352,7 +394,9 @@ int module_start(SceSize argc, const void *args) {
     }
 
     {
+        TLS_FIXER_LOG("event=transport.hooks.enter");
         int result = tls_fixer_http_install_hooks();
+        TLS_FIXER_LOG("event=transport.hooks.return rc=%08X", result);
         if (result < 0) {
             TLS_FIXER_LOG("transport hook installation failed: 0x%08X", result);
             tls_fixer_cert_hooks_release();

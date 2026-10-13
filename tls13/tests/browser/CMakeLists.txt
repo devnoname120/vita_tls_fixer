@@ -135,8 +135,18 @@ add_executable(tls_fixer_trace_tests test_trace.c ../../provider/trace.c)
 target_include_directories(tls_fixer_trace_tests PRIVATE ../../provider)
 target_link_libraries(tls_fixer_trace_tests PRIVATE tls_fixer_vita_mock)
 target_compile_options(tls_fixer_trace_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-foreach(scenario primary fallback unavailable)
+foreach(scenario primary fallback unavailable short-write write-error)
     add_test(NAME tls_fixer_browser_trace_${scenario} COMMAND tls_fixer_trace_tests ${scenario})
+endforeach()
+
+add_executable(tls_fixer_http_trace_tests test_trace.c ../../provider/trace.c)
+target_include_directories(tls_fixer_http_trace_tests PRIVATE ../../provider)
+target_link_libraries(tls_fixer_http_trace_tests PRIVATE tls_fixer_vita_mock)
+target_compile_definitions(tls_fixer_http_trace_tests PRIVATE
+    TLS_FIXER_TRACE_COMPONENT="http" TLS_FIXER_TRACE_RECORD_LIMIT=4096)
+target_compile_options(tls_fixer_http_trace_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+foreach(scenario primary fallback unavailable short-write write-error)
+    add_test(NAME tls_fixer_http_trace_${scenario} COMMAND tls_fixer_http_trace_tests ${scenario})
 endforeach()
 
 add_executable(tls_fixer_browser_passthrough_tests test_module.c ../../browser/module.c

@@ -6,7 +6,7 @@
 #endif
 
 #if TLS_FIXER_ENABLE_DEBUG_LOG
-#if defined(TLS_FIXER_BROWSER_FILE_LOG)
+#if defined(TLS_FIXER_FILE_LOG) || defined(TLS_FIXER_BROWSER_FILE_LOG)
 #include "trace.h"
 #define TLS_FIXER_LOG(format, ...) tls_fixer_trace(format, ##__VA_ARGS__)
 #else
