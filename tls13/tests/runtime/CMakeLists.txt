@@ -1,0 +1,7 @@
+add_executable(tls_fixer_user_runtime_tests test_runtime.c ../../provider/user_runtime.c)
+target_include_directories(tls_fixer_user_runtime_tests PRIVATE . ../../provider)
+target_compile_definitions(tls_fixer_user_runtime_tests PRIVATE TLS_FIXER_RUNTIME_HOST_TEST=1)
+target_compile_options(tls_fixer_user_runtime_tests PRIVATE -Wall -Wextra -Werror -fno-builtin -UNDEBUG)
+find_package(Threads REQUIRED)
+target_link_libraries(tls_fixer_user_runtime_tests PRIVATE Threads::Threads)
+add_test(NAME tls_fixer_user_runtime COMMAND tls_fixer_user_runtime_tests)

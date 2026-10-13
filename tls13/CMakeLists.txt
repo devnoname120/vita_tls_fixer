@@ -155,6 +155,7 @@ if(TLS_FIXER_BUILD_HOST_TESTS)
     target_compile_options(tls_fixer_browser_path_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
     add_test(NAME tls_fixer_browser_paths COMMAND tls_fixer_browser_path_tests)
     add_subdirectory(tests/kernel)
+    add_subdirectory(tests/runtime)
 endif()
 
 if(TLS_FIXER_BUILD_VITA_PROVIDER OR TLS_FIXER_BUILD_TRANSPORT_TESTS OR TLS_FIXER_BUILD_VITA_PROBE)

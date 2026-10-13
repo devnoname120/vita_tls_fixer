@@ -40,6 +40,8 @@ class KernelPackageProfileTests(unittest.TestCase):
             )
             self.assertIn("cmake -S kernel -B build/kernel", result.stdout)
             self.assertIn("-DTLS_FIXER_BROWSER_POST_START=ON", result.stdout)
+            self.assertIn("-DTLS_FIXER_HTTP_PROVIDER_PATH=vs0:/data/external/tls_fixer/tls_fixer_http.suprx", result.stdout)
+            self.assertIn("-DTLS_FIXER_HTTP_TEST_TITLE_ID=", result.stdout)
             for option in ("REDIRECTION_ONLY", "BROWSER_ACTIVATION", "ENABLE_BOOT_TRACE",
                            "MEMORY_PROBE", "ALLOCATION_PROBE", "SKIP_HTTP_START", "SKIP_DNS_START"):
                 self.assertIn(f"-DTLS_FIXER_{option}=OFF", result.stdout)

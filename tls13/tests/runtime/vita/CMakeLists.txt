@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.16)
+project(tls_fixer_runtime_probe C)
+include("${VITASDK}/share/vita.cmake" REQUIRED)
+add_executable(runtime_probe ../vita_probe.c ../../../provider/user_runtime.c)
+target_include_directories(runtime_probe PRIVATE ../../../provider)
+target_compile_options(runtime_probe PRIVATE -Wall -Wextra -Werror -fno-builtin -O2)
+target_link_options(runtime_probe PRIVATE -Wl,--defsym=__sce_headroom=0x10000)
+target_link_libraries(runtime_probe SceLibKernel_stub SceSysmem_stub SceIofilemgr_stub
+    SceKernelThreadMgr_stub SceKernelModulemgr_stub)
+vita_create_self(runtime_probe.self runtime_probe)

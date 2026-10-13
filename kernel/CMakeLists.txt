@@ -5,6 +5,20 @@ set(CMAKE_C_COMPILER "arm-vita-eabi-gcc")
 set(CMAKE_CXX_COMPILER "arm-vita-eabi-g++")
 
 project(HENkaku)
+set(TLS_FIXER_HTTP_PROVIDER_PATH "vs0:/data/external/tls_fixer/tls_fixer_http.suprx"
+    CACHE STRING "HTTP provider path; diagnostics stage their provider separately")
+set(TLS_FIXER_HTTP_TEST_TITLE_ID "" CACHE STRING "Optional single-title diagnostic HTTP activation")
+if(NOT TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^(vs0|ux0):/[A-Za-z0-9_./-]+$")
+    message(FATAL_ERROR "HTTP provider requires an absolute vs0 or ux0 path")
+endif()
+if(NOT TLS_FIXER_HTTP_TEST_TITLE_ID STREQUAL "")
+    string(LENGTH "${TLS_FIXER_HTTP_TEST_TITLE_ID}" tls_fixer_test_title_length)
+    if(NOT tls_fixer_test_title_length EQUAL 9 OR NOT TLS_FIXER_HTTP_TEST_TITLE_ID MATCHES "^[A-Z0-9]+$")
+        message(FATAL_ERROR "HTTP diagnostic title must be a nine-character title ID")
+    endif()
+elseif(TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^ux0:")
+    message(FATAL_ERROR "A separately staged HTTP provider requires an explicit diagnostic title")
+endif()
 
 option(TLS_FIXER_SELF_DISARM_ONLY "Build a diagnostic with no module redirection or TLS injection" OFF)
 option(TLS_FIXER_INITIALIZE_ONLY "Stop the diagnostic after loader initialization, before installing hooks" OFF)
@@ -123,6 +137,8 @@ add_executable(tls_fixer.elf
 )
 
 target_compile_definitions(tls_fixer.elf PRIVATE
+    TLS_FIXER_HTTP_PROVIDER_PATH="${TLS_FIXER_HTTP_PROVIDER_PATH}"
+    TLS_FIXER_HTTP_TEST_TITLE_ID="${TLS_FIXER_HTTP_TEST_TITLE_ID}"
 	TLS_FIXER_SELF_DISARM_ONLY=$<BOOL:${TLS_FIXER_SELF_DISARM_ONLY}>
 	TLS_FIXER_INITIALIZE_ONLY=$<BOOL:${TLS_FIXER_INITIALIZE_ONLY}>
 	TLS_FIXER_REDIRECTION_ONLY=$<BOOL:${TLS_FIXER_REDIRECTION_ONLY}>

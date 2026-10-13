@@ -8,6 +8,7 @@ add_executable(tls_fixer_http
     transport.c
     trace.c
     trust_store.c
+    user_runtime.c
     vita_net.c
 )
 
@@ -41,6 +42,12 @@ target_link_options(tls_fixer_http PRIVATE
     -Wl,--undefined=module_start
     -Wl,--undefined=module_stop
 )
+set(tls_fixer_runtime_wrappers malloc calloc realloc free memchr memcmp memcpy memmove memset
+    strchr strcmp strlen strstr printf puts snprintf vsnprintf)
+foreach(function ${tls_fixer_runtime_wrappers})
+    target_link_options(tls_fixer_http PRIVATE "-Wl,--wrap=${function}")
+endforeach()
+set_source_files_properties(user_runtime.c PROPERTIES COMPILE_OPTIONS "-fno-builtin")
 
 target_link_libraries(tls_fixer_http PRIVATE
     tls_fixer_core
@@ -48,7 +55,7 @@ target_link_libraries(tls_fixer_http PRIVATE
     mbedx509
     tfpsacrypto
     gcc
-    SceLibc_stub
+    SceSysmem_stub
     SceNet_stub
     SceIofilemgr_stub
     SceRtc_stub
@@ -63,4 +70,11 @@ vita_create_self(
     tls_fixer_http
     CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/tls_fixer_http.yml
     UNSAFE
+)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_custom_target(tls_fixer_http_runtime_check ALL
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/check_http_runtime.py
+        ${CMAKE_CURRENT_BINARY_DIR}/tls_fixer_http.suprx
+    DEPENDS tls_fixer_http.suprx-self
+    VERBATIM
 )

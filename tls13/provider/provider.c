@@ -2,6 +2,7 @@
 #include "cert_hooks.h"
 #include "diagnostics.h"
 #include "transport.h"
+#include "user_runtime.h"
 
 #include <psp2/kernel/modulemgr.h>
 #include <psp2common/kernel/modulemgr.h>
@@ -341,6 +342,10 @@ int module_start(SceSize argc, const void *args) {
     TlsFixerStartArgs start_args;
     size_t index;
     TLS_FIXER_LOG("event=module.start argc=%u", (unsigned int)argc);
+    int runtime_result = tls_fixer_user_runtime_init();
+    TLS_FIXER_LOG("event=runtime.init backend=SceLibKernel rc=%08X heap_bytes=2097152",
+        runtime_result);
+    if (runtime_result < 0) return SCE_KERNEL_START_FAILED;
 
     memset(&g_tls_fixer_http, 0, sizeof(g_tls_fixer_http));
     for (index = 0; index < TLS_FIXER_HOOK_COUNT; ++index) {
@@ -351,6 +356,7 @@ int module_start(SceSize argc, const void *args) {
     if (tls_fixer_http_validate_start_args(argc, args, &start_args) < 0) {
         TLS_FIXER_LOG("invalid start arguments");
         g_tls_fixer_http.state = TLS_FIXER_PROVIDER_STOPPED;
+        (void)tls_fixer_user_runtime_destroy();
         return SCE_KERNEL_START_FAILED;
     }
 
@@ -365,6 +371,7 @@ int module_start(SceSize argc, const void *args) {
             &g_tls_fixer_http.data_size) < 0) {
         TLS_FIXER_LOG("mapped libhttp validation failed: modid=0x%08X", start_args.libhttp_modid);
         g_tls_fixer_http.state = TLS_FIXER_PROVIDER_STOPPED;
+        (void)tls_fixer_user_runtime_destroy();
         return SCE_KERNEL_START_FAILED;
     }
     g_tls_fixer_http.global_https_options_address =
@@ -377,6 +384,7 @@ int module_start(SceSize argc, const void *args) {
         if (result != 0) {
             TLS_FIXER_LOG("global TLS initialization failed: 0x%08X", result);
             g_tls_fixer_http.state = TLS_FIXER_PROVIDER_STOPPED;
+            (void)tls_fixer_user_runtime_destroy();
             return SCE_KERNEL_START_FAILED;
         }
     }
@@ -389,6 +397,7 @@ int module_start(SceSize argc, const void *args) {
             TLS_FIXER_LOG("certificate hook installation failed: 0x%08X", result);
             (void)tls_fixer_transport_global_destroy();
             g_tls_fixer_http.state = TLS_FIXER_PROVIDER_STOPPED;
+            (void)tls_fixer_user_runtime_destroy();
             return SCE_KERNEL_START_FAILED;
         }
     }
@@ -402,6 +411,7 @@ int module_start(SceSize argc, const void *args) {
             tls_fixer_cert_hooks_release();
             (void)tls_fixer_transport_global_destroy();
             g_tls_fixer_http.state = TLS_FIXER_PROVIDER_STOPPED;
+            (void)tls_fixer_user_runtime_destroy();
             return SCE_KERNEL_START_FAILED;
         }
     }
@@ -412,6 +422,10 @@ int module_start(SceSize argc, const void *args) {
         (unsigned int)g_tls_fixer_http.text_address,
         (unsigned int)g_tls_fixer_http.data_address);
     g_tls_fixer_http.state = TLS_FIXER_PROVIDER_ACTIVE;
+    TlsFixerRuntimeStats runtime_stats = {0};
+    (void)tls_fixer_user_runtime_stats(&runtime_stats);
+    TLS_FIXER_LOG("event=runtime.ready capacity=%u used=%u peak=%u allocations=%u",
+        runtime_stats.capacity, runtime_stats.used, runtime_stats.peak, runtime_stats.outstanding);
     return SCE_KERNEL_START_SUCCESS;
 }
 

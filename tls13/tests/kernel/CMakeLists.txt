@@ -289,6 +289,14 @@ target_compile_options(tls_fixer_production_context_tests PRIVATE -Wall -Wextra 
 target_link_libraries(tls_fixer_production_context_tests PRIVATE tls_fixer_core)
 add_test(NAME tls_fixer_production_context COMMAND tls_fixer_production_context_tests)
 
+add_executable(tls_fixer_runtime_scope_tests test_runtime_scope.c ../../../kernel/tls13_loader.c)
+target_include_directories(tls_fixer_runtime_scope_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_runtime_scope_tests PRIVATE TLS_FIXER_PREPARE_EXTENDED_STACK=1
+    TLS_FIXER_PREPARE_NAME_QUERY=1 TLS_FIXER_HTTP_TEST_TITLE_ID="TLSCK0001")
+target_compile_options(tls_fixer_runtime_scope_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_runtime_scope_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_runtime_scope COMMAND tls_fixer_runtime_scope_tests)
+
 add_executable(tls_fixer_dns_isolation_tests test_dns_isolation.c)
 target_include_directories(tls_fixer_dns_isolation_tests PRIVATE include ../transport/include ../../../kernel)
 target_compile_definitions(tls_fixer_dns_isolation_tests PRIVATE TLS_FIXER_SKIP_DNS_START=1)

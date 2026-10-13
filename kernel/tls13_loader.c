@@ -84,7 +84,13 @@ _Static_assert(sizeof(tai_module_info_t) == 0x38, "taiHEN ARM32 module-info exte
 #endif
 
 #define TLS_FIXER_LIBHTTP_PATH "vs0:/data/external/tls_fixer/libhttp.suprx"
-#define TLS_FIXER_PROVIDER_PATH "vs0:/data/external/tls_fixer/tls_fixer_http.suprx"
+#ifndef TLS_FIXER_HTTP_PROVIDER_PATH
+#define TLS_FIXER_HTTP_PROVIDER_PATH "vs0:/data/external/tls_fixer/tls_fixer_http.suprx"
+#endif
+#define TLS_FIXER_PROVIDER_PATH TLS_FIXER_HTTP_PROVIDER_PATH
+#ifndef TLS_FIXER_HTTP_TEST_TITLE_ID
+#define TLS_FIXER_HTTP_TEST_TITLE_ID ""
+#endif
 #define TLS_FIXER_HASH_BUFFER_SIZE UINT32_C(1024)
 #define TLS_FIXER_HASH_WORKSPACE_SIZE UINT32_C(4096)
 #define TLS_FIXER_MAX_PROCESS_MODULES UINT32_C(256)
@@ -439,19 +445,7 @@ static int inject_target(SceUID pid, SceUID module_id, unsigned int target_index
         result = 0;
         goto cleanup;
     }
-#if TLS_FIXER_PREPARE_NAME_QUERY
-    if (!TLS_FIXER_PREPARE_ONLY && target_index == 0) {
-        /* Do not load a provider before its Sony libc dependency is available. */
-        result = lookup_name(pid, "SceLibc", &workspace->name_info,
-            "prereq.libc.enter", "prereq.libc.return");
-        if (result != 0 || !named_module_matches(&workspace->name_info, "SceLibc")) {
-            /* Preserve the failed prerequisite rather than collapsing every skip to -1. */
-            (void)tls_fixer_boot_trace_event("prereq.libc.missing", pid, module_id, result);
-            if (result >= 0) result = -1;
-            goto cleanup;
-        }
-    }
-#endif
+    /* The HTTP provider now owns its sceClib mspace; host SceLibc is not a prerequisite. */
 #endif
 
     result = -1;
@@ -687,6 +681,12 @@ int tls_fixer_kernel_inject_for_pid(SceUID pid, SceUID libhttp_modid) {
         if (memcmp(title_id, "NPXS10003", sizeof("NPXS10003")) == 0 ||
             memcmp(title_id, "NPXS10083", sizeof("NPXS10083")) == 0) {
             (void)tls_fixer_boot_trace_event("http.browser.skipped", pid, libhttp_modid, 0);
+            return 0;
+        }
+        /* A staged diagnostic must not first execute in early system processes. */
+        if (TLS_FIXER_HTTP_TEST_TITLE_ID[0] != '\0' &&
+            strcmp(title_id, TLS_FIXER_HTTP_TEST_TITLE_ID) != 0) {
+            (void)tls_fixer_boot_trace_event("http.test.skipped", pid, libhttp_modid, 0);
             return 0;
         }
     }
