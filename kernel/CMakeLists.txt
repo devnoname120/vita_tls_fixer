@@ -12,6 +12,9 @@ option(TLS_FIXER_REDIRECTION_ONLY "Install module path redirection but do not st
 option(TLS_FIXER_PREPARE_ONLY "Validate provider prerequisites without calling module load/start" OFF)
 option(TLS_FIXER_ENABLE_BOOT_TRACE "Persist bounded synchronized preparation-stage records" OFF)
 option(TLS_FIXER_TRACE_MODULE_PATHS "Queue process-namespace diagnostics for observation or browser-only activation" OFF)
+option(TLS_FIXER_TRACE_ACTIVATION_ONLY "Limit queued diagnostics to provider activation boundaries" OFF)
+option(TLS_FIXER_MEMORY_PROBE "Record primary physical-partition bytes on audited retail 3.60" OFF)
+option(TLS_FIXER_ALLOCATION_PROBE "Capture first physical-page allocation failure on audited retail 3.60" OFF)
 option(TLS_FIXER_STACK_HEADROOM "Measure native current kernel-stack headroom in trace records" OFF)
 option(TLS_FIXER_PREPARE_EXTENDED_STACK "Run preparation diagnostics on a 16 KiB native-managed stack" OFF)
 option(TLS_FIXER_PREPARE_NO_MODULE_QUERIES "Omit module queries only in the native-stack preparation diagnostic" OFF)
@@ -22,6 +25,8 @@ option(TLS_FIXER_BROWSER_ACTIVATION "Activate only browser TLS with traced name 
 option(TLS_FIXER_BROWSER_START_DIAGNOSTICS "Select the separate startup-status diagnostic provider" OFF)
 option(TLS_FIXER_INSPECT_CONNECT_PATCH "Read the connect entry around diagnostic provider startup" OFF)
 option(TLS_FIXER_BROWSER_POST_START "Defer browser injection until native module start returns" ON)
+option(TLS_FIXER_SKIP_DNS_START "Exclude legacy DNS helper startup for controlled isolation" OFF)
+option(TLS_FIXER_SKIP_HTTP_START "Exclude HTTP-provider startup for controlled isolation" OFF)
 option(TLS_FIXER_DISARM_RESULT_ONLY "Report the self-disarm result without later initialization" OFF)
 set(TLS_FIXER_NORMAL_ACTIVATION OFF)
 if(NOT (TLS_FIXER_SELF_DISARM_ONLY OR TLS_FIXER_DISARM_RESULT_ONLY OR TLS_FIXER_INITIALIZE_ONLY
@@ -38,6 +43,15 @@ endif()
 # The same stage recorder can diagnose the normal, combined-provider route.
 if(TLS_FIXER_STACK_HEADROOM AND NOT TLS_FIXER_ENABLE_BOOT_TRACE)
 	message(FATAL_ERROR "Stack-headroom measurements require the diagnostic boot trace")
+endif()
+if(TLS_FIXER_TRACE_ACTIVATION_ONLY AND NOT (TLS_FIXER_ENABLE_BOOT_TRACE AND TLS_FIXER_TRACE_MODULE_PATHS))
+	message(FATAL_ERROR "Activation tracing requires the asynchronous diagnostic recorder")
+endif()
+if(TLS_FIXER_MEMORY_PROBE AND NOT TLS_FIXER_TRACE_ACTIVATION_ONLY)
+	message(FATAL_ERROR "Memory snapshots require sparse asynchronous tracing")
+endif()
+if(TLS_FIXER_ALLOCATION_PROBE AND (NOT TLS_FIXER_TRACE_ACTIVATION_ONLY OR TLS_FIXER_MEMORY_PROBE))
+	message(FATAL_ERROR "Allocation capture requires sparse tracing without the startup memory probe")
 endif()
 if(TLS_FIXER_TRACE_MODULE_PATHS AND NOT
    ((TLS_FIXER_REDIRECTION_ONLY OR TLS_FIXER_BROWSER_ACTIVATION OR TLS_FIXER_NORMAL_ACTIVATION) AND TLS_FIXER_ENABLE_BOOT_TRACE AND TLS_FIXER_STACK_HEADROOM))
@@ -115,6 +129,9 @@ target_compile_definitions(tls_fixer.elf PRIVATE
 	TLS_FIXER_PREPARE_ONLY=$<BOOL:${TLS_FIXER_PREPARE_ONLY}>
 		TLS_FIXER_ENABLE_BOOT_TRACE=$<BOOL:${TLS_FIXER_ENABLE_BOOT_TRACE}>
 		TLS_FIXER_TRACE_MODULE_PATHS=$<BOOL:${TLS_FIXER_TRACE_MODULE_PATHS}>
+	TLS_FIXER_TRACE_ACTIVATION_ONLY=$<BOOL:${TLS_FIXER_TRACE_ACTIVATION_ONLY}>
+	TLS_FIXER_MEMORY_PROBE=$<BOOL:${TLS_FIXER_MEMORY_PROBE}>
+	TLS_FIXER_ALLOCATION_PROBE=$<BOOL:${TLS_FIXER_ALLOCATION_PROBE}>
 	TLS_FIXER_STACK_HEADROOM=$<BOOL:${TLS_FIXER_STACK_HEADROOM}>
 	TLS_FIXER_PREPARE_EXTENDED_STACK=$<BOOL:${TLS_FIXER_PREPARE_EXTENDED_STACK}>
 	TLS_FIXER_PREPARE_NO_MODULE_QUERIES=$<BOOL:${TLS_FIXER_PREPARE_NO_MODULE_QUERIES}>
@@ -125,6 +142,8 @@ target_compile_definitions(tls_fixer.elf PRIVATE
 	TLS_FIXER_BROWSER_START_DIAGNOSTICS=$<BOOL:${TLS_FIXER_BROWSER_START_DIAGNOSTICS}>
 		TLS_FIXER_INSPECT_CONNECT_PATCH=$<BOOL:${TLS_FIXER_INSPECT_CONNECT_PATCH}>
 		TLS_FIXER_BROWSER_POST_START=$<BOOL:${TLS_FIXER_BROWSER_POST_START}>
+	TLS_FIXER_SKIP_DNS_START=$<BOOL:${TLS_FIXER_SKIP_DNS_START}>
+	TLS_FIXER_SKIP_HTTP_START=$<BOOL:${TLS_FIXER_SKIP_HTTP_START}>
 	TLS_FIXER_DISARM_RESULT_ONLY=$<BOOL:${TLS_FIXER_DISARM_RESULT_ONLY}>
 )
 
@@ -137,6 +156,12 @@ if(TLS_FIXER_ENABLE_BOOT_TRACE)
 endif()
 if(TLS_FIXER_STACK_HEADROOM)
 	target_sources(tls_fixer.elf PRIVATE stack_probe.c)
+endif()
+if(TLS_FIXER_MEMORY_PROBE)
+	target_sources(tls_fixer.elf PRIVATE memory_probe.c)
+endif()
+if(TLS_FIXER_ALLOCATION_PROBE)
+	target_sources(tls_fixer.elf PRIVATE allocation_probe.c)
 endif()
 if(TLS_FIXER_TRACE_MODULE_PATHS)
 	target_sources(tls_fixer.elf PRIVATE trace_status.c)
@@ -169,6 +194,7 @@ if(NOT TLS_FIXER_SELF_DISARM_ONLY AND NOT TLS_FIXER_DISARM_RESULT_ONLY)
 		SceModulemgrForDriver_stub
 		SceModulemgrForKernel_stub
 		SceSysrootForDriver_stub
+		SceSysrootForKernel_stub
 		SceKernelUtilsForDriver_stub
 	)
 endif()

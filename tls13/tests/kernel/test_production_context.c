@@ -13,6 +13,7 @@ int main(void) {
     assert(tls_fixer_kernel_loader_init() == 0);
     assert(tls_fixer_kernel_loader_ready() && tls_fixer_kernel_browser_loader_ready());
     scan_error = module_info_error = 1;
+    runtime_namespace_required = 1;
     const char *paths[] = {"vs0:/data/external/tls_fixer/tls_fixer_http.suprx",
         "wb0:/tls_fixer/tls_fixer.suprx"};
     for (unsigned int target = 0; target < 2; ++target) {
@@ -43,6 +44,56 @@ int main(void) {
         stack_skip = 0;
     }
     assert(name_target_calls == 6 && name_provider_calls == 6);
+    assert(namespace_provider_opens == 0 && namespace_hash_opens == 1 && global_provider_stats == 1);
+    assert(libc_queries == 1);
+    expected_path = paths[0];
+    unsigned int before_loads = (unsigned int)loads, before_arguments = argument_allocations;
+    libc_result = NAME_NOT_FOUND;
+    assert(tls_fixer_kernel_inject_for_pid(99, 88) == NAME_NOT_FOUND);
+    assert((unsigned int)loads == before_loads && argument_allocations == before_arguments);
+    clean_context();
+    libc_result = -42;
+    assert(tls_fixer_kernel_inject_for_pid(99, 88) == -42);
+    clean_context();
+    libc_result = 0; wrong_libc_name = 1;
+    assert(tls_fixer_kernel_inject_for_pid(99, 88) < 0);
+    clean_context();
+    wrong_libc_name = 0; libc_uid = 0;
+    assert(tls_fixer_kernel_inject_for_pid(99, 88) < 0);
+    clean_context();
+    libc_uid = 177;
+    assert((unsigned int)loads == before_loads);
+    assert(tls_fixer_kernel_inject_for_pid(99, 88) == 0 && (unsigned int)loads == before_loads + 1);
+    clean_context();
+    reset();
+    assert(tls_fixer_kernel_loader_init() == 0);
+    expected_path = paths[0];
+    before_loads = (unsigned int)loads;
+    unsigned int before_query_allocations = query_allocations, before_stack_calls = stack_calls;
+    const char *browser_titles[] = {"NPXS10003", "NPXS10083"};
+    for (size_t i = 0; i < sizeof(browser_titles) / sizeof(*browser_titles); ++i) {
+        process_title = browser_titles[i];
+        assert(tls_fixer_kernel_inject_for_pid(99, 88) == 0);
+        assert((unsigned int)loads == before_loads && query_allocations == before_query_allocations);
+        assert(process_title_queries == i + 1 && stack_calls == before_stack_calls);
+        clean_context();
+    }
+    process_title_error = -77;
+    assert(tls_fixer_kernel_inject_for_pid(99, 88) == -77);
+    assert((unsigned int)loads == before_loads && query_allocations == before_query_allocations);
+    assert(stack_calls == before_stack_calls);
+    clean_context();
+    /* The process exclusion applies only to HTTP, even with a failed title lookup. */
+    expected_path = paths[1];
+    assert(tls_fixer_kernel_inject_browser_for_pid(99, 88, expected_path) == 0);
+    assert((unsigned int)loads == before_loads + 1 && process_title_queries == 3);
+    clean_context();
+    process_title_error = 0;
+    process_title = "TLSFIXAPP";
+    expected_path = paths[0];
+    assert(tls_fixer_kernel_inject_for_pid(99, 88) == 0);
+    assert((unsigned int)loads == before_loads + 2 && process_title_queries == 4);
+    clean_context();
     reset();
     puts("normal providers: native stack, narrow lookup, duplicate/failure gates and both targets PASS");
     return 0;

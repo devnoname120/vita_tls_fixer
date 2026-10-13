@@ -47,7 +47,7 @@ int main(void) {
         (void *)(uintptr_t)0x56780000,&status)==0);
     assert(native_starts == 1 && status == 19 && injections == 1 && injected_pid == 99);
     assert(strcmp(provider_path,"wb0:/tls_fixer/tls_fixer.suprx")==0);
-    /* Both providers remain enabled in the ordinary, non-diagnostic build. */
+    /* The isolation control suppresses HTTP only; normal packaging retains it. */
     reset();
     assert(load_for_pid_patched(0,"vs0:sys/external/libhttp.suprx",0,&options)==88);
     assert(injections == 0);
@@ -55,7 +55,13 @@ int main(void) {
     assert(installed_start(0,88,3,(void *)(uintptr_t)0x12340000,0x8001,
         (void *)(uintptr_t)0x56780000,&status)==0);
     assert(native_starts == 2 && status == 19);
-    assert(injections == 1 && injected_pid == 99);
+    assert(injections == (TLS_FIXER_SKIP_HTTP_START ? 0 : 1));
+    if (!TLS_FIXER_SKIP_HTTP_START) assert(injected_pid == 99);
+    reset();
+    g_dns_fix_state = 2;
+    assert(load_for_pid_patched(0, "vs0:sys/external/libssl.suprx", 0, NULL) == 88);
+    assert(dns_loads == (TLS_FIXER_SKIP_DNS_START ? 0 : 1));
+    assert(strcmp(selected_path, g_replacement_modules[2]) == 0);
     assert(module_stop(0,NULL)==SCE_KERNEL_STOP_FAIL);
     puts("production post-start: browser deferral, native results and application provider retained PASS");
 }

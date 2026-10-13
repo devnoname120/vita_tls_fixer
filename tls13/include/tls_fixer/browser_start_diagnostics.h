@@ -12,7 +12,7 @@
 #define TLS_FIXER_BROWSER_PROVIDER_BOOT_PATH "ur0:tai/tls_fixer_startdiag.suprx"
 #else
 #define TLS_FIXER_BROWSER_PROVIDER_FILENAME "tls_fixer.suprx"
-#define TLS_FIXER_BROWSER_PROVIDER_BOOT_PATH "vs0:/data/external/tls_fixer/tls_fixer.suprx"
+#define TLS_FIXER_BROWSER_PROVIDER_BOOT_PATH "ur0:tai/tls_fixer.suprx"
 #endif
 
 typedef enum TlsFixerBrowserStartStage {

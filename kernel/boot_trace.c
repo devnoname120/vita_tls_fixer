@@ -112,11 +112,38 @@ static size_t hex32(size_t offset, uint32_t value) {
     return offset;
 }
 
+#if TLS_FIXER_TRACE_ACTIVATION_ONLY
+static int activation_stage(const char *stage, int32_t pid, int32_t object,
+    int32_t result, int include_path) {
+    if (stage == NULL) return 1;
+    if (pid == 0) return 1;
+    if (include_path) return object != 0;
+    if (result < 0) return 1;
+    if (strcmp(stage, "load.return") == 0) return result != 0 || object < 0;
+    return strncmp(stage, "provider.", 9) == 0 ||
+        strncmp(stage, "alloc.", 6) == 0 ||
+        strncmp(stage, "mem.", 4) == 0 ||
+        strncmp(stage, "dns.", 4) == 0 ||
+        strncmp(stage, "http.", 5) == 0 ||
+        strncmp(stage, "browser.defer.", 14) == 0 ||
+        strncmp(stage, "prepare.", 8) == 0 ||
+        strncmp(stage, "prereq.", 7) == 0 ||
+        strcmp(stage, "native.start.return") == 0 ||
+        strcmp(stage, "target.info.return") == 0 ||
+        strcmp(stage, "target.shared.return") == 0 ||
+        strcmp(stage, "hash.return") == 0;
+}
+#endif
+
 static int trace_event(const char *stage, int32_t pid, int32_t object, int32_t result
 #if TLS_FIXER_TRACE_MODULE_PATHS
     , const char *path, uint32_t path_length, int include_path
 #endif
 ) {
+#if TLS_FIXER_TRACE_ACTIVATION_ONLY
+    /* Filter before formatting/queueing; ordinary module traffic must not starve activation records. */
+    if (!activation_stage(stage, pid, object, result, include_path)) return 0;
+#endif
     uint32_t expected = 0, stack = 0;
     uint64_t now;
     uint32_t stack_free = 0;

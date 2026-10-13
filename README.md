@@ -2,7 +2,9 @@
 
 tls_fixer updates the PlayStation Vita HTTPS stack on systems using enso. This development build adds separate TLS 1.2/1.3 providers for applications using Sony's `SceHttp` and for the browser's libcurl backend in the exact bundled `ScePsp2Compat` module. Both use source-built Mbed TLS 4.2.0 and TF-PSA-Crypto 1.2.0.
 
-**Earlier test packages are withdrawn:** a previous test installation caused a boot failure on the primary Vita. The device was recovered, and a later controlled one-shot Browser test verified TLS 1.3 with the boot entry disabled afterward. Current kernel/browser firmware profiles remain hardware-unverified. The renamed certificate updater has passed live download and isolated install/refresh checks on retail 3.60. These results do not establish production readiness or resolve the original boot defect. See `AGENTS.md` and `TLS13_PROGRESS.md` section 23.
+**Current test status (2026-10-13):** the normal combined coordinator reached Cloudflare Browser TLS 1.3 on retail 3.60 in two separate cold boots, including a repeat with the kernel extracted from the rebuilt VPK. Both tests started Browser before any screen capture or other app; native screenshots taken afterward independently show TLS 1.3/X25519. The same kernel failed in earlier capture-assisted runs. A diagnostic recorded a 32 KiB allocation request with only 16 KiB free in the kernel physical-memory partition; the exact cause of the differing outcomes remains unproven. Treat this as a one-shot testing build, not a generally validated release.
+
+**Earlier test packages are withdrawn:** a previous test installation caused a boot failure on the primary Vita. The device was recovered, and a later controlled one-shot Browser test verified TLS 1.3 with the boot entry disabled afterward. Only the retail 3.60 profile has current device execution evidence; other hardware profiles remain unverified on devices. The renamed certificate updater has passed live download and isolated install/refresh checks on retail 3.60. These results do not establish production readiness or resolve the original boot defect. See `AGENTS.md` and `TLS13_PROGRESS.md` section 23.
 
 The experimental kernel now disables its own taiHEN boot entries before other initialization. It does not re-enable them automatically. This is a single-use test safeguard, not permanent production activation or restoration of previously overwritten files.
 
@@ -55,8 +57,11 @@ It hooks the complete connection driver, pending-data check, keep-alive health c
 Activation is intentionally narrow:
 
 - the kernel plugin hashes each installed replacement module and injects only its matching provider;
+- generic HTTP injection excludes the Browser controller (`NPXS10003`) and WebKit helper (`NPXS10083`) before allocating its preparation stack; page TLS uses the dedicated Browser provider;
 - Browser and HTTP injection wait until native module start/import linking returns successfully; the normal kernel build requires this ordering and rejects early injection;
-- normal provider preparation uses the native 16 KiB stack and target/provider name lookup; VPK builds explicitly clear diagnostic options so a cached experiment cannot change the packaged coordinator;
+- normal provider preparation uses the native 16 KiB stack and target/provider name lookup; every VPK build reconfigures the normal kernel profile, even when a newer diagnostic artifact is cached;
+- HTTP-provider loading requires its Sony `SceLibc` dependency to be present; failure leaves the native backend available;
+- the Browser provider is installed at `ur0:tai/tls_fixer.suprx` and loaded globally into its target process; the compatibility checksum still uses the Browser's private mount;
 - the provider validates the mapped executable/data segment dimensions and masked bytes at every hook site;
 - browser connect interception is installed last and TLS ownership is enabled only after the complete hook set succeeds; on an earlier partially published hook failure, inert forwarding hooks stay resident rather than unloading code another thread might execute;
 - unknown or mismatched modules stay on their original TLS backend; active user providers and the kernel loader reject hot unload and remain until process exit or reboot.
@@ -65,7 +70,7 @@ The kernel translates its internal module GUID to the target process's PUID befo
 
 ## Compatibility policy
 
-Firmware profiles cover the 31 retail/testkit/devkit combinations available in the supplied external 3.60-3.74 corpus. Compiled kernel/WebKit guards and linked firmware imports pass against those images. Five kit images are unavailable; current profile changes have not been executed on hardware. See [the firmware matrix](docs/tls13-firmware-support.md) for precise coverage and evidence limits. Loaded module identities select profiles, independently of version spoofing.
+Firmware profiles cover the 31 retail/testkit/devkit combinations available in the supplied external 3.60-3.74 corpus. Compiled kernel/WebKit guards and linked firmware imports pass against those images. Five kit images are unavailable; only the retail 3.60 profile has been exercised on hardware. See [the firmware matrix](docs/tls13-firmware-support.md) for precise coverage and evidence limits. Loaded module identities select profiles, independently of version spoofing.
 
 The first implementation supports client-side TLS 1.2 and TLS 1.3 through the bundled `libhttp` HTTPS path. It is not a general TLS 1.3 replacement for every Vita `SceSsl` consumer.
 
@@ -100,6 +105,8 @@ Validation is separated into native execution, cross-compilation, and device exe
 Browser-specific tests also cover blocking cancellation from another thread, independent peer/hostname policy, expired certificates, custom/missing CA files, socket slot 1, pre-wire native fallback, module activation failures, process-visible module IDs, mount-preserving paths, kernel load recursion and bounded diagnostics.
 
 The source cross-builds with hard-float VitaSDK GCC 15.2. Full build commands and artifact identities are recorded in `TLS13_PROGRESS.md`. On 2026-10-12, one controlled primary 3.60 Vita Browser test rendered the specified Cloudflare trace page with **TLS 1.3 and X25519**, correlated with successful provider startup, a completed verified handshake and application data in the runtime trace. The self-disarming test entry remained disabled afterward; this is one-shot acceptance, not a production deployment or proof that the original boot defect is resolved. Broader firmware, memory, abort/proxy and lifecycle coverage remains unverified. See `TLS13_PROGRESS.md` section 23.275 and `build/browser-tls13-acceptance-20261012.json` for the exact evidence, `docs/tls13-browser-path.md` for the recovered boundary, and `docs/tls13-browser-test.md` for the hardware protocol.
+
+On 2026-10-13, the ordinary combined coordinator passed two cold-boot Browser tests with HTTP and DNS enabled and diagnostics disabled. Both results were confirmed by native screenshots after the user reported success; neither boot used pre-launch capture or app warmup. The second kernel was extracted from the rebuilt VPK, and each boot disabled its own next-boot entry. These tests qualify Browser execution with the full coordinator present; they do not independently exercise another application's `SceHttp` requests or the latest installer's system-file writes. The current source passes 342 normal and 342 sanitizer-enabled host cases, 114 Python cases with two skips, and compiled compatibility checks for all 31 available firmware/hardware images (five images unavailable). See `TLS13_PROGRESS.md` sections 23.312-23.314 for artifacts and unresolved capture-assisted failures.
 
 See `docs/tls13-hardware-validation.md` for the validation protocol and `TLS13_PROGRESS.md` for the reverse-engineering and implementation record.
 

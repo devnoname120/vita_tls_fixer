@@ -112,8 +112,8 @@ int main(void) {
     }
     reenter = 0;
     assert(argument_allocations == 80 && argument_copies == 80);
-    assert(namespace_provider_opens == (TLS_FIXER_BROWSER_START_DIAGNOSTICS ? 0u : 80u));
-    assert(global_provider_stats == (TLS_FIXER_BROWSER_START_DIAGNOSTICS ? 80u : 0u));
+    assert(namespace_provider_opens == 0);
+    assert(global_provider_stats == 80u);
     assert(namespace_hash_opens == 80);
 #if TLS_FIXER_INSPECT_CONNECT_PATCH
     assert(snapshot_calls == 320 && provider_info_queries == 80);
@@ -181,9 +181,6 @@ int main(void) {
         clean();
     }
     int *namespace_failures[] = {&namespace_provider_error,
-#if !TLS_FIXER_BROWSER_START_DIAGNOSTICS
-        &namespace_stat_error, &namespace_close_error,
-#endif
         &namespace_hash_error, &corrupt_browser};
     for (size_t i = 0; i < sizeof(namespace_failures) / sizeof(namespace_failures[0]); ++i) {
         *namespace_failures[i] = 1;

@@ -3,20 +3,8 @@
   "evidence": "compiled guards plus decrypted firmware; not hardware execution",
   "linked_artifacts": {
     "build/kernel/tls_fixer.elf": {
-      "sha256": "36af01ca9fbf5044726edbec080a6f2d91e2a2bff902e07595cd045a2d849023",
+      "sha256": "b4e039a254341a9775395825772012374bb123d96f34c6c8a5d9bf33149b5a56",
       "firmware_imports": 35
-    },
-    "build/tls13-vita/browser/tls_fixer": {
-      "sha256": "e8d1a62d3fa262e9ea4f968ee983cae68375a57765513e9de5fbc30c9f9a2eb8",
-      "firmware_imports": 44
-    },
-    "build/tls13-vita/provider/tls_fixer_http": {
-      "sha256": "e452affe37cc5161ba333b5f5d69801f710746a631b0b46da6d7a61524a627c9",
-      "firmware_imports": 42
-    },
-    "tls_fixer.elf": {
-      "sha256": "de23df6718c27bb18854eb0f7072d11c074256587100fc6b4c663fe61f35f3c9",
-      "firmware_imports": 104
     }
   },
   "bundled_modules": {
@@ -43,7 +31,7 @@
   },
   "verified": [
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.60",
       "device_tested": false,
       "kernel_guard": true,
@@ -78,10 +66,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -93,7 +78,7 @@
       "dns_helper_hook_import": "e8f15cde:aeb3307e"
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.61",
       "device_tested": false,
       "kernel_guard": true,
@@ -128,10 +113,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -140,7 +122,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.63",
       "device_tested": false,
       "kernel_guard": true,
@@ -175,10 +157,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -187,7 +166,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.65",
       "device_tested": false,
       "kernel_guard": true,
@@ -222,10 +201,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -234,7 +210,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.67",
       "device_tested": false,
       "kernel_guard": true,
@@ -269,10 +245,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -281,7 +254,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.68",
       "device_tested": false,
       "kernel_guard": true,
@@ -316,10 +289,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -328,7 +298,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.69",
       "device_tested": false,
       "kernel_guard": true,
@@ -363,10 +333,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -375,7 +342,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.70",
       "device_tested": false,
       "kernel_guard": true,
@@ -410,10 +377,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -422,7 +386,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.71",
       "device_tested": false,
       "kernel_guard": true,
@@ -457,10 +421,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -469,7 +430,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.72",
       "device_tested": false,
       "kernel_guard": true,
@@ -504,10 +465,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -516,7 +474,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.73",
       "device_tested": false,
       "kernel_guard": true,
@@ -551,10 +509,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -563,7 +518,7 @@
       }
     },
     {
-      "hardware": "retail",
+      "hardware": "official",
       "firmware": "3.74",
       "device_tested": false,
       "kernel_guard": true,
@@ -598,10 +553,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -645,10 +597,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -695,10 +644,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -742,10 +688,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -789,10 +732,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -836,10 +776,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -883,10 +820,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -930,10 +864,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -977,10 +908,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1024,10 +952,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1071,10 +996,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1121,10 +1043,7 @@
         "c445fa63:99890202"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1168,10 +1087,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1215,10 +1131,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1262,10 +1175,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1309,10 +1219,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1356,10 +1263,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1403,10 +1307,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1450,10 +1351,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,
@@ -1497,10 +1395,7 @@
         "92c9ffc2:f1de6949"
       ],
       "imports_verified": {
-        "build/kernel/tls_fixer.elf": 35,
-        "build/tls13-vita/browser/tls_fixer": 44,
-        "build/tls13-vita/provider/tls_fixer_http": 42,
-        "tls_fixer.elf": 104
+        "build/kernel/tls_fixer.elf": 35
       },
       "replacement_dependencies_verified": {
         "SceLibHttp": 148,

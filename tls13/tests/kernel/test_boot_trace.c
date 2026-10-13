@@ -140,6 +140,40 @@ int main(int argc, char **argv) {
 #endif
     assert(tls_fixer_boot_trace_open() < 0);
 #if TLS_FIXER_TRACE_MODULE_PATHS
+    if (strcmp(scenario, "activation-filter") == 0) {
+        TlsFixerTraceStatus observed;
+        unsigned int prior_writes = writes, prior_syncs = syncs;
+        assert(tls_fixer_boot_trace_enable_async() == 0);
+        deny_producer_write = 1;
+        for (unsigned int i = 0; i < 1000; ++i) {
+            assert(tls_fixer_boot_trace_event("hash.read.return", 99, 88, 1024) == 0);
+            assert(tls_fixer_boot_trace_path("load.enter", 99, 0, 0x1000, "vs0:/ordinary.suprx") == 0);
+            assert(tls_fixer_boot_trace_event("load.return", 99, 88, 0) == 0);
+        }
+        const char *stages[] = {"http.defer.return", "http.title.return", "http.browser.skipped",
+            "browser.defer.return", "native.start.return", "prepare.enter", "prereq.libc.return",
+            "hash.return", "target.info.return", "provider.start.enter", "provider.start.return",
+            "provider.status", "prepare.return", "dns.start.enter", "dns.start.return",
+            "mem.stack.before", "mem.stack.after", "mem.idle",
+            "alloc.request", "alloc.flags", "alloc.free"};
+        const unsigned int selected_records = (unsigned int)(sizeof(stages) / sizeof(*stages)) + 4;
+        for (size_t i = 0; i < sizeof(stages) / sizeof(*stages); ++i)
+            assert(tls_fixer_boot_trace_event(stages[i], 99, 88, 0) == 0);
+        assert(tls_fixer_boot_trace_event("args.copy.return", 99, 88, -77) == 0);
+        assert(tls_fixer_boot_trace_path("load.enter", 99, 3, 0x1000, "wb0:/webcore/ScePsp2Compat.suprx") == 0);
+        assert(tls_fixer_boot_trace_event("load.return", 99, 88, 3) == 0);
+        assert(writes == prior_writes && syncs == prior_syncs);
+        tls_fixer_trace_status_snapshot(&observed);
+        assert(observed.error == 0 && observed.operation == 0 && observed.attempts == selected_records);
+        deny_producer_write = 0;
+        assert(tls_fixer_boot_trace_drain() == 0);
+        assert(strstr(disk, "hash.read.return") == NULL && strstr(disk, "ordinary") == NULL);
+        for (size_t i = 0; i < sizeof(stages) / sizeof(*stages); ++i)
+            assert(strstr(disk, stages[i]) != NULL);
+        assert(strstr(disk, "args.copy.return") != NULL && syncs == selected_records);
+        assert(tls_fixer_boot_trace_close() == 0);
+        return 0;
+    }
     if (strcmp(scenario, "async-concurrent") == 0) {
         pthread_t consumer;
         TlsFixerTraceStatus observed;

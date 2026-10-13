@@ -85,6 +85,18 @@ foreach(scenario path-valid path-encoded path-null path-empty path-long path-unb
 endforeach()
 
 add_executable(tls_fixer_boot_trace_tests test_boot_trace.c ../../../kernel/boot_trace.c)
+add_executable(tls_fixer_activation_trace_tests test_boot_trace.c ../../../kernel/boot_trace.c)
+target_include_directories(tls_fixer_activation_trace_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_activation_trace_tests PRIVATE TLS_FIXER_ENABLE_BOOT_TRACE=1
+    TLS_FIXER_TRACE_MODULE_PATHS=1 TLS_FIXER_TRACE_ACTIVATION_ONLY=1)
+target_compile_options(tls_fixer_activation_trace_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+add_test(NAME tls_fixer_activation_trace COMMAND tls_fixer_activation_trace_tests activation-filter)
+add_executable(tls_fixer_memory_probe_tests test_memory_probe.c ../../../kernel/memory_probe.c)
+target_include_directories(tls_fixer_memory_probe_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_memory_probe_tests PRIVATE TLS_FIXER_ENABLE_BOOT_TRACE=1
+    TLS_FIXER_TRACE_MODULE_PATHS=1 TLS_FIXER_TRACE_ACTIVATION_ONLY=1 TLS_FIXER_MEMORY_PROBE=1)
+target_compile_options(tls_fixer_memory_probe_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+add_test(NAME tls_fixer_memory_probe COMMAND tls_fixer_memory_probe_tests)
 target_include_directories(tls_fixer_boot_trace_tests PRIVATE include ../transport/include ../../../kernel)
 target_compile_definitions(tls_fixer_boot_trace_tests PRIVATE TLS_FIXER_ENABLE_BOOT_TRACE=1)
 target_compile_options(tls_fixer_boot_trace_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
@@ -261,6 +273,14 @@ target_compile_options(tls_fixer_post_start_production_tests PRIVATE -Wall -Wext
 target_link_libraries(tls_fixer_post_start_production_tests PRIVATE tls_fixer_core)
 add_test(NAME tls_fixer_post_start_production COMMAND tls_fixer_post_start_production_tests)
 
+add_executable(tls_fixer_untraced_browser_control_tests test_post_start_production.c ../../../kernel/post_start.c)
+target_include_directories(tls_fixer_untraced_browser_control_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_untraced_browser_control_tests PRIVATE TLS_FIXER_BROWSER_POST_START=1
+    TLS_FIXER_SKIP_HTTP_START=1 TLS_FIXER_SKIP_DNS_START=1)
+target_compile_options(tls_fixer_untraced_browser_control_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_untraced_browser_control_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_untraced_browser_control COMMAND tls_fixer_untraced_browser_control_tests)
+
 add_executable(tls_fixer_production_context_tests test_production_context.c ../../../kernel/tls13_loader.c)
 target_include_directories(tls_fixer_production_context_tests PRIVATE include ../transport/include ../../../kernel)
 target_compile_definitions(tls_fixer_production_context_tests PRIVATE TLS_FIXER_PREPARE_EXTENDED_STACK=1
@@ -268,6 +288,30 @@ target_compile_definitions(tls_fixer_production_context_tests PRIVATE TLS_FIXER_
 target_compile_options(tls_fixer_production_context_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 target_link_libraries(tls_fixer_production_context_tests PRIVATE tls_fixer_core)
 add_test(NAME tls_fixer_production_context COMMAND tls_fixer_production_context_tests)
+
+add_executable(tls_fixer_dns_isolation_tests test_dns_isolation.c)
+target_include_directories(tls_fixer_dns_isolation_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_dns_isolation_tests PRIVATE TLS_FIXER_SKIP_DNS_START=1)
+target_compile_options(tls_fixer_dns_isolation_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_dns_isolation_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_dns_isolation COMMAND tls_fixer_dns_isolation_tests)
+
+add_executable(tls_fixer_allocation_probe_tests test_allocation_probe.c)
+target_include_directories(tls_fixer_allocation_probe_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_allocation_probe_tests PRIVATE TLS_FIXER_ALLOCATION_PROBE=1
+    TLS_FIXER_ENABLE_BOOT_TRACE=1 TLS_FIXER_TRACE_MODULE_PATHS=1 TLS_FIXER_TRACE_ACTIVATION_ONLY=1)
+target_compile_options(tls_fixer_allocation_probe_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+add_test(NAME tls_fixer_allocation_probe COMMAND tls_fixer_allocation_probe_tests)
+
+add_executable(tls_fixer_allocation_lifecycle_tests test_allocation_lifecycle.c)
+target_include_directories(tls_fixer_allocation_lifecycle_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_allocation_lifecycle_tests PRIVATE TLS_FIXER_ALLOCATION_PROBE=1
+    TLS_FIXER_ENABLE_BOOT_TRACE=1 TLS_FIXER_TRACE_MODULE_PATHS=1 TLS_FIXER_REDIRECTION_ONLY=1)
+target_compile_options(tls_fixer_allocation_lifecycle_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_allocation_lifecycle_tests PRIVATE tls_fixer_core)
+foreach(scenario prepare-fail install-fail after-publication valid)
+    add_test(NAME tls_fixer_allocation_lifecycle_${scenario} COMMAND tls_fixer_allocation_lifecycle_tests ${scenario})
+endforeach()
 
 add_executable(tls_fixer_code_snapshot_tests test_code_snapshot.c ../../../kernel/code_snapshot.c)
 target_include_directories(tls_fixer_code_snapshot_tests PRIVATE include ../transport/include ../../../kernel)

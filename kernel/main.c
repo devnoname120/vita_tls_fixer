@@ -17,6 +17,8 @@
 
 #include "tls_fixer/path.h"
 #include "tls13_loader.h"
+#include "memory_probe.h"
+#include "allocation_probe.h"
 #include "self_disarm.h"
 #include "disarm_result.h"
 #include "hook_guard.h"
@@ -49,6 +51,12 @@
 
 #ifndef TLS_FIXER_BROWSER_POST_START
 #define TLS_FIXER_BROWSER_POST_START 0
+#endif
+#ifndef TLS_FIXER_SKIP_DNS_START
+#define TLS_FIXER_SKIP_DNS_START 0
+#endif
+#ifndef TLS_FIXER_SKIP_HTTP_START
+#define TLS_FIXER_SKIP_HTTP_START 0
 #endif
 #if TLS_FIXER_BROWSER_POST_START
 #include "post_start.h"
@@ -174,7 +182,7 @@ static SceUID load_for_pid_patched(
     }
     if (TLS_FIXER_REDIRECTION_ONLY || !trace_ok) goto hook_return;
 
-    if (!TLS_FIXER_BROWSER_ACTIVATION && result >= 0 && loads_replacement_libhttp && tls_fixer_kernel_loader_ready()) {
+    if (!TLS_FIXER_SKIP_HTTP_START && !TLS_FIXER_BROWSER_ACTIVATION && result >= 0 && loads_replacement_libhttp && tls_fixer_kernel_loader_ready()) {
 #if TLS_FIXER_BROWSER_POST_START
         if (tls_fixer_boot_trace_event("http.defer.enter", target_pid, result, 0) < 0) goto hook_return;
         int deferred_http = tls_fixer_post_start_defer_http(target_pid, result);
@@ -221,13 +229,15 @@ static SceUID load_for_pid_patched(
 #endif
     }
 
-    if (!TLS_FIXER_PREPARE_ONLY && !TLS_FIXER_BROWSER_ACTIVATION && result >= 0 && loads_replacement_libssl &&
+    if (!TLS_FIXER_SKIP_DNS_START && !TLS_FIXER_PREPARE_ONLY && !TLS_FIXER_BROWSER_ACTIVATION && result >= 0 && loads_replacement_libssl &&
         target_pid == ksceKernelSysrootGetShellPid()) {
         uint8_t expected = 2;
         /* Helper loading can reenter this hook before the outer load finishes. */
         if (__atomic_compare_exchange_n(&g_dns_fix_state, &expected, 3, 0,
                 __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
             int start_status = SCE_KERNEL_START_FAILED;
+            tls_fixer_memory_probe_record("mem.dns.before", target_pid);
+            (void)tls_fixer_boot_trace_event("dns.start.enter", target_pid, result, 0);
             SceUID dns_module = ksceKernelLoadStartModuleForPid(
                 target_pid,
                 g_replacement_modules[3],
@@ -236,6 +246,8 @@ static SceUID load_for_pid_patched(
                 0,
                 NULL,
                 &start_status);
+            (void)tls_fixer_boot_trace_event("dns.start.return", target_pid, dns_module, start_status);
+            tls_fixer_memory_probe_record("mem.dns.after", target_pid);
             __atomic_store_n(&g_dns_fix_state,
                 dns_module > 0 && start_status == SCE_KERNEL_START_SUCCESS ? 1 : 2,
                 __ATOMIC_RELEASE);
@@ -282,6 +294,11 @@ int module_start(SceSize argc, const void *args) {
         }
     }
     if (trace_result < 0) return SCE_KERNEL_START_FAILED;
+    if (tls_fixer_memory_probe_init() < 0) {
+        (void)tls_fixer_boot_trace_event("mem.bind.failed", 0, 0, -1);
+        goto failed_before_hook;
+    }
+    tls_fixer_memory_probe_record("mem.start", 0);
 #if defined(__arm__) && !TLS_FIXER_SELF_DISARM_ONLY && !TLS_FIXER_DISARM_RESULT_ONLY
     /* Disarming is durable; resolve once here, never from a loader-hook callback. */
     if (tls_fixer_boot_trace_event("native.bind.enter", 0, 0, 0) < 0) goto failed_before_hook;
@@ -289,6 +306,7 @@ int module_start(SceSize argc, const void *args) {
     if (tls_fixer_boot_trace_event("native.bind.return", 0, 0, bind_result) < 0 || bind_result < 0)
         goto failed_before_hook;
 #endif
+    if (tls_fixer_allocation_probe_prepare() < 0) goto failed_before_hook;
     if (tls_fixer_boot_trace_event("startup.checks.enter", 0, 0, 0) < 0) goto failed_before_hook;
 
     ksceDebugPrintf("tls_fixer module loaded\n");
@@ -307,6 +325,7 @@ int module_start(SceSize argc, const void *args) {
         int init_result;
         if (tls_fixer_boot_trace_event("loader.init.enter", 0, 0, 0) < 0) goto failed_before_hook;
         init_result = tls_fixer_kernel_loader_init();
+        tls_fixer_memory_probe_record("mem.loader.ready", 0);
         if (tls_fixer_boot_trace_event("loader.init.return", 0, 0, init_result) < 0) goto failed_before_hook;
         ksceDebugPrintf("tls_fixer: exact-module gates app=%d browser=%d\n",
             tls_fixer_kernel_loader_ready(), tls_fixer_kernel_browser_loader_ready());
@@ -323,6 +342,7 @@ int module_start(SceSize argc, const void *args) {
     module_id = ksceKernelSearchModuleByName("SceKernelModulemgr");
     if (module_id <= 0 || tls_fixer_validate_loader_hook(module_id) < 0) goto failed_before_hook;
     if (tls_fixer_trace_status_start() < 0) goto failed_before_hook;
+    if (tls_fixer_allocation_probe_install() < 0) goto failed_before_hook;
 #if TLS_FIXER_BROWSER_POST_START
     if (tls_fixer_post_start_init() < 0) goto failed_before_hook;
     if (tls_fixer_boot_trace_event("start.hook.install.enter", 0, module_id, 0) < 0) goto failed_before_hook;
@@ -345,6 +365,7 @@ int module_start(SceSize argc, const void *args) {
     if (g_loader_hook_id < 0) goto failed_before_hook;
     return SCE_KERNEL_START_SUCCESS;
 failed_before_hook:
+    if (tls_fixer_allocation_probe_resident()) return SCE_KERNEL_START_SUCCESS;
 #if TLS_FIXER_BROWSER_POST_START
     /* A published native continuation can still be executing on another thread. */
     if (g_start_hook_id >= 0 || g_loader_hook_id >= 0) return SCE_KERNEL_START_SUCCESS;
@@ -362,7 +383,7 @@ int module_stop(SceSize argc, const void *args) {
     (void)args;
 
     if (TLS_FIXER_SELF_DISARM_ONLY || TLS_FIXER_DISARM_RESULT_ONLY) return SCE_KERNEL_STOP_SUCCESS;
-    if (g_loader_hook_id >= 0) return SCE_KERNEL_STOP_FAIL;
+    if (g_loader_hook_id >= 0 || tls_fixer_allocation_probe_resident()) return SCE_KERNEL_STOP_FAIL;
 #if TLS_FIXER_BROWSER_POST_START
     if (g_start_hook_id >= 0 || tls_fixer_post_start_destroy() < 0) return SCE_KERNEL_STOP_FAIL;
 #endif

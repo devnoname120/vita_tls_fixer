@@ -29,6 +29,7 @@ unsigned int _newlib_heap_size_user = 8u * 1024u * 1024u;
 
 static const char tls_fixer_config_block[] =
     "# TLS_FIXER\n*KERNEL\nur0:tai/tls_fixer.skprx\n\n";
+static const char browser_provider_global[] = "ur0:tai/tls_fixer.suprx";
 
 static const char *const new_modules[] = {
     "vs0:/data/external/tls_fixer/ScePsp2Compat.suprx",
@@ -455,13 +456,15 @@ static int install_compat(int requested_state) {
     if (result < 0) return result;
     if (removing) {
         printf("Removing browser compatibility and TLS 1.3 modules... \n");
-        result = remove_if_exists(new_modules[6]);
+        result = remove_if_exists(browser_provider_global);
+        if (result >= 0) result = remove_if_exists(new_modules[6]);
         if (result >= 0) result = remove_if_exists(new_modules[0]);
         return result;
     }
 
     printf("Installing browser compatibility and TLS 1.3 modules... \n");
-    result = replace_file("app0:tls_fixer.suprx", new_modules[6]);
+    result = replace_file("app0:tls_fixer.suprx", browser_provider_global);
+    if (result >= 0) result = replace_file("app0:tls_fixer.suprx", new_modules[6]);
     if (result >= 0) result = replace_file("app0:compat.suprx", new_modules[0]);
     return result;
 }
@@ -716,7 +719,8 @@ int main(void) {
         !path_exists("vs0:/data/external/webcore/ScePsp2Compat.supr0")) {
         installed[1] = (uint8_t)(
             path_exists("ur0:tai/tls_fixer.skprx") && plugin_configured());
-        installed[2] = (uint8_t)(path_exists(new_modules[0]) && path_exists(new_modules[6]));
+        installed[2] = (uint8_t)(path_exists(new_modules[0]) && path_exists(new_modules[6]) &&
+            path_exists(browser_provider_global));
         installed[3] = (uint8_t)(
             path_exists(new_modules[1]) &&
             path_exists(new_modules[2]) &&

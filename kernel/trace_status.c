@@ -1,6 +1,8 @@
 #include "trace_status.h"
 #include "disarm_result.h"
 #include "boot_trace.h"
+#include "memory_probe.h"
+#include "allocation_probe.h"
 
 #include <psp2kern/kernel/threadmgr/thread.h>
 #include <stddef.h>
@@ -13,9 +15,14 @@ static int status_worker(SceSize size, void *arguments) {
     TlsFixerTraceStatus previous = {0}, current;
     unsigned int published = 0;
     int have_previous = 0;
+    unsigned int memory_sample_tick = 0;
     (void)size;
     (void)arguments;
     while (!__atomic_load_n(&stop_requested, __ATOMIC_ACQUIRE)) {
+        tls_fixer_allocation_probe_drain();
+        if (memory_sample_tick == 10 || memory_sample_tick == 50 || memory_sample_tick == 100)
+            tls_fixer_memory_probe_record("mem.idle", 0);
+        if (memory_sample_tick <= 100) ++memory_sample_tick;
         (void)tls_fixer_boot_trace_drain();
         tls_fixer_trace_status_snapshot(&current);
         if (!have_previous || current.error != previous.error || current.operation != previous.operation ||

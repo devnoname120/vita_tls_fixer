@@ -1,5 +1,6 @@
 #include "tls13_loader.h"
 #include "native_module_api.h"
+#include "memory_probe.h"
 
 #include <psp2/io/fcntl.h>
 #include <psp2kern/io/fcntl.h>
@@ -7,6 +8,7 @@
 #include <psp2kern/kernel/modulemgr.h>
 #include <psp2kern/kernel/sysclib.h>
 #include <psp2kern/kernel/sysmem.h>
+#include <psp2kern/kernel/sysroot.h>
 #include <psp2kern/kernel/threadmgr/misc.h>
 #include <psp2kern/kernel/threadmgr/mutex.h>
 #include <psp2kern/kernel/utils.h>
@@ -360,11 +362,11 @@ int tls_fixer_kernel_browser_loader_ready(void) {
 #if !TLS_FIXER_REDIRECTION_ONLY
 static int inject_target(SceUID pid, SceUID module_id, unsigned int target_index, const char *provider_path) {
     const LoaderTarget *target = &targets[target_index];
-    const char *file_path = TLS_FIXER_BROWSER_START_DIAGNOSTICS && target_index == 1
+    const char *file_path = target_index == 1
         ? target->provider_path : provider_path;
     const SceUID module_namespace_pid = target_index == 1 ? pid : 0;
-    /* The optional ur0 diagnostic is not part of the browser's private mount. */
-    const SceUID provider_namespace_pid = TLS_FIXER_BROWSER_START_DIAGNOSTICS ? 0 : module_namespace_pid;
+    /* Load the installed provider globally, into pid. Only the compat file uses its overlay. */
+    const SceUID provider_namespace_pid = 0;
     QueryWorkspace *workspace = NULL;
     void *allocation = NULL;
     SceUID query_memory = -1;
@@ -437,6 +439,17 @@ static int inject_target(SceUID pid, SceUID module_id, unsigned int target_index
         result = 0;
         goto cleanup;
     }
+#if TLS_FIXER_PREPARE_NAME_QUERY
+    if (!TLS_FIXER_PREPARE_ONLY && target_index == 0) {
+        /* Do not load a provider before its Sony libc dependency is available. */
+        result = lookup_name(pid, "SceLibc", &workspace->name_info,
+            "prereq.libc.enter", "prereq.libc.return");
+        if (result != 0 || !named_module_matches(&workspace->name_info, "SceLibc")) {
+            if (result >= 0) result = -1;
+            goto cleanup;
+        }
+    }
+#endif
 #endif
 
     result = -1;
@@ -647,8 +660,10 @@ static int prepare_on_native_stack(void *opaque) {
 
 static int dispatch_preparation(SceUID pid, SceUID module_id, unsigned int target_index, const char *provider_path) {
     PreparationCall call = {pid, module_id, target_index, provider_path, -1, 0};
+    tls_fixer_memory_probe_record("mem.stack.before", pid);
     if (tls_fixer_boot_trace_event("stack.extend.enter", pid, module_id, 16384) < 0) return -1;
     int result = ksceKernelRunWithStack(16384, prepare_on_native_stack, &call);
+    tls_fixer_memory_probe_record("mem.stack.after", pid);
     if (tls_fixer_boot_trace_event("stack.extend.return", pid, module_id, result) < 0) return -1;
     if (result < 0) return result;
     return call.called ? call.result : -1;
@@ -659,6 +674,20 @@ static int dispatch_preparation(SceUID pid, SceUID module_id, unsigned int targe
 
 int tls_fixer_kernel_inject_for_pid(SceUID pid, SceUID libhttp_modid) {
     if (TLS_FIXER_BROWSER_ACTIVATION) return -1;
+    if (!ready[0] || g_injection_mutex < 0 || pid <= 0 || libhttp_modid < 0) return -1;
+    if (!TLS_FIXER_PREPARE_ONLY) {
+        char title_id[16] = {0};
+        if (tls_fixer_boot_trace_event("http.title.enter", pid, libhttp_modid, 0) < 0) return -1;
+        int result = ksceKernelSysrootGetProcessTitleId(pid, title_id, sizeof(title_id));
+        if (tls_fixer_boot_trace_event("http.title.return", pid, libhttp_modid, result) < 0) return -1;
+        if (result < 0) return result;
+        /* Exclude the controller and WebKit helper before allocating an HTTP preparation stack. */
+        if (memcmp(title_id, "NPXS10003", sizeof("NPXS10003")) == 0 ||
+            memcmp(title_id, "NPXS10083", sizeof("NPXS10083")) == 0) {
+            (void)tls_fixer_boot_trace_event("http.browser.skipped", pid, libhttp_modid, 0);
+            return 0;
+        }
+    }
     return dispatch_preparation(pid, libhttp_modid, 0, targets[0].provider_path);
 }
 

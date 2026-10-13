@@ -11,6 +11,13 @@
 #define TLS_FIXER_TRACE_MODULE_PATHS 0
 #endif
 
+#ifndef TLS_FIXER_TRACE_ACTIVATION_ONLY
+#define TLS_FIXER_TRACE_ACTIVATION_ONLY 0
+#endif
+#if TLS_FIXER_TRACE_ACTIVATION_ONLY && (!TLS_FIXER_ENABLE_BOOT_TRACE || !TLS_FIXER_TRACE_MODULE_PATHS)
+#error "Activation tracing requires the asynchronous diagnostic recorder"
+#endif
+
 #define TLS_FIXER_BOOT_TRACE_PATH "ur0:tai/tls_fixer-startup.log"
 #define TLS_FIXER_BOOT_TRACE_LIMIT 512u
 #define TLS_FIXER_BOOT_TRACE_RECORD_SIZE (TLS_FIXER_TRACE_MODULE_PATHS ? 512u : 192u)

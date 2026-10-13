@@ -65,6 +65,9 @@ static int argument_live, argument_alloc_fail, argument_base_fail, argument_null
 static int argument_copy_fail, argument_readback_fail, argument_corrupt, argument_free_fail;
 static unsigned int argument_allocations, argument_frees, argument_copies;
 static SceUID argument_current_pid = 99;
+static const char *process_title = "TLSFIXAPP";
+static int process_title_error;
+static unsigned int process_title_queries;
 
 #if TLS_FIXER_ENABLE_BOOT_TRACE
 static const char *last_stage = "";
@@ -194,7 +197,7 @@ int ksceKernelFreeMemBlock(SceUID uid) {
 int ksceIoGetstat(const char *path, SceIoStat *status) {
     (void)status;
     expect_hash_stage("hash.stat.enter");
-    if (TLS_FIXER_BROWSER_START_DIAGNOSTICS && strcmp(path, TLS_FIXER_BROWSER_PROVIDER_BOOT_PATH) == 0) {
+    if (strcmp(path, TLS_FIXER_BROWSER_PROVIDER_BOOT_PATH) == 0) {
         if (query_live) ++global_provider_stats;
         return namespace_provider_error || !browser_file ? -151 : 0;
     }
@@ -214,7 +217,7 @@ int ksceIoOpen(const char *path, int flags, int mode) {
 }
 SceUID ksceIoOpenForPid(SceUID pid, const char *path, int flags, unsigned int mode) {
     assert(pid == 99 && flags == SCE_O_RDONLY && mode == 0 && query_live && !locked);
-    if (TLS_FIXER_BROWSER_START_DIAGNOSTICS && strcmp(path, TLS_FIXER_BROWSER_PROVIDER_BOOT_PATH) == 0)
+    if (strcmp(path, TLS_FIXER_BROWSER_PROVIDER_BOOT_PATH) == 0)
         return (int32_t)UINT32_C(0x80010013);
     if (strcmp(path, expected_path) == 0) {
         expect_hash_stage("hash.stat.enter");
@@ -281,6 +284,13 @@ int timingsafe_memcmp(const void *left, const void *right, size_t size) {
     return memcmp(left, right, size);
 }
 SceUID ksceKernelGetProcessId(void) { return argument_current_pid; }
+int ksceKernelSysrootGetProcessTitleId(SceUID pid, char *title, SceSize size) {
+    assert(pid == 99 && size == 16 && !locked);
+    ++process_title_queries;
+    if (process_title_error < 0) return process_title_error;
+    memcpy(title, process_title, strlen(process_title) + 1);
+    return 0;
+}
 int ksceKernelCopyToUserProc(SceUID pid, void *destination, const void *source, SceSize size) {
     assert(pid == 99 && argument_live && destination == argument_memory && source != destination);
     assert(size == sizeof(TlsFixerStartArgs) && !locked && query_live);
@@ -354,9 +364,9 @@ SceUID ksceKernelLoadStartModuleForPid(SceUID pid, const char *path, SceSize siz
     assert(pid == 99 && size == sizeof(*args) && options == NULL && !locked);
     assert(argument_live && data == argument_memory);
     int browser_provider = strstr(path, "/" TLS_FIXER_BROWSER_PROVIDER_FILENAME) != NULL;
-    const char *expected_file = browser_provider && TLS_FIXER_BROWSER_START_DIAGNOSTICS
+    const char *expected_file = browser_provider
         ? TLS_FIXER_BROWSER_PROVIDER_BOOT_PATH : expected_path;
-    assert(flags == (browser_provider && !TLS_FIXER_BROWSER_START_DIAGNOSTICS ? 0x1000 : 0));
+    assert(flags == 0);
     assert(args->compat_modid == 188 && args->reserved == 0);
     assert(args->version == 1 && strcmp(path, expected_file) == 0);
     if (browser_provider) assert(args->magic == TLS_FIXER_BROWSER_START_MAGIC);
@@ -385,6 +395,9 @@ static void reset(void) {
     checking_hash_trace = 0;
 #endif
     loads = unloads = scan_error = saturated = module_info_error = 0;
+    process_title = "TLSFIXAPP";
+    process_title_error = 0;
+    process_title_queries = 0;
     load_error = start_error = reenter = corrupt_browser = corrupt_http = close_error = 0;
     target_info_error = 0;
     target_wrong_name = 0;

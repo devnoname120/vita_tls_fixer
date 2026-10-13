@@ -51,6 +51,7 @@ int ksceKernelGetModuleIsSharedByAddr(SceUID, void *);
 SceUID ksceKernelLoadStartModuleForPid(SceUID, const char *, SceSize, const void *, int, const void *, int *);
 int ksceKernelUnloadModuleForPid(SceUID, SceUID, int, const void *);
 SceUID ksceKernelGetProcessId(void);
+int ksceKernelSysrootGetProcessTitleId(SceUID, char *, SceSize);
 int ksceKernelRunWithStack(SceSize, int (*)(void *), void *);
 int ksceKernelGetThreadId(void);
 int64_t ksceKernelGetSystemTimeWide(void);
