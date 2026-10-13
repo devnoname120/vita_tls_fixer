@@ -6,6 +6,7 @@
 #include <mbedtls/x509_crt.h>
 
 int tls_fixer_cert_hooks_install(void);
+int tls_fixer_cert_hooks_ensure_ssl(void);
 void tls_fixer_cert_hooks_release(void);
 int tls_fixer_cert_hooks_active(void);
 int tls_fixer_legacy_certificates_loaded(void);

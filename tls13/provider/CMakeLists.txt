@@ -1,4 +1,6 @@
 include("${VITASDK}/share/vita.cmake" REQUIRED)
+set(TLS_FIXER_HTTP_CA_PATH "vs0:/data/external/cert/CA_LIST.cer" CACHE STRING
+    "Authoritative HTTP trust bundle; diagnostics use a separately staged VPK bundle")
 
 add_executable(tls_fixer_http
     ca_file.c
@@ -23,6 +25,7 @@ target_compile_definitions(tls_fixer_http PRIVATE
     TLS_FIXER_FILE_LOG=1
     TLS_FIXER_TRACE_COMPONENT="http"
     TLS_FIXER_TRACE_RECORD_LIMIT=4096
+    TLS_FIXER_DEFAULT_CA_PATH="${TLS_FIXER_HTTP_CA_PATH}"
 )
 target_compile_options(tls_fixer_http PRIVATE
     -std=gnu11
@@ -55,6 +58,7 @@ target_link_libraries(tls_fixer_http PRIVATE
     mbedx509
     tfpsacrypto
     gcc
+    SceAppMgr_stub
     SceSysmem_stub
     SceNet_stub
     SceIofilemgr_stub

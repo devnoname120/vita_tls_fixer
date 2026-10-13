@@ -13,8 +13,14 @@ int main(void) {
     process_title="TLSCK0001";
     expected_path="vs0:/data/external/tls_fixer/tls_fixer_http.suprx";
     libc_result=NAME_NOT_FOUND;
+    http_shared_result = 1;
+    assert(tls_fixer_kernel_inject_for_pid(99,88)<0 && loads==0);
+    http_shared_result = -1;
+    assert(tls_fixer_kernel_inject_for_pid(99,88)<0 && loads==0);
+    http_shared_result = 0;
+    unsigned int previous_allocations = argument_allocations;
     assert(tls_fixer_kernel_inject_for_pid(99,88)==0);
-    assert(loads==1 && libc_queries==0 && argument_allocations==1 && stack_calls==1);
+    assert(loads==1 && libc_queries==0 && argument_allocations==previous_allocations+1 && stack_calls==3);
     assert(query_allocations==query_frees && argument_allocations==argument_frees && !locked);
     tls_fixer_kernel_loader_destroy();
     return 0;

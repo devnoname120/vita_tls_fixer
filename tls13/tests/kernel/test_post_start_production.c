@@ -62,6 +62,21 @@ int main(void) {
     assert(load_for_pid_patched(0, "vs0:sys/external/libssl.suprx", 0, NULL) == 88);
     assert(dns_loads == (TLS_FIXER_SKIP_DNS_START ? 0 : 1));
     assert(strcmp(selected_path, g_replacement_modules[2]) == 0);
+    /* Only eligible HTTP/SSL replacement code becomes private. Preserve every
+     * other flag, excluded-process sharing and Browser's independent mapping. */
+    const char *private_paths[] = {"vs0:sys/external/libhttp.suprx", "vs0:sys/external/libssl.suprx"};
+    for (unsigned i=0;i<2;++i) {
+        reset(); http_process_allowed = 1;
+        assert(load_for_pid_patched(0, private_paths[i], 0x8001, NULL)==88);
+        assert(seen_flags==(TLS_FIXER_SKIP_HTTP_START ? 0x8001u : 0x8000u));
+        reset(); http_process_allowed = 0;
+        assert(load_for_pid_patched(0, private_paths[i], 0x8001, NULL)==88);
+        assert(seen_flags==0x8001);
+    }
+    http_process_allowed = 1;
+    reset();
+    assert(load_for_pid_patched(0, "wb0:/webcore/ScePsp2Compat.suprx", 0x8001, NULL)==88);
+    assert(seen_flags==0x8001);
     assert(module_stop(0,NULL)==SCE_KERNEL_STOP_FAIL);
     puts("production post-start: browser deferral, native results and application provider retained PASS");
 }

@@ -3,6 +3,7 @@
 #include "diagnostics.h"
 #include "transport.h"
 #include "user_runtime.h"
+#include "mapped_signature.h"
 
 #include <psp2/kernel/modulemgr.h>
 #include <psp2common/kernel/modulemgr.h>
@@ -42,7 +43,7 @@ static const TlsFixerMaskedSignature g_libhttp_signatures[] = {
         .name = "create",
         .offset = TLS_FIXER_HOOK_CREATE_OFFSET,
         .bytes = g_create_bytes,
-        .mask = "???xxx???????x???x",
+        .mask = "xxxxxx????????xxxx",
         .length = sizeof(g_create_bytes),
     },
     {
@@ -267,10 +268,20 @@ int tls_fixer_http_validate_module(
         info.segments[0].memsz != TLS_FIXER_LIBHTTP_TEXT_SIZE) {
         return -1;
     }
+    if ((uintptr_t)info.segments[0].vaddr >= UINT32_C(0xE0000000)) {
+        TLS_FIXER_LOG("event=module.gate reason=shared_text");
+        return -1;
+    }
     if (info.segments[1].vaddr == NULL ||
         info.segments[1].filesz != TLS_FIXER_LIBHTTP_DATA_FILE_SIZE ||
         info.segments[1].memsz != TLS_FIXER_LIBHTTP_DATA_MEMORY_SIZE) {
         return -1;
+    }
+    if (!tls_fixer_http_create_mov_pair_valid(
+            (const uint8_t *)info.segments[0].vaddr + TLS_FIXER_HOOK_CREATE_OFFSET,
+            sizeof(g_create_bytes))) {
+        TLS_FIXER_LOG("event=module.gate reason=create_mov_opcode_or_register");
+        return TLS_FIXER_MODULE_GATE_SIGNATURE_MISMATCH;
     }
 
     result = tls_fixer_validate_module_text(
@@ -282,6 +293,13 @@ int tls_fixer_http_validate_module(
     if (result != TLS_FIXER_MODULE_GATE_OK) {
         TLS_FIXER_LOG("event=module.gate rc=%08X failed_signature=%u failed_byte=%u",
             result, (unsigned int)failed_signature, (unsigned int)failed_byte);
+        if (failed_signature < g_libhttp_descriptor.signature_count &&
+            failed_byte < g_libhttp_signatures[failed_signature].length) {
+            const TlsFixerMaskedSignature *sig = &g_libhttp_signatures[failed_signature];
+            TLS_FIXER_LOG("event=module.gate.byte offset=%08X expected=%02X actual=%02X",
+                (unsigned int)(sig->offset + failed_byte), sig->bytes[failed_byte],
+                ((const uint8_t *)info.segments[0].vaddr)[sig->offset + failed_byte]);
+        }
         return result;
     }
 

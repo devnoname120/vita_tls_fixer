@@ -19,6 +19,14 @@ int main(int argc, char **argv) {
     size_t count = 0;
     assert(argc == 2);
     mock_ca_file = argv[1];
+    mock_ca_namespace_error = 1;
+    assert(tls_fixer_trust_store_init() != 0);
+    require_clean();
+    mock_ca_namespace_error = 0;
+    mock_ca_namespace_unterminated = 1;
+    assert(tls_fixer_trust_store_init() != 0);
+    require_clean();
+    mock_ca_namespace_unterminated = 0;
     assert(tls_fixer_trust_store_init() == 0);
     for (const mbedtls_x509_crt *certificate = &g_tls_fixer_http.ca_chain;
          certificate != NULL; certificate = certificate->next) {

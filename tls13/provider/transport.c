@@ -427,6 +427,12 @@ int tls_fixer_transport_create(void *request, int socket, int *handled) {
         TLS_FIXER_LOG("legacy certificate material active; using BSAFE");
         return already_owned ? TLS_FIXER_SCE_HTTP_ERROR_SSL : 0;
     }
+    result = tls_fixer_cert_hooks_ensure_ssl();
+    if (result < 0) {
+        TLS_FIXER_LOG("event=connection.skip reason=certificate_hooks_unavailable rc=%08X owned=%d",
+            result, already_owned);
+        return already_owned ? TLS_FIXER_SCE_HTTP_ERROR_SSL : 0;
+    }
 
     sony_connection = tls_fixer_resolve_connection(request);
     if (sony_connection == NULL || socket < 0) {
@@ -693,7 +699,15 @@ int tls_fixer_transport_read(
     connection->last_net_error = 0;
     do {
         result = mbedtls_ssl_read(&connection->ssl, buffer, requested);
-    } while (result == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET && --ticket_budget != 0);
+        TLS_FIXER_LOG("event=tls.read.return connection=%08X tls_rc=%08X net_rc=%08X budget=%u",
+            (unsigned int)(uintptr_t)sony_connection, result, connection->last_net_error,
+            ticket_budget);
+        /* Mbed TLS may consume a post-handshake record and yield WANT_READ without
+         * a socket error. Sony's blocking read treats EAGAIN as a timeout, so keep
+         * processing these records here. Actual socket waits retain their error. */
+    } while ((result == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET ||
+              (result == MBEDTLS_ERR_SSL_WANT_READ && connection->last_net_error == 0)) &&
+             --ticket_budget != 0);
     if (result == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) {
         result = MBEDTLS_ERR_SSL_WANT_READ;
     }

@@ -20,6 +20,16 @@ unsigned int mock_entropy_calls;
 unsigned int mock_entropy_max_request;
 int mock_clock_failure;
 const char *mock_ca_file;
+int mock_ca_namespace_error, mock_ca_namespace_unterminated;
+
+int _sceAppMgrConvertVs0UserDrivePath(const char *path, char *output, SceSize capacity,
+    const void *options) {
+    assert(path != NULL && options != NULL && capacity == 0x124);
+    if (mock_ca_namespace_error) return -1;
+    if (mock_ca_namespace_unterminated) memset(output, 'x', capacity);
+    else { assert(strlen(path) < capacity); strcpy(output, path); }
+    return 0;
+}
 const char *mock_log_file;
 const char *mock_savedata_log_file;
 int mock_log_primary_failure;

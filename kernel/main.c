@@ -115,6 +115,7 @@ static SceUID load_for_pid_patched(
     uint32_t flags,
     int *ptr_to_four) {
     const char *load_path = path;
+    uint32_t load_flags = flags;
     char browser_path[256];
     char browser_provider[256];
     int loads_replacement_libhttp = 0;
@@ -168,12 +169,20 @@ static SceUID load_for_pid_patched(
         trace_ok = 0;
     }
 #endif
+    /* Shared mappings outlive a process, while taiHEN's process-exit cleanup only
+     * frees its hook records. Stateful user hooks require private HTTP/SSL code. */
+    if ((loads_replacement_libhttp || loads_replacement_libssl) &&
+        !TLS_FIXER_SKIP_HTTP_START && !TLS_FIXER_REDIRECTION_ONLY && !TLS_FIXER_PREPARE_ONLY &&
+        !TLS_FIXER_BROWSER_ACTIVATION &&
+        tls_fixer_kernel_http_process_allowed(target_pid) > 0) {
+        load_flags &= ~UINT32_C(1);
+    }
     result = TAI_CONTINUE(
         SceUID,
         g_loader_hook_ref,
         pid,
         load_path,
-        flags,
+        load_flags,
         ptr_to_four);
 
     if (trace_this_load && trace_ok &&

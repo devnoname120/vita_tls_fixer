@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 typedef int SceUID;
+extern int mock_ca_namespace_error, mock_ca_namespace_unterminated;
 typedef uint32_t SceSize;
 typedef uint16_t SceUInt16;
 typedef uint32_t SceUInt;

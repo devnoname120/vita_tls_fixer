@@ -5,6 +5,7 @@
 #include "tls_fixer/x509_names.h"
 
 #include <psp2/libssl.h>
+#include <psp2/kernel/threadmgr/mutex.h>
 #include <psp2/net/http.h>
 #include <psp2/rtc.h>
 
@@ -474,22 +475,8 @@ int tls_fixer_cert_hooks_install(void) {
     memset(&g_https_unload_cert_hook_ref, 0, sizeof(g_https_unload_cert_hook_ref));
     __atomic_store_n(&g_legacy_certificates_loaded, 0, __ATOMIC_RELEASE);
 
-    for (index = 0; index < TLS_FIXER_CERT_HOOK_COUNT; ++index) {
-        int hook_id = taiHookFunctionExport(
-            &g_cert_hook_refs[index],
-            "SceLibSsl",
-            TLS_FIXER_SCE_SSL_LIBRARY_NID,
-            g_cert_hook_descriptors[index].nid,
-            g_cert_hook_descriptors[index].function);
-        TLS_FIXER_LOG("event=hook.install kind=certificate index=%u nid=%08X rc=%08X",
-            (unsigned int)index, g_cert_hook_descriptors[index].nid, hook_id);
-        if (hook_id < 0) {
-            tls_fixer_cert_hooks_release();
-            return hook_id;
-        }
-        g_cert_hook_ids[index] = hook_id;
-    }
-
+    /* HTTPS sysmodule starts LibHttp before LibSsl. Monitor public HTTP certificate
+     * loading immediately, then install SSL getters at the first HTTPS request. */
     g_https_load_cert_hook_id = taiHookFunctionExport(
         &g_https_load_cert_hook_ref,
         "SceLibHttp",
@@ -516,14 +503,56 @@ int tls_fixer_cert_hooks_install(void) {
         return g_https_unload_cert_hook_id;
     }
 
-    g_cert_hooks_active = 1;
+    TLS_FIXER_LOG("event=certificate.ssl_deferred until=first_https_connection");
     return 0;
+}
+
+int tls_fixer_cert_hooks_ensure_ssl(void) {
+    int result;
+    if (__atomic_load_n(&g_cert_hooks_active, __ATOMIC_ACQUIRE)) return 0;
+    result = sceKernelLockMutex(g_tls_fixer_http.registry_mutex, 1, NULL);
+    if (result < 0) return result;
+    if (__atomic_load_n(&g_cert_hooks_active, __ATOMIC_ACQUIRE)) goto done;
+    tai_module_info_t ssl_info = {0};
+    ssl_info.size = sizeof(ssl_info);
+    result = taiGetModuleInfo("SceLibSsl", &ssl_info);
+    TLS_FIXER_LOG("event=certificate.ssl_identity rc=%08X uid=%08X exports=%08X",
+        result, ssl_info.modid, (unsigned int)ssl_info.exports_start);
+    if (result < 0) goto done;
+    if (ssl_info.exports_start == 0 || ssl_info.exports_start >= UINT32_C(0xE0000000)) {
+        result = -1;
+        TLS_FIXER_LOG("event=certificate.ssl_gate reason=shared_or_missing_exports");
+        goto done;
+    }
+    for (size_t index = 0; index < TLS_FIXER_CERT_HOOK_COUNT; ++index) {
+        int hook_id = taiHookFunctionExport(
+            &g_cert_hook_refs[index], "SceLibSsl", TLS_FIXER_SCE_SSL_LIBRARY_NID,
+            g_cert_hook_descriptors[index].nid, g_cert_hook_descriptors[index].function);
+        TLS_FIXER_LOG("event=hook.install kind=certificate index=%u nid=%08X rc=%08X",
+            (unsigned int)index, g_cert_hook_descriptors[index].nid, hook_id);
+        if (hook_id < 0) {
+            result = hook_id;
+            /* No provider certificate wrappers exist until every getter is ready. */
+            while (index > 0) {
+                --index;
+                taiHookRelease(g_cert_hook_ids[index], g_cert_hook_refs[index]);
+                g_cert_hook_ids[index] = -1;
+                memset(&g_cert_hook_refs[index], 0, sizeof(g_cert_hook_refs[index]));
+            }
+            goto done;
+        }
+        g_cert_hook_ids[index] = hook_id;
+    }
+    __atomic_store_n(&g_cert_hooks_active, 1, __ATOMIC_RELEASE);
+done:
+    if (sceKernelUnlockMutex(g_tls_fixer_http.registry_mutex, 1) < 0) return -1;
+    return result;
 }
 
 void tls_fixer_cert_hooks_release(void) {
     size_t index = TLS_FIXER_CERT_HOOK_COUNT;
 
-    g_cert_hooks_active = 0;
+    __atomic_store_n(&g_cert_hooks_active, 0, __ATOMIC_RELEASE);
     __atomic_store_n(&g_legacy_certificates_loaded, 0, __ATOMIC_RELEASE);
     if (g_https_unload_cert_hook_id >= 0) {
         taiHookRelease(g_https_unload_cert_hook_id, g_https_unload_cert_hook_ref);
@@ -546,7 +575,7 @@ void tls_fixer_cert_hooks_release(void) {
 }
 
 int tls_fixer_cert_hooks_active(void) {
-    return g_cert_hooks_active;
+    return __atomic_load_n(&g_cert_hooks_active, __ATOMIC_ACQUIRE);
 }
 
 int tls_fixer_legacy_certificates_loaded(void) {

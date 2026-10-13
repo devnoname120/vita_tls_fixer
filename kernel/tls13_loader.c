@@ -491,7 +491,7 @@ static int inject_target(SceUID pid, SceUID module_id, unsigned int target_index
         result = 0;
         goto cleanup;
     }
-    if (TLS_FIXER_BROWSER_ACTIVATION) {
+    if (target_index == 0 || TLS_FIXER_BROWSER_ACTIVATION) {
         void *text = target_info->segments[0].vaddr;
         /* A process-local provider must not redirect a shared mapping for other processes. */
         if (text == NULL || tls_fixer_boot_trace_event("target.shared.enter", pid,
@@ -668,28 +668,31 @@ static int dispatch_preparation(SceUID pid, SceUID module_id, unsigned int targe
 #define dispatch_preparation inject_target
 #endif
 
-int tls_fixer_kernel_inject_for_pid(SceUID pid, SceUID libhttp_modid) {
-    if (TLS_FIXER_BROWSER_ACTIVATION) return -1;
-    if (!ready[0] || g_injection_mutex < 0 || pid <= 0 || libhttp_modid < 0) return -1;
+int tls_fixer_kernel_http_process_allowed(SceUID pid) {
+    if (TLS_FIXER_BROWSER_ACTIVATION || pid <= 0) return 0;
     if (!TLS_FIXER_PREPARE_ONLY) {
         char title_id[16] = {0};
-        if (tls_fixer_boot_trace_event("http.title.enter", pid, libhttp_modid, 0) < 0) return -1;
         int result = ksceKernelSysrootGetProcessTitleId(pid, title_id, sizeof(title_id));
-        if (tls_fixer_boot_trace_event("http.title.return", pid, libhttp_modid, result) < 0) return -1;
         if (result < 0) return result;
         /* Exclude the controller and WebKit helper before allocating an HTTP preparation stack. */
         if (memcmp(title_id, "NPXS10003", sizeof("NPXS10003")) == 0 ||
             memcmp(title_id, "NPXS10083", sizeof("NPXS10083")) == 0) {
-            (void)tls_fixer_boot_trace_event("http.browser.skipped", pid, libhttp_modid, 0);
             return 0;
         }
         /* A staged diagnostic must not first execute in early system processes. */
         if (TLS_FIXER_HTTP_TEST_TITLE_ID[0] != '\0' &&
             strcmp(title_id, TLS_FIXER_HTTP_TEST_TITLE_ID) != 0) {
-            (void)tls_fixer_boot_trace_event("http.test.skipped", pid, libhttp_modid, 0);
             return 0;
         }
     }
+    return 1;
+}
+
+int tls_fixer_kernel_inject_for_pid(SceUID pid, SceUID libhttp_modid) {
+    if (TLS_FIXER_BROWSER_ACTIVATION) return -1;
+    if (!ready[0] || g_injection_mutex < 0 || pid <= 0 || libhttp_modid < 0) return -1;
+    int allowed = tls_fixer_kernel_http_process_allowed(pid);
+    if (allowed <= 0) return allowed;
     return dispatch_preparation(pid, libhttp_modid, 0, targets[0].provider_path);
 }
 

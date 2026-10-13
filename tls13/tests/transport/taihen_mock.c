@@ -13,6 +13,15 @@ static struct {
 } hooks[10];
 int mock_hook_fail_index = -1;
 int mock_legacy_certificate_result;
+int mock_ssl_shared;
+
+int taiGetModuleInfo(const char *name, tai_module_info_t *info) {
+    assert(strcmp(name, "SceLibSsl") == 0 && info->size == sizeof(*info));
+    info->modid = 42;
+    strcpy(info->name, name);
+    info->exports_start = mock_ssl_shared ? UINT32_C(0xE0010000) : UINT32_C(0x81010000);
+    return 0;
+}
 
 static int legacy_serial(SceSslCert *cert, const char **data, unsigned int *length) {
     (void)cert; (void)data; (void)length;
@@ -38,7 +47,12 @@ int taiHookFunctionExport(tai_hook_ref_t *reference, const char *module,
                          uint32_t library, uint32_t nid, const void *function) {
     int index;
     void *original = NULL;
-    (void)module; (void)library;
+    assert(module != NULL);
+    if (nid == 0xae8d7c33 || nid == 0x8577833f) {
+        assert(strcmp(module, "SceLibHttp") == 0 && library == 0xe8f15cde);
+    } else {
+        assert(strcmp(module, "SceLibSsl") == 0 && library == 0xcaf5f2e9);
+    }
     for (index = 0; index < 10 && hooks[index].active; ++index) {}
     assert(index < 10);
     if (index == mock_hook_fail_index) return -990;

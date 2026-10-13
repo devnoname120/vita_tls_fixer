@@ -350,6 +350,7 @@ int ksceKernelGetModuleInfo(SceUID pid, SceUID id, SceKernelModuleInfo *info) {
         ++target_queries;
         if (target_info_error) return -1;
         info->modid = target_user_id;
+        info->segments[0].vaddr = (void *)(uintptr_t)0x81000000;
         strcpy(info->module_name, target_wrong_name ? "unexpected" :
             (strstr(expected_path, "/" TLS_FIXER_BROWSER_PROVIDER_FILENAME) ? "ScePsp2Compat" : "SceLibHttp"));
         return 0;
@@ -358,6 +359,13 @@ int ksceKernelGetModuleInfo(SceUID pid, SceUID id, SceKernelModuleInfo *info) {
     strcpy(info->module_name, loaded_name);
     return 0;
 }
+#if !TLS_FIXER_BROWSER_ACTIVATION
+static int http_shared_result;
+int ksceKernelGetModuleIsSharedByAddr(SceUID pid, void *address) {
+    assert(pid == 99 && address == (void *)(uintptr_t)0x81000000 && !locked);
+    return http_shared_result;
+}
+#endif
 SceUID ksceKernelLoadStartModuleForPid(SceUID pid, const char *path, SceSize size, const void *data,
     int flags, const void *options, int *status) {
     const TlsFixerBrowserStartArgs *args = data;

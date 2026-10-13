@@ -5,3 +5,7 @@ target_compile_options(tls_fixer_user_runtime_tests PRIVATE -Wall -Wextra -Werro
 find_package(Threads REQUIRED)
 target_link_libraries(tls_fixer_user_runtime_tests PRIVATE Threads::Threads)
 add_test(NAME tls_fixer_user_runtime COMMAND tls_fixer_user_runtime_tests)
+add_executable(tls_fixer_http_mapped_signature_tests test_mapped_signature.c)
+target_include_directories(tls_fixer_http_mapped_signature_tests PRIVATE ../../provider)
+target_compile_options(tls_fixer_http_mapped_signature_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+add_test(NAME tls_fixer_http_mapped_signature COMMAND tls_fixer_http_mapped_signature_tests)

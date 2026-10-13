@@ -149,12 +149,24 @@ int main(int argc, char **argv) {
     g_tls_fixer_http.global_https_options_address = (uintptr_t)global_options;
     g_tls_fixer_http.cert_policy = (TlsFixerCertPolicy){policy_game, policy_system, policy_sdk, policy_parameter};
     assert(tls_fixer_transport_global_init() == 0);
-    for (mock_hook_fail_index = 0; mock_hook_fail_index < 10; ++mock_hook_fail_index) {
+    for (mock_hook_fail_index = 0; mock_hook_fail_index < 2; ++mock_hook_fail_index) {
         assert(tls_fixer_cert_hooks_install() < 0);
         assert(mock_hooks_active() == 0 && !tls_fixer_cert_hooks_active());
     }
     mock_hook_fail_index = -1;
-    assert(tls_fixer_cert_hooks_install() == 0 && mock_hooks_active() == 10);
+    assert(tls_fixer_cert_hooks_install() == 0 && mock_hooks_active() == 2);
+    assert(!tls_fixer_cert_hooks_active());
+    mock_ssl_shared = 1;
+    assert(tls_fixer_cert_hooks_ensure_ssl() < 0);
+    assert(mock_hooks_active() == 2 && !tls_fixer_cert_hooks_active());
+    mock_ssl_shared = 0;
+    for (mock_hook_fail_index = 2; mock_hook_fail_index < 10; ++mock_hook_fail_index) {
+        assert(tls_fixer_cert_hooks_ensure_ssl() < 0);
+        assert(mock_hooks_active() == 2 && !tls_fixer_cert_hooks_active());
+    }
+    mock_hook_fail_index = -1;
+    assert(tls_fixer_cert_hooks_ensure_ssl() == 0 && mock_hooks_active() == 10);
+    assert(tls_fixer_cert_hooks_ensure_ssl() == 0 && mock_hooks_active() == 10);
     g_tls_fixer_http.state = TLS_FIXER_PROVIDER_ACTIVE;
 
     socket_id = socket(AF_INET, SOCK_STREAM, 0);
