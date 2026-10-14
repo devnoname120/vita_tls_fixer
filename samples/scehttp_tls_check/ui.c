@@ -160,8 +160,6 @@ void check_draw(uint32_t *p, const CheckService *s, int page, unsigned scroll, i
                 snprintf(line, sizeof(line), "-");
             text(p, 856, y + 2, line, muted, 16);
         }
-        text(p, 28, 490, "Blocked means the request failed; these details show the cause.",
-             muted, 14);
     } else {
         text(p, 28, 318, "Handshake details", white, 23);
         snprintf(line, sizeof(line), "Signature   %s",
