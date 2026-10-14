@@ -1,5 +1,6 @@
 #include "diagnostics.h"
 #include "font.h"
+#include "input.h"
 #include "model.h"
 #include "ui.h"
 #include <psp2/ctrl.h>
@@ -7,6 +8,7 @@
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
 #include <psp2/kernel/processmgr.h>
+#include <psp2/kernel/modulemgr.h>
 #include <psp2/kernel/sysmem.h>
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/libssl.h>
@@ -19,9 +21,9 @@
 #include <string.h>
 
 unsigned int _newlib_heap_size_user = 8u * 1024u * 1024u;
-static CheckService services[2], view, last_view;
+static CheckService service = {.tls_fixer_enabled = -1}, view, last_view;
 static SceUID guard = -1, worker = -1;
-static int busy, running_service, active_request = -1, cancelled, abort_sent;
+static int busy, active_request = -1, cancelled, abort_sent;
 static uint64_t request_begin;
 static unsigned request_identity, next_request_identity, run_identity;
 static char notice[120];
@@ -51,9 +53,9 @@ static int stopped(void) {
 static void publish(unsigned row, const CheckResult *r) {
     lock();
     if (row == 4)
-        services[running_service].connection = *r;
+        service.connection = *r;
     else
-        services[running_service].protocols[row] = *r;
+        service.protocols[row] = *r;
     unlock();
 }
 
@@ -87,7 +89,7 @@ static int fetch(const char *endpoint, char *body, size_t *length, CheckResult *
     snprintf(url, sizeof(url), "%s%ccheck=%llu", endpoint, strchr(endpoint, '?') ? '&' : '?',
              (unsigned long long)sceKernelGetSystemTimeWide());
     check_diag("event=request.begin run=%u request=%u service=%s endpoint=%s", run_identity,
-               identity, check_service_name(running_service), endpoint);
+               identity, "BrowserLeaks", endpoint);
 #define REQUIRE(call)                                                                              \
     do {                                                                                           \
         check_diag("event=api.enter request=%u call=%s", identity, #call);                         \
@@ -217,10 +219,29 @@ done:
     return rc;
 #undef REQUIRE
 }
-static void save_report(const CheckService *s, int id) {
+static int detect_tls_fixer(void) {
+    SceUID ids[128];
+    SceSize count = sizeof(ids) / sizeof(ids[0]);
+    int rc = sceKernelGetModuleList(0xff, ids, &count);
+    if (rc >= 0) {
+        for (unsigned i = 0; i < count && i < 128; ++i) {
+            SceKernelModuleInfo info = {0};
+            info.size = sizeof(info);
+            if (sceKernelGetModuleInfo(ids[i], &info) == 0 &&
+                check_provider_module_active(info.module_name, info.state)) {
+                check_diag("event=provider.detect enabled=1 uid=%08X state=%u", (unsigned)ids[i],
+                           (unsigned)info.state);
+                return 1;
+            }
+        }
+    }
+    check_diag("event=provider.detect enabled=0 query_rc=%08X", (unsigned)rc);
+    return 0;
+}
+static void save_report(const CheckService *s) {
     char path[160];
     snprintf(path, sizeof(path), "ux0:/data/vita-tls-check/%s-%08X-%llu.txt",
-             id ? "ssllabs" : "browserleaks", (unsigned)sceKernelGetProcessId(),
+             "browserleaks", (unsigned)sceKernelGetProcessId(),
              (unsigned long long)sceKernelGetSystemTimeWide());
     (void)sceIoMkdir("ux0:/data/vita-tls-check", 0777);
     FILE *f = fopen(path, "w");
@@ -233,16 +254,18 @@ static void save_report(const CheckService *s, int id) {
     fprintf(f,
             "Vita TLS Check 1.0\nAPI=sceHttp\nservice=%s\nCertificate "
             "verification=enabled\nConnection "
-            "reuse=disabled\nRedirects=disabled\nGreen means connected, not a "
-            "security rating.\n",
-            check_service_name(id));
+            "reuse=disabled\nRedirects=disabled\nLegacy failures are displayed as Blocked; "
+            "request errors remain below.\n",
+            "BrowserLeaks");
+    fprintf(f, "tls_fix=%s (started provider in this process)\n",
+            s->tls_fixer_enabled < 0 ? "checking" : s->tls_fixer_enabled ? "enabled" : "not enabled");
     for (unsigned i = 0; i < 5; ++i) {
         const CheckResult *r = i == 4 ? &s->connection : &s->protocols[i];
         fprintf(f,
                 "\nURL=%s\nstate=%d\nHTTP=%d\nerror=0x%08X\nssl_error=0x%08X\nssl_"
                 "detail=0x%"
                 "08X\nelapsed_ms=%u\nresult=%s\n",
-                check_endpoint(id, i) ? check_endpoint(id, i) : "not available", r->state,
+                check_endpoint(i), r->state,
                 r->http_code, (unsigned)r->error, (unsigned)r->ssl_error, r->ssl_detail,
                 r->elapsed_ms, r->message);
     }
@@ -265,7 +288,7 @@ static void save_report(const CheckService *s, int id) {
     if (fclose(f))
         failed = 1;
     lock();
-    snprintf(services[id].report, sizeof(services[id].report), "%s", path);
+    snprintf(service.report, sizeof(service.report), "%s", path);
     snprintf(notice, sizeof(notice), "%s",
              failed ? "Report write failed; results remain on screen."
                     : "Report saved: ux0:data/vita-tls-check/  (one file per run)");
@@ -274,8 +297,7 @@ static void save_report(const CheckService *s, int id) {
 static int run_checks(SceSize argc, void *argv) {
     (void)argc;
     (void)argv;
-    int id = running_service;
-    check_diag("event=run.begin run=%u service=%s", run_identity, check_service_name(id));
+    check_diag("event=run.begin run=%u service=%s", run_identity, "BrowserLeaks");
     check_diag_modules("worker.before-requests");
     char *body = malloc(CHECK_BODY_MAX + 1);
     CheckHandshake *h = calloc(1, sizeof(*h));
@@ -297,14 +319,7 @@ static int run_checks(SceSize argc, void *argv) {
             publish((unsigned)test, &r);
             continue;
         }
-        const char *url = check_endpoint(id, (unsigned)test);
-        if (!url) {
-            r.state = CHECK_INFO;
-            snprintf(r.message, sizeof(r.message), "%s",
-                     h->tls13_offered ? "Offered; use other tab" : "Not tested by this service");
-            publish((unsigned)test, &r);
-            continue;
-        }
+        const char *url = check_endpoint((unsigned)test);
         r.state = CHECK_RUNNING;
         publish((unsigned)test, &r);
         size_t n = 0;
@@ -314,8 +329,7 @@ static int run_checks(SceSize argc, void *argv) {
             snprintf(r.message, sizeof(r.message), "Cancelled / not tested");
         } else if (fetched == 0) {
             if (test == 4) {
-                int ok =
-                    id ? check_parse_ssllabs(body, n, h) : check_parse_browserleaks(body, n, h);
+                int ok = check_parse_browserleaks(body, n, h);
                 if (ok) {
                     r.state = CHECK_FAIL;
                     r.error = -1;
@@ -324,11 +338,10 @@ static int run_checks(SceSize argc, void *argv) {
                 } else {
                     snprintf(r.message, sizeof(r.message), "Server report received");
                     lock();
-                    services[id].handshake = *h;
+                    service.handshake = *h;
                     unlock();
                 }
-            } else if (id ? check_image_body((const unsigned char *)body, n)
-                          : check_protocol_body((unsigned)test, body, n))
+            } else if (check_protocol_body((unsigned)test, body, n))
                 snprintf(r.message, sizeof(r.message), "Connected to TLS 1.%d endpoint", test);
             else {
                 r.state = CHECK_FAIL;
@@ -345,30 +358,31 @@ static int run_checks(SceSize argc, void *argv) {
     CheckService *snapshot = malloc(sizeof(*snapshot));
     if (snapshot) {
         lock();
-        *snapshot = services[id];
+        *snapshot = service;
         unlock();
-        save_report(snapshot, id);
+        save_report(snapshot);
         free(snapshot);
     }
     lock();
-    services[id].complete = 1;
+    service.complete = 1;
     busy = 0;
     unlock();
     check_diag_modules("worker.after-requests");
-    check_diag("event=run.end run=%u service=%s", run_identity, check_service_name(id));
+    check_diag("event=run.end run=%u service=%s", run_identity, "BrowserLeaks");
     check_diag_sync();
     return 0;
 }
-static void start_checks(int id) {
+static void start_checks(void) {
     if (worker >= 0) {
         sceKernelWaitThreadEnd(worker, NULL, NULL);
         sceKernelDeleteThread(worker);
         worker = -1;
     }
     lock();
-    memset(&services[id], 0, sizeof(services[id]));
-    services[id].started = 1;
-    running_service = id;
+    int enabled = service.tls_fixer_enabled;
+    memset(&service, 0, sizeof(service));
+    service.tls_fixer_enabled = enabled;
+    service.started = 1;
     ++run_identity;
     busy = 1;
     cancelled = 0;
@@ -421,7 +435,7 @@ int main(void) {
     if (font_result < 0)
         goto cleanup;
     font_ready = 1;
-    check_draw(canvas, &services[0], 0, 0, 0, 0, "Initializing Sony network modules...");
+    check_draw(canvas, &service, 0, 0, 0, "Initializing Sony network modules...");
     memcpy(pixels, canvas, CHECK_WIDTH * CHECK_HEIGHT * sizeof(*canvas));
     SceDisplayFrameBuf frame = {0};
     frame.size = sizeof(frame);
@@ -452,6 +466,7 @@ int main(void) {
         modules[i] = 1;
     }
     check_diag_modules("main.after-network-load");
+    service.tls_fixer_enabled = detect_tls_fixer();
     net_memory = malloc(1024 * 1024);
     if (!net_memory) {
         rc = -1;
@@ -519,25 +534,32 @@ init_failed:
     if (rc < 0)
         snprintf(notice, sizeof(notice), "Sony network initialization failed: 0x%08X  /  O exit",
                  (unsigned)rc);
-    sceCtrlSetSamplingMode(SCE_CTRL_MODE_DIGITAL);
-    int selected = 0, page = 0, exiting = 0;
+    startup_note("controller.analog", sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG));
+    int page = 0, exiting = 0;
+    check_diag("event=input.page page=0");
+    CheckScrollRepeat repeat = {0};
     unsigned scroll = 0, previous = ~0u;
-    int last_selected = -1, last_page = -1, last_busy = -1;
+    int last_page = -1, last_busy = -1;
     unsigned last_scroll = ~0u;
     char last_notice[120] = "";
     if (!exit_code)
-        start_checks(selected);
+        start_checks();
     for (;;) {
         /* Drain queued samples so a short button press is not lost during font
          * rasterization. */
         SceCtrlData pads[64];
         int pad_count = sceCtrlReadBufferPositive(0, pads, 64);
-        unsigned pressed = 0, source_presses = 0, page_presses = 0;
+        unsigned pressed = 0, page_presses = 0;
+        int scroll_steps = 0;
+        uint64_t sample_ms = now_ms();
         for (int i = 0; i < pad_count && i < 64; ++i) {
             unsigned edges = pads[i].buttons & ~previous;
             previous = pads[i].buttons;
             pressed |= edges;
-            source_presses += (edges & (SCE_CTRL_LTRIGGER | SCE_CTRL_RTRIGGER)) != 0;
+            int direction = check_scroll_direction(
+                pads[i].buttons & SCE_CTRL_UP, pads[i].buttons & SCE_CTRL_DOWN,
+                pads[i].ly, pads[i].ry);
+            scroll_steps += check_scroll_repeat(&repeat, direction, sample_ms);
             page_presses += (edges & SCE_CTRL_SQUARE) != 0;
         }
         lock();
@@ -556,47 +578,39 @@ init_failed:
             break;
         if (pressed & SCE_CTRL_TRIANGLE)
             abort_current(1);
-        if (source_presses & 1u) {
-            selected = 1 - selected;
-            scroll = 0;
-        }
         if (page_presses) {
             page = (int)((page + page_presses) % 3);
             scroll = 0;
-        }
-        if (pressed & SCE_CTRL_UP) {
-            if (scroll)
-                --scroll;
+            check_diag("event=input.page page=%d", page);
         }
         lock();
-        unsigned count = services[selected].handshake.cipher_count;
-        int started_service = services[selected].started;
+        unsigned count = service.handshake.cipher_count;
         unlock();
-        if (pressed & SCE_CTRL_DOWN) {
-            if (scroll + CHECK_VISIBLE_CIPHERS < count)
-                ++scroll;
-        }
-        if (!is_busy && !exiting && !exit_code &&
-            ((pressed & SCE_CTRL_CROSS) || !started_service)) {
-            start_checks(selected);
+        unsigned old_scroll = scroll;
+        scroll = check_scroll_move(scroll, page == 0 ? scroll_steps : 0,
+                                   count, CHECK_VISIBLE_CIPHERS);
+        if (old_scroll != scroll)
+            check_diag("event=input.scroll before=%u after=%u steps=%d", old_scroll, scroll,
+                       scroll_steps);
+        if (!is_busy && !exiting && !exit_code && (pressed & SCE_CTRL_CROSS)) {
+            start_checks();
             is_busy = 1;
         }
         char current_notice[120];
         lock();
-        view = services[selected];
+        view = service;
         snprintf(current_notice, sizeof(current_notice), "%s", notice);
         unlock();
-        if (last_selected != selected || last_page != page || last_scroll != scroll ||
+        if (last_page != page || last_scroll != scroll ||
             last_busy != is_busy || strcmp(last_notice, current_notice) != 0 ||
             memcmp(&last_view, &view, sizeof(view)) != 0) {
             /* One scanout buffer: never clear or draw text into the visible image.
              * Render a complete CPU canvas, then copy at vblank only when state
              * changes. */
-            check_draw(canvas, &view, selected, page, scroll, is_busy, current_notice);
+            check_draw(canvas, &view, page, scroll, is_busy, current_notice);
             sceDisplayWaitVblankStart();
             memcpy(pixels, canvas, CHECK_WIDTH * CHECK_HEIGHT * sizeof(*canvas));
             last_view = view;
-            last_selected = selected;
             last_page = page;
             last_scroll = scroll;
             last_busy = is_busy;

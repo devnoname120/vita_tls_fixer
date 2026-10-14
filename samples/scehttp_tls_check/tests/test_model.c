@@ -41,26 +41,49 @@ int main(int argc, char **argv) {
     assert(!check_protocol_body(3, "TLS 1.2", 7));
     assert(!check_protocol_body(1, "<html>login</html>", 18));
     assert(!check_protocol_body(1, "TLS 1.1junk", 11));
-    assert(!check_image_body((const unsigned char *)"<html>portal</html>", 19));
-    const unsigned char png[33] = {137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13,
-                                   73,  72, 68, 82, 0,  0,  0,  1,  0, 0, 0, 1};
-    assert(check_image_body(png, sizeof(png)));
-    const char *html = "<table>Cipher Suites (in order of preference)<td>TLS_AES_128_GCM_SHA256 "
-                       "(<code>0x1301</code>)</td><td>TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 "
-                       "(<code>0xc02f</code>)</td></table><p>TLS_FAKE (<code>0xffff</code>)</p>";
-    assert(check_parse_ssllabs(html, strlen(html), &h) == 0 && h.cipher_count == 2 &&
-           h.tls13_offered);
-    assert(h.ciphers[0].id == 0x1301 && h.ciphers[1].id == 0xc02f && h.version.id == 0 &&
-           h.cipher.id == 0);
-    assert(check_parse_ssllabs("<html>maintenance</html>", 24, &h) < 0);
-    assert(check_endpoint(1, 3) == NULL);
-    assert(check_endpoint(-1, 0) == NULL);
-    assert(check_endpoint(0, 5) == NULL);
+    assert(check_endpoint(5) == NULL);
+    assert(!strcmp(check_endpoint(0), "https://tls10.browserleaks.com/"));
+    assert(!strcmp(check_endpoint(4), "https://tls.browserleaks.com/tls?minify=1"));
+    for (unsigned version = 0; version < 4; ++version) {
+        CheckProtocolDisplay pass = check_protocol_display(version, CHECK_PASS);
+        CheckProtocolDisplay fail = check_protocol_display(version, CHECK_FAIL);
+        if (version < 2) {
+            assert(pass.style == CHECK_WARNING && !strcmp(pass.label, "Insecure") &&
+                   !strcmp(pass.qualifier, "vulnerable") && pass.detail_style == CHECK_FAIL);
+            assert(fail.style == CHECK_PASS && !strcmp(fail.label, "Blocked") &&
+                   !strcmp(fail.qualifier, "secure") && fail.detail_style == CHECK_PASS);
+        } else {
+            assert(pass.style == CHECK_PASS && !strcmp(pass.label, "Connected") &&
+                   !strcmp(pass.qualifier, "secure"));
+            assert(fail.style == CHECK_FAIL && !strcmp(fail.label, "Failed") && !fail.qualifier);
+        }
+        CheckProtocolDisplay waiting = check_protocol_display(version, CHECK_WAIT);
+        assert(waiting.style == CHECK_WAIT && !strcmp(waiting.label, "Waiting") && !waiting.qualifier);
+        assert(check_protocol_display(version, CHECK_RUNNING).style == CHECK_RUNNING);
+        assert(check_protocol_display(version, CHECK_INFO).style == CHECK_INFO);
+        CheckResult result = {.state = CHECK_FAIL, .error = (int)0x80431075};
+        strcpy(result.message, "TLS handshake failed");
+        char detail[128];
+        check_protocol_detail(version, &result, detail, sizeof(detail));
+        assert(!strcmp(detail, version < 2 ? "Disabled (secure)" : "TLS handshake failed"));
+        assert(result.error == (int)0x80431075 && result.state == CHECK_FAIL);
+        if (version < 2) {
+            result.state = CHECK_PASS;
+            check_protocol_detail(version, &result, detail, sizeof(detail));
+            assert(strstr(detail, "endpoint (vulnerable)") != NULL);
+        }
+    }
+    assert(check_provider_module_active("tls_fixer_http", 6));
+    assert(!check_provider_module_active("tls_fixer_http", 5));
+    assert(!check_provider_module_active("tls_fixer_http_extra", 6));
+    assert(!check_provider_module_active("tls_fixer", 6));
+    assert(!check_provider_module_active("SceLibHttp", 6));
+    assert(!check_provider_module_active(NULL, 6));
     assert(
         !strcmp(check_error_name((int)0x80431075, (int)0x80435060, 0x20), "Certificate rejected"));
     assert(!strcmp(check_error_name((int)0x80431075, (int)0x80435062, 4), "TLS request failed"));
     assert(!strcmp(check_error_name((int)0x80436007, 0, 0), "DNS lookup failed"));
-    if (argc == 3) {
+    if (argc == 2) {
         FILE *f = fopen(argv[1], "rb");
         assert(f);
         char *body = calloc(1, CHECK_BODY_MAX + 1);
@@ -69,14 +92,7 @@ int main(int argc, char **argv) {
         fclose(f);
         assert(check_parse_browserleaks(body, n, &h) == 0 && h.cipher_count > 0);
         free(body);
-        f = fopen(argv[2], "rb");
-        assert(f);
-        body = calloc(1, CHECK_BODY_MAX + 1);
-        assert(body);
-        n = fread(body, 1, CHECK_BODY_MAX, f);
-        fclose(f);
-        assert(check_parse_ssllabs(body, n, &h) == 0 && h.cipher_count > 0);
-        free(body);
+
     }
     puts("Protocol evidence, distinct selected/offered versions and ciphers, malformed/truncated "
          "reports, and errors: PASS");

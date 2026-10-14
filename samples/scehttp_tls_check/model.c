@@ -4,17 +4,47 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char *check_service_name(int s) { return s == 0 ? "BrowserLeaks" : "SSL Labs"; }
-const char *check_endpoint(int s, unsigned test) {
-    static const char *urls[2][5] = {
-        {"https://tls10.browserleaks.com/", "https://tls11.browserleaks.com/",
-         "https://tls12.browserleaks.com/", "https://tls13.browserleaks.com/",
-         "https://tls.browserleaks.com/tls?minify=1"},
-        {"https://www.ssllabs.com:10301/1x1-transparent.png",
-         "https://www.ssllabs.com:10302/1x1-transparent.png",
-         "https://www.ssllabs.com:10303/1x1-transparent.png", NULL,
-         "https://clienttest.ssllabs.com:8443/ssltest/viewMyClient.html"}};
-    return s >= 0 && s < 2 && test < 5 ? urls[s][test] : NULL;
+const char *check_endpoint(unsigned test) {
+    static const char *urls[] = {
+        "https://tls10.browserleaks.com/", "https://tls11.browserleaks.com/",
+        "https://tls12.browserleaks.com/", "https://tls13.browserleaks.com/",
+        "https://tls.browserleaks.com/tls?minify=1"};
+    return test < 5 ? urls[test] : NULL;
+}
+CheckProtocolDisplay check_protocol_display(unsigned version, enum CheckState state) {
+    CheckProtocolDisplay display = {state, "Waiting", NULL, state};
+    switch (state) {
+    case CHECK_PASS: display.label = "Connected"; display.qualifier = "secure"; break;
+    case CHECK_FAIL: display.label = "Failed"; break;
+    case CHECK_RUNNING: display.label = "Checking..."; break;
+    case CHECK_INFO: display.label = "Not tested"; break;
+    default: break;
+    }
+    if (version < 2 && state == CHECK_PASS) {
+        display.style = CHECK_WARNING;
+        display.detail_style = CHECK_FAIL;
+        display.label = "Insecure";
+        display.qualifier = "vulnerable";
+    } else if (version < 2 && state == CHECK_FAIL) {
+        display.style = CHECK_PASS;
+        display.detail_style = CHECK_PASS;
+        display.label = "Blocked";
+        display.qualifier = "secure";
+    }
+    return display;
+}
+void check_protocol_detail(unsigned version, const CheckResult *result, char *text, size_t capacity) {
+    if (version < 2 && result->state == CHECK_FAIL)
+        snprintf(text, capacity, "Disabled (secure)");
+    else if (version < 2 && result->state == CHECK_PASS)
+        snprintf(text, capacity, "Connected to TLS 1.%u endpoint (vulnerable)", version);
+    else
+        snprintf(text, capacity, "%s", result->message[0] ? result->message : "Waiting");
+}
+int check_provider_module_active(const char *name, unsigned state) {
+    /* Sony reports STARTED=6. Presence alone does not establish activation. */
+    static const char provider[] = "tls_fixer_http";
+    return name && state == 6 && strncmp(name, provider, sizeof(provider)) == 0;
 }
 int check_protocol_body(unsigned version, const char *b, size_t n) {
     char expected[16];
@@ -24,12 +54,6 @@ int check_protocol_body(unsigned version, const char *b, size_t n) {
         --n;
     snprintf(expected, sizeof(expected), "TLS 1.%u", version);
     return n == strlen(expected) && memcmp(b, expected, n) == 0;
-}
-int check_image_body(const unsigned char *b, size_t n) {
-    /* Require the 1x1 PNG header, not a captive portal's HTTP 200. */
-    static const unsigned char prefix[] = {137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13,
-                                           73,  72, 68, 82, 0,  0,  0,  1,  0, 0, 0, 1};
-    return b && n >= 33 && memcmp(b, prefix, sizeof(prefix)) == 0;
 }
 const char *check_error_name(int e, int ssl, unsigned detail) {
     /* Detail bits alone are not a certificate diagnosis (I/O/abort can carry them too). */
@@ -273,48 +297,4 @@ int check_parse_browserleaks(const char *b, size_t n, CheckHandshake *out) {
         }
     out->valid = 1;
     return 0;
-}
-int check_parse_ssllabs(const char *b, size_t n, CheckHandshake *out) {
-    if (!b || !out || !n || n > CHECK_BODY_MAX || memchr(b, 0, n))
-        return -1;
-    memset(out, 0, sizeof(*out));
-    /* The HTTP reader supplies a trailing NUL. Search only within an owned copy. */
-    char *copy = malloc(n + 1);
-    if (!copy)
-        return -1;
-    memcpy(copy, b, n);
-    copy[n] = 0;
-    char *start = strstr(copy, "Cipher Suites (in order of preference)"),
-         *end = start ? strstr(start, "</table>") : NULL;
-    if (!end) {
-        free(copy);
-        return -1;
-    }
-    *end = 0;
-    for (char *p = start; (p = strstr(p, "TLS_")) != NULL && out->cipher_count < CHECK_LIST_MAX;) {
-        CheckNamed item = {0};
-        size_t k = 0;
-        while ((isalnum((unsigned char)p[k]) || p[k] == '_') && k + 1 < sizeof(item.name)) {
-            item.name[k] = p[k];
-            ++k;
-        }
-        item.name[k] = 0;
-        char *code = strstr(p + k, "<code>0x");
-        if (!code || code - (p + k) > 32 || k == 0)
-            break;
-        char *tail = NULL;
-        unsigned long id = strtoul(code + 8, &tail, 16);
-        if (id > 65535 || tail == code + 8 || strncmp(tail, "</code>", 7))
-            break;
-        item.id = (unsigned)id;
-        out->ciphers[out->cipher_count++] = item;
-        p = tail + 7;
-    }
-    /* SSL Labs reports a client capability, not a selected TLS 1.3 connection. */
-    for (unsigned i = 0; i < out->cipher_count; ++i)
-        if (out->ciphers[i].id >= 0x1301 && out->ciphers[i].id <= 0x1305)
-            out->tls13_offered = 1;
-    free(copy);
-    out->valid = out->cipher_count > 0;
-    return out->valid ? 0 : -1;
 }

@@ -18,19 +18,22 @@ int main(int argc, char **argv) {
     assert(check_parse_browserleaks(body, n, &s->handshake) == 0);
     free(body);
     s->connection.state = CHECK_PASS;
+    s->tls_fixer_enabled = argc > 5 ? atoi(argv[5]) : 1;
     for (int i = 0; i < 4; ++i) {
-        s->protocols[i].state = i < 2 ? CHECK_FAIL : CHECK_PASS;
-        s->protocols[i].http_code = i < 2 ? 0 : 200;
+        s->protocols[i].state = i < 2 && !(argc > 4 && !strcmp(argv[4], "insecure"))
+                                    ? CHECK_FAIL : CHECK_PASS;
+        int connected = s->protocols[i].state == CHECK_PASS;
+        s->protocols[i].http_code = connected ? 200 : 0;
         s->protocols[i].elapsed_ms = 173 + i * 20;
-        s->protocols[i].error = i < 2 ? (int)0x80431075 : 0;
+        s->protocols[i].error = connected ? 0 : (int)0x80431075;
         snprintf(s->protocols[i].message, sizeof(s->protocols[i].message), "%s",
-                 i < 2 ? "TLS handshake failed" : "Connected to version-specific endpoint");
+                 connected ? "Connected to version-specific endpoint" : "TLS handshake failed");
     }
     uint32_t *allocation = malloc((CHECK_WIDTH * CHECK_HEIGHT + 2) * sizeof(uint32_t));
     assert(allocation);
     allocation[0] = allocation[CHECK_WIDTH * CHECK_HEIGHT + 1] = 0xabcdef01;
     assert(check_font_init() == 0);
-    check_draw(allocation + 1, s, 0, argc > 3 ? atoi(argv[3]) : 0, 0, 0,
+    check_draw(allocation + 1, s, argc > 3 ? atoi(argv[3]) : 0, 0, 0,
                "HOST UI FIXTURE - these are not Vita test results");
     for (int y = 53; y < 89; ++y)
         for (int x = 24; x < 570; ++x)

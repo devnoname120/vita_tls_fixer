@@ -71,7 +71,7 @@ void check_diag_init(void) {
     snprintf(g_path, sizeof(g_path), "ux0:/data/vita-tls-check/api-%08X-%llu.log",
              (unsigned)sceKernelGetProcessId(), (unsigned long long)check_diag_time());
     g_descriptor = sceIoOpen(g_path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_EXCL, 0666);
-    check_diag("event=session.begin build=api-diagnostics-20261013 "
+    check_diag("event=session.begin build=browserleaks-ui-20261015 "
                "verification=enabled");
     check_diag_sync();
 }
