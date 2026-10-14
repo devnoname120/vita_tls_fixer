@@ -1,6 +1,8 @@
 TARGET = tls_fixer
 TITLE_ID = TLSF00001
-OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o installer/crypto_lock_vita.o
+# Vita package metadata uses ##.##; the displayed release is 0.1.0.
+APP_VERSION = 00.10
+OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o installer/crypto_lock_vita.o installer/options.o
 CRYPTO_LOCK_FUNCTIONS = CRYPTO_THREAD_lock_new CRYPTO_THREAD_read_lock CRYPTO_THREAD_write_lock \
 	CRYPTO_THREAD_unlock CRYPTO_THREAD_lock_free CRYPTO_atomic_add
 CRYPTO_LOCK_LINK_FLAGS = $(foreach function,$(CRYPTO_LOCK_FUNCTIONS),-Wl,--wrap=$(function))
@@ -56,7 +58,7 @@ force-normal-kernel:
 
 $(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(DNS_FIX_MODULE) $(TLS13_PROVIDER) $(BROWSER_PROVIDER) \
         THIRD_PARTY_NOTICES.md $(LICENSE_FILES) $(PACKAGE_ASSETS)
-	vita-mksfoex -s TITLE_ID=$(TITLE_ID) "tls_fixer" param.sfo
+	vita-mksfoex -s APP_VER=$(APP_VERSION) -s TITLE_ID=$(TITLE_ID) "tls_fixer" param.sfo
 	vita-pack-vpk -s param.sfo -b eboot.bin \
 		-a sce_sys/icon0.png=sce_sys/icon0.png \
 		-a sce_sys/livearea/contents/bg.png=sce_sys/livearea/contents/bg.png \
@@ -76,7 +78,8 @@ $(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(DNS_FIX_MODULE) $(TLS13_PROVIDER) $(
 		-a misc/certificate-sources.json=certificate-sources.json \
 		-a misc/certs.cer=certs.cer $@
 
-main.o: installer/certificates.h installer/network_vita.h
+main.o: installer/certificates.h installer/network_vita.h installer/options.h
+installer/options.o: installer/options.h
 installer/certificates.o: installer/certificates.h
 installer/network_vita.o: installer/network_vita.h
 

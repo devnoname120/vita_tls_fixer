@@ -1,4 +1,4 @@
-# tls_fixer
+# tls_fixer 0.1.0
 
 tls_fixer updates the PlayStation Vita HTTPS stack on systems using enso. This development build adds separate TLS 1.2/1.3 providers for applications using Sony's `SceHttp` and for the browser's libcurl backend in the exact bundled `ScePsp2Compat` module. Both use source-built Mbed TLS 4.2.0 and TF-PSA-Crypto 1.2.0.
 
@@ -12,11 +12,13 @@ tls_fixer updates the PlayStation Vita HTTPS stack on systems using enso. This d
 
 The installer procedure is retained for development. It writes persistent system files and is not the isolated one-shot procedure used for the successful Browser test. Earlier exported test packages remain withdrawn. On 2026-10-14, persistent activation was explicitly requested for the friend's real-world test package; the prior acceptance results still describe the self-disarming build.
 
-1. Install the VPK.
-2. Run the application. Press **SQUARE** to install or refresh the full package, including an existing installation. This updates the kernel loader and both TLS providers while retaining the original CA backup.
-3. Reboot after the installer reports success.
+1. Install the VPK and open **tls_fixer 0.1.0**.
+2. Select **Full (browser plugin + system plugin + certs)**, **browser plugin only**, **system plugin only**, or **certs only**. Browser/system choices include the shared coordinator automatically and leave unselected components unchanged. Certificate-only installation does not enable a plugin.
+3. Press **CROSS** to install the selected component, or uninstall it if already installed. Press **SQUARE** to reinstall/refresh that selected option. Removing one provider preserves the coordinator while the other provider remains installed.
+4. **Download latest TLS certificates** always downloads/prepares and installs refreshed Sony + Mozilla certificates; it never toggles into an uninstall action. The download uses only embedded Mozilla roots, with embedded fallback when unavailable.
+5. Reboot after the installer reports success.
 
-The normal CROSS menu toggles the selected component. Browser installation deploys both `ScePsp2Compat.suprx` and `tls_fixer.suprx`; it requires the current kernel plugin and a usable CA bundle. Refreshing the full package avoids leaving an old loader installed. The CA-only option does not install the redirection plugin.
+The installer header credits **devnoname120** and displays **Thanks to SKGleba for the initial iTLS plugin!**. Vita package metadata uses the platform's `##.##` format (`00.10`) for the displayed semantic release `0.1.0`.
 
 The rebuilt package installs its HTTP provider at `vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx` and Browser provider at `ur0:tai/tls_fixer-native/tls_fixer.suprx`, with a mirror at `vs0:/data/external/tls_fixer/native/tls_fixer.suprx`. Previous provider copies remain available during qualification.
 

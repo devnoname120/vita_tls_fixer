@@ -18,10 +18,11 @@
 #include "graphics.h"
 #include "installer/certificates.h"
 #include "installer/network_vita.h"
+#include "installer/options.h"
 
 #define printf psvDebugScreenPrintf
 
-#define MENU_COUNT 6
+#define MENU_COUNT TLS_FIXER_OPTION_COUNT
 #define COPY_BUFFER_SIZE 0x4000
 #define CONFIG_MAX_SIZE 0x100000
 
@@ -42,20 +43,20 @@ static const char *const new_modules[] = {
 };
 
 static const char *const install_menu[MENU_COUNT] = {
-    " -> Install the full tls_fixer package",
-    " -> Install the tls_fixer plugin",
-    " -> Install browser compatibility and TLS 1.3 modules",
-    " -> Install the tls_fixer HTTP, SSL, and TLS 1.3 modules",
-    " -> Install the tls_fixer CA certs",
+    " -> Install Full (browser plugin + system plugin + certs)",
+    " -> Install browser plugin only",
+    " -> Install system plugin only",
+    " -> Install certs only",
+    " -> Download latest TLS certificates",
     " -> Exit",
 };
 
 static const char *const uninstall_menu[MENU_COUNT] = {
-    " -> Uninstall the full tls_fixer package",
-    " -> Uninstall the tls_fixer plugin",
-    " -> Uninstall browser compatibility and TLS 1.3 modules",
-    " -> Uninstall the tls_fixer HTTP, SSL, and TLS 1.3 modules",
-    " -> Uninstall the tls_fixer CA certs",
+    " -> Uninstall Full (browser plugin + system plugin + certs)",
+    " -> Uninstall browser plugin only",
+    " -> Uninstall system plugin only",
+    " -> Uninstall certs only",
+    " -> Download latest TLS certificates",
     " -> Exit",
 };
 
@@ -408,8 +409,13 @@ static void show_menu(void) {
 
     psvDebugScreenClear(COLOR_BLACK);
     psvDebugScreenSetFgColor(COLOR_CYAN);
-    printf("                       tls_fixer 3.3.0                           \n");
-    printf("                         By SKGleba                              \n");
+    printf("                       tls_fixer " TLS_FIXER_VERSION "\n");
+    printf("                       By devnoname120\n");
+    printf("        Thanks to SKGleba for the initial iTLS plugin!\n\n");
+    psvDebugScreenSetFgColor(COLOR_WHITE);
+    printf("Modern, secure Mbed TLS (2026) brings TLS 1.3 to PS Vita.\n");
+    printf("Replaces legacy RSA BSAFE Micro Edition Suite 3.2.1 (2014)\n");
+    printf("TLS transport in supported system HTTPS, plus browser TLS.\n\n");
     psvDebugScreenSetFgColor(COLOR_RED);
     for (index = 0; index < MENU_COUNT; ++index) {
         if (selected_option == index) {
@@ -419,13 +425,13 @@ static void show_menu(void) {
         psvDebugScreenSetFgColor(COLOR_RED);
     }
     psvDebugScreenSetFgColor(COLOR_GREEN);
-    printf("SQUARE: refresh the full package; keep original CA backup\n");
+    printf("\nCROSS: install/uninstall  SQUARE: refresh selected option\n");
 }
 
 static int install_plugin(int requested_state) {
     int result;
     int had_previous = path_exists("ur0:tai/tls_fixer.skprx");
-    int removing = requested_state == 69 ? installed[1] : requested_state == 1;
+    int removing = requested_state == 1;
 
     if (removing) {
         printf("Removing the tls_fixer plugin... \n");
@@ -451,7 +457,7 @@ static int install_plugin(int requested_state) {
 
 static int install_compat(int requested_state) {
     int result = remove_if_exists("vs0:/data/external/webcore/ScePsp2Compat.supr0");
-    int removing = requested_state == 69 ? installed[2] : requested_state == 1;
+    int removing = requested_state == 1;
 
     if (result < 0) return result;
     if (removing) {
@@ -479,7 +485,7 @@ static int install_compat(int requested_state) {
 
 static int install_dns_fix(int requested_state) {
     int result;
-    int removing = requested_state == 69 ? installed[3] : requested_state == 1;
+    int removing = requested_state == 1;
 
     if (removing) {
         printf("Removing the 3.60 DNS fix... \n");
@@ -501,7 +507,7 @@ static int install_dns_fix(int requested_state) {
 static int install_http_modules(int requested_state) {
     SceKernelFwInfo firmware;
     int result;
-    int removing = requested_state == 69 ? installed[3] : requested_state == 1;
+    int removing = requested_state == 1;
 
     result = remove_if_exists("vs0:sys/external/libhttp.supr0");
     if (result < 0) {
@@ -537,7 +543,8 @@ static int install_http_modules(int requested_state) {
         }
     }
 
-    if (result >= 0 && (firmware.version & UINT32_C(0xffff0000)) == UINT32_C(0x03600000)) {
+    if (result >= 0 && (removing ||
+        (firmware.version & UINT32_C(0xffff0000)) == UINT32_C(0x03600000))) {
         result = install_dns_fix(requested_state);
     }
     return result;
@@ -549,7 +556,7 @@ static int install_certificates(int requested_state) {
     static const char temporary_path[] = "vs0:/data/external/cert/CA_LIST.cer.prepared";
     static const char rollback_path[] = "vs0:/data/external/cert/CA_LIST.cer.tls_fixer-remove";
     int result;
-    int removing = requested_state == 69 ? installed[4] : requested_state == 1;
+    int removing = requested_state == 1;
 
     if (removing) {
         int had_current;
@@ -628,12 +635,33 @@ static int install_certificates(int requested_state) {
     return result;
 }
 
-static int perform_selected_operation(int refresh_all) {
+static int browser_payload_present(void) {
+    return path_exists(new_modules[0]) || path_exists(new_modules[6]) ||
+        path_exists(browser_provider_global);
+}
+static int system_payload_present(void) {
+    for (unsigned i = 1; i <= 5; ++i)
+        if (path_exists(new_modules[i])) return 1;
+    return 0;
+}
+static int apply_component(void *context, unsigned component, int removing) {
+    (void)context;
+    switch (component) {
+    case TLS_FIXER_COMPONENT_COORDINATOR: return install_plugin(removing);
+    case TLS_FIXER_COMPONENT_BROWSER: return install_compat(removing);
+    case TLS_FIXER_COMPONENT_SYSTEM: return install_http_modules(removing);
+    case TLS_FIXER_COMPONENT_CERTIFICATES: return install_certificates(removing);
+    default: return -1;
+    }
+}
+
+static int perform_selected_operation(int refresh_selected) {
     uint8_t mount_data[0x100] = {0};
     int result;
 
-    if (selected_option == 5) {
+    if (selected_option == TLS_FIXER_OPTION_EXIT) {
         sceKernelExitProcess(0);
+        return 0;
     }
 
     (void)vshIoUmount(0x300, 0, 0, 0);
@@ -649,50 +677,13 @@ static int perform_selected_operation(int refresh_all) {
         }
     }
 
-    printf("Working...\n");
-    switch (selected_option) {
-        case 0:
-            if (refresh_all || installed[0] == 0) {
-                printf("Installing tls_fixer... \n");
-                result = install_plugin(0);
-                if (result >= 0) {
-                    result = install_compat(0);
-                }
-                if (result >= 0) {
-                    result = install_http_modules(0);
-                }
-                if (result >= 0) {
-                    result = install_certificates(0);
-                }
-            } else {
-                printf("Uninstalling tls_fixer... \n");
-                result = install_plugin(1);
-                if (result >= 0) {
-                    result = install_compat(1);
-                }
-                if (result >= 0) {
-                    result = install_http_modules(1);
-                }
-                if (result >= 0) {
-                    result = install_certificates(1);
-                }
-            }
-            break;
-        case 1:
-            result = install_plugin(69);
-            break;
-        case 2:
-            result = install_compat(69);
-            break;
-        case 3:
-            result = install_http_modules(69);
-            break;
-        case 4:
-            result = install_certificates(69);
-            break;
-        default:
-            result = -1;
-            break;
+    TlsFixerInstallPlan plan;
+    int removing = !refresh_selected && installed[selected_option];
+    result = tls_fixer_plan_option((enum TlsFixerOption)selected_option, removing,
+        browser_payload_present(), system_payload_present(), &plan);
+    if (result >= 0) {
+        printf("Working...\n");
+        result = tls_fixer_execute_plan(&plan, apply_component, NULL);
     }
 
     if (result < 0) {
@@ -712,6 +703,26 @@ failed:
     return result;
 }
 
+static void refresh_installed_state(uint32_t firmware_version) {
+    memset(installed, 0, sizeof(installed));
+    if (!path_exists("vs0:sys/external/libhttp.supr0") &&
+        !path_exists("vs0:/data/external/webcore/ScePsp2Compat.supr0")) {
+        int coordinator = path_exists("ur0:tai/tls_fixer.skprx") && plugin_configured();
+        installed[TLS_FIXER_OPTION_BROWSER] = (uint8_t)(coordinator &&
+            path_exists(new_modules[0]) && path_exists(new_modules[6]) &&
+            path_exists(browser_provider_global));
+        installed[TLS_FIXER_OPTION_SYSTEM] = (uint8_t)(coordinator &&
+            path_exists(new_modules[1]) &&
+            path_exists(new_modules[2]) &&
+            path_exists(new_modules[5]) &&
+            ((firmware_version & UINT32_C(0xffff0000)) != UINT32_C(0x03600000) ||
+             (path_exists(new_modules[3]) && path_exists(new_modules[4]))));
+        installed[TLS_FIXER_OPTION_CERTIFICATES] = (uint8_t)path_exists("vs0:/data/external/cert/CA_LIST.cer_old");
+        installed[TLS_FIXER_OPTION_FULL] = installed[TLS_FIXER_OPTION_BROWSER] &&
+            installed[TLS_FIXER_OPTION_SYSTEM] && installed[TLS_FIXER_OPTION_CERTIFICATES];
+    }
+}
+
 int main(void) {
     SceCtrlData pad;
     SceKernelFwInfo firmware;
@@ -727,33 +738,19 @@ int main(void) {
         firmware_version = firmware.version;
     }
 
-    if (!path_exists("vs0:sys/external/libhttp.supr0") &&
-        !path_exists("vs0:/data/external/webcore/ScePsp2Compat.supr0")) {
-        installed[1] = (uint8_t)(
-            path_exists("ur0:tai/tls_fixer.skprx") && plugin_configured());
-        installed[2] = (uint8_t)(path_exists(new_modules[0]) && path_exists(new_modules[6]) &&
-            path_exists(browser_provider_global));
-        installed[3] = (uint8_t)(
-            path_exists(new_modules[1]) &&
-            path_exists(new_modules[2]) &&
-            path_exists(new_modules[5]) &&
-            ((firmware_version & UINT32_C(0xffff0000)) != UINT32_C(0x03600000) ||
-             (path_exists(new_modules[3]) && path_exists(new_modules[4]))));
-        installed[4] = (uint8_t)path_exists("vs0:/data/external/cert/CA_LIST.cer_old");
-        installed[0] = installed[1] & installed[2] & installed[3] & installed[4];
-    }
+    refresh_installed_state(firmware_version);
 
     show_menu();
     for (;;) {
         sceCtrlPeekBufferPositive(0, &pad, 1);
         if (pad.buttons == SCE_CTRL_CROSS) {
             (void)perform_selected_operation(0);
-            selected_option = 0;
+            refresh_installed_state(firmware_version);
             show_menu();
             sceKernelDelayThread(350 * 1000);
         } else if (pad.buttons == SCE_CTRL_SQUARE) {
-            selected_option = 0;
             (void)perform_selected_operation(1);
+            refresh_installed_state(firmware_version);
             show_menu();
             sceKernelDelayThread(350 * 1000);
         } else if (pad.buttons == SCE_CTRL_UP) {
