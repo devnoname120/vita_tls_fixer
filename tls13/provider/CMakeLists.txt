@@ -7,6 +7,7 @@ add_executable(tls_fixer_http
     cert_hooks.c
     provider.c
     platform_shims.c
+    private_mapping.c
     transport.c
     trace.c
     trust_store.c

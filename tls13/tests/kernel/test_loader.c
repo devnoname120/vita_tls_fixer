@@ -1,4 +1,5 @@
 #include "tls13_loader.h"
+#include "native_module_api.h"
 #include "tls_fixer/browser_abi.h"
 #include "tls_fixer/sony_abi.h"
 #include "boot_trace.h"
@@ -68,6 +69,9 @@ static SceUID argument_current_pid = 99;
 static const char *process_title = "TLSFIXAPP";
 static int process_title_error;
 static unsigned int process_title_queries;
+static SceUID shell_pid = 77;
+static int main_shared;
+static unsigned int main_shared_queries;
 
 #if TLS_FIXER_ENABLE_BOOT_TRACE
 static const char *last_stage = "";
@@ -284,6 +288,13 @@ int timingsafe_memcmp(const void *left, const void *right, size_t size) {
     return memcmp(left, right, size);
 }
 SceUID ksceKernelGetProcessId(void) { return argument_current_pid; }
+SceUID ksceKernelSysrootGetShellPid(void) { return shell_pid; }
+int tls_fixer_native_http_shared_consumer(SceUID pid, TlsFixerNativeHttpConsumer *consumer) {
+    assert(pid == 99 && !locked);
+    if (consumer != NULL) memset(consumer, 0, sizeof(*consumer));
+    ++main_shared_queries;
+    return main_shared;
+}
 int ksceKernelSysrootGetProcessTitleId(SceUID pid, char *title, SceSize size) {
     assert(pid == 99 && size == 16 && !locked);
     ++process_title_queries;
@@ -406,6 +417,9 @@ static void reset(void) {
     process_title = "TLSFIXAPP";
     process_title_error = 0;
     process_title_queries = 0;
+    shell_pid = 77;
+    main_shared = 0;
+    main_shared_queries = 0;
     load_error = start_error = reenter = corrupt_browser = corrupt_http = close_error = 0;
     target_info_error = 0;
     target_wrong_name = 0;
@@ -510,7 +524,7 @@ int main(void) {
     for (unsigned int i = 0; i < 80; ++i) {
         unsigned int before = allocations, before_query = query_allocations;
         unsigned int before_target = target_queries;
-        expected_path = "vs0:/data/external/tls_fixer/tls_fixer_http.suprx";
+        expected_path = "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx";
         assert(tls_fixer_kernel_inject_for_pid(99, 88) == 0);
         expected_path = "wb0:/tls_fixer/tls_fixer.suprx";
         assert(tls_fixer_kernel_inject_browser_for_pid(99, 88, expected_path) == 0);
@@ -615,7 +629,7 @@ int main(void) {
     assert(tls_fixer_kernel_inject_browser_for_pid(99, 88, expected_path) < 0 && loads == 0);
     reset();
     assert(tls_fixer_kernel_loader_init() == 0);
-    expected_path = "vs0:/data/external/tls_fixer/tls_fixer_http.suprx";
+    expected_path = "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx";
     assert(tls_fixer_kernel_inject_for_pid(99, 88) == 0 && loads == 0);
     reset();
     assert(!mutex_live && !locked);
@@ -658,7 +672,7 @@ int main(void) {
     corrupt_browser = 1;
     assert(tls_fixer_kernel_loader_init() == 0);
     assert(tls_fixer_kernel_loader_ready() && !tls_fixer_kernel_browser_loader_ready());
-    expected_path = "vs0:/data/external/tls_fixer/tls_fixer_http.suprx";
+    expected_path = "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx";
     assert(tls_fixer_kernel_inject_for_pid(99, 88) == 0 && loads == 1);
     reset();
     browser_file = http_file = 0;

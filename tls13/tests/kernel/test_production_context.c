@@ -14,7 +14,7 @@ int main(void) {
     assert(tls_fixer_kernel_loader_ready() && tls_fixer_kernel_browser_loader_ready());
     scan_error = module_info_error = 1;
     runtime_namespace_required = 1;
-    const char *paths[] = {"vs0:/data/external/tls_fixer/tls_fixer_http.suprx",
+    const char *paths[] = {"vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx",
         "wb0:/tls_fixer/tls_fixer.suprx"};
     for (unsigned int target = 0; target < 2; ++target) {
         expected_path = paths[target];

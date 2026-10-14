@@ -1,6 +1,7 @@
 #include "tls13_loader.h"
 #include "native_module_api.h"
 #include "memory_probe.h"
+#include "mapping_probe.h"
 
 #include <psp2/io/fcntl.h>
 #include <psp2kern/io/fcntl.h>
@@ -85,7 +86,7 @@ _Static_assert(sizeof(tai_module_info_t) == 0x38, "taiHEN ARM32 module-info exte
 
 #define TLS_FIXER_LIBHTTP_PATH "vs0:/data/external/tls_fixer/libhttp.suprx"
 #ifndef TLS_FIXER_HTTP_PROVIDER_PATH
-#define TLS_FIXER_HTTP_PROVIDER_PATH "vs0:/data/external/tls_fixer/tls_fixer_http.suprx"
+#define TLS_FIXER_HTTP_PROVIDER_PATH "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx"
 #endif
 #define TLS_FIXER_PROVIDER_PATH TLS_FIXER_HTTP_PROVIDER_PATH
 #ifndef TLS_FIXER_HTTP_TEST_TITLE_ID
@@ -500,8 +501,32 @@ static int inject_target(SceUID pid, SceUID module_id, unsigned int target_index
             goto cleanup;
         }
         result = ksceKernelGetModuleIsSharedByAddr(pid, text);
+        tls_fixer_mapping_probe_record("map.http", pid, text);
+#if TLS_FIXER_ENABLE_BOOT_TRACE && TLS_FIXER_PREPARE_NAME_QUERY
+        if (target_index == 0 && TLS_FIXER_HTTP_TEST_TITLE_ID[0] != '\0') {
+            static const char *const names[] = {"vita_tls_check", "SceLibKernel"};
+            static const char *const stages[] = {"control.main.shared", "control.kernel.shared"};
+            for (unsigned int i=0;i<2;++i) {
+                tai_module_info_t *control = &workspace->name_info;
+                memset(control, 0, sizeof(*control));
+                control->size = sizeof(*control);
+                int found = taiGetModuleInfoForKernel(pid, names[i], control);
+                (void)tls_fixer_boot_trace_event("control.lookup", pid, (int32_t)i, found);
+                if (found == 0 && control->exports_start != 0) {
+                    int shared = ksceKernelGetModuleIsSharedByAddr(pid, (void *)control->exports_start);
+                    tls_fixer_mapping_probe_record(i == 0 ? "map.main" : "map.libkernel",
+                        pid, (void *)control->exports_start);
+                    (void)tls_fixer_boot_trace_event(stages[i], pid,
+                        (int32_t)control->exports_start, shared);
+                }
+            }
+        }
+#endif
+        /* HTTP validates the actual process allocation types/ranges through the
+         * user Sysmem API before heap setup or hook publication. This native flag
+         * remains useful telemetry but also marks privately allocated libraries. */
         if (tls_fixer_boot_trace_event("target.shared.return", pid,
-                (int32_t)(uintptr_t)text, result) < 0 || result != 0) {
+                (int32_t)(uintptr_t)text, result) < 0 || (target_index == 1 && result != 0)) {
             result = -1;
             goto cleanup;
         }
@@ -671,6 +696,14 @@ static int dispatch_preparation(SceUID pid, SceUID module_id, unsigned int targe
 int tls_fixer_kernel_http_process_allowed(SceUID pid) {
     if (TLS_FIXER_BROWSER_ACTIVATION || pid <= 0) return 0;
     if (!TLS_FIXER_PREPARE_ONLY) {
+        /* SceShell imports HTTP into shared Sony code. A private replacement
+         * cannot export to those consumers (native MODULEMGR error 8002D018).
+         * Keep its library flags and Sony transport, rather than publishing
+         * process-local detours into code visible to other processes. */
+        if (pid == ksceKernelSysrootGetShellPid()) {
+            (void)tls_fixer_boot_trace_event("http.private.shell", pid, 0, 0);
+            return 0;
+        }
         char title_id[16] = {0};
         int result = ksceKernelSysrootGetProcessTitleId(pid, title_id, sizeof(title_id));
         if (result < 0) return result;
@@ -684,6 +717,20 @@ int tls_fixer_kernel_http_process_allowed(SceUID pid) {
             strcmp(title_id, TLS_FIXER_HTTP_TEST_TITLE_ID) != 0) {
             return 0;
         }
+        TlsFixerNativeHttpConsumer consumer;
+        int shared = tls_fixer_native_http_shared_consumer(pid, &consumer);
+        (void)tls_fixer_boot_trace_event("http.consumer.policy", pid, consumer.module, shared);
+        if (shared != 0)
+            (void)tls_fixer_boot_trace_event("http.consumer.details", pid, consumer.step, consumer.native_result);
+        if (shared == 1) {
+            uint32_t name[7];
+            memcpy(name, consumer.name, sizeof(name));
+            (void)tls_fixer_boot_trace_event("http.consumer.lib", pid, consumer.library, consumer.attributes);
+            (void)tls_fixer_boot_trace_event("http.consumer.name", pid, name[0], name[1]);
+            (void)tls_fixer_boot_trace_event("http.consumer.name2", pid, name[2], name[3]);
+            (void)tls_fixer_boot_trace_event("http.consumer.name3", pid, name[4], name[5]);
+        }
+        if (shared != 0) return shared < 0 ? shared : 0;
     }
     return 1;
 }

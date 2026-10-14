@@ -5,18 +5,23 @@ set(CMAKE_C_COMPILER "arm-vita-eabi-gcc")
 set(CMAKE_CXX_COMPILER "arm-vita-eabi-g++")
 
 project(HENkaku)
-set(TLS_FIXER_HTTP_PROVIDER_PATH "vs0:/data/external/tls_fixer/tls_fixer_http.suprx"
+set(TLS_FIXER_HTTP_PROVIDER_PATH "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx"
     CACHE STRING "HTTP provider path; diagnostics stage their provider separately")
 set(TLS_FIXER_HTTP_TEST_TITLE_ID "" CACHE STRING "Optional single-title diagnostic HTTP activation")
-if(NOT TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^(vs0|ux0):/[A-Za-z0-9_./-]+$")
-    message(FATAL_ERROR "HTTP provider requires an absolute vs0 or ux0 path")
+option(TLS_FIXER_HTTP_GLOBAL_DIAGNOSTIC "Explicit broad activation of a separately staged provider" OFF)
+if(NOT TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^(vs0|ux0|ur0):/[A-Za-z0-9_./-]+$")
+    message(FATAL_ERROR "HTTP provider requires an absolute vs0, ux0 or ur0 path")
+endif()
+if(TLS_FIXER_HTTP_GLOBAL_DIAGNOSTIC AND (NOT TLS_FIXER_HTTP_TEST_TITLE_ID STREQUAL "" OR
+   NOT TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^(ux0|ur0):/data/tls_fixer-runtime[-/A-Za-z0-9_.]*"))
+    message(FATAL_ERROR "Global diagnostic requires a separately staged runtime path and no title restriction")
 endif()
 if(NOT TLS_FIXER_HTTP_TEST_TITLE_ID STREQUAL "")
     string(LENGTH "${TLS_FIXER_HTTP_TEST_TITLE_ID}" tls_fixer_test_title_length)
     if(NOT tls_fixer_test_title_length EQUAL 9 OR NOT TLS_FIXER_HTTP_TEST_TITLE_ID MATCHES "^[A-Z0-9]+$")
         message(FATAL_ERROR "HTTP diagnostic title must be a nine-character title ID")
     endif()
-elseif(TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^ux0:")
+elseif(TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^(ux0|ur0):" AND NOT TLS_FIXER_HTTP_GLOBAL_DIAGNOSTIC)
     message(FATAL_ERROR "A separately staged HTTP provider requires an explicit diagnostic title")
 endif()
 
@@ -26,8 +31,16 @@ option(TLS_FIXER_REDIRECTION_ONLY "Install module path redirection but do not st
 option(TLS_FIXER_PREPARE_ONLY "Validate provider prerequisites without calling module load/start" OFF)
 option(TLS_FIXER_ENABLE_BOOT_TRACE "Persist bounded synchronized preparation-stage records" OFF)
 option(TLS_FIXER_TRACE_MODULE_PATHS "Queue process-namespace diagnostics for observation or browser-only activation" OFF)
+option(TLS_FIXER_BROWSER_INVENTORY "Read-only mapped Browser inventory using the diagnostic worker" OFF)
+if(TLS_FIXER_BROWSER_INVENTORY AND NOT TLS_FIXER_TRACE_MODULE_PATHS)
+    message(FATAL_ERROR "Browser inventory requires the queued diagnostic worker")
+endif()
 option(TLS_FIXER_TRACE_ACTIVATION_ONLY "Limit queued diagnostics to provider activation boundaries" OFF)
 option(TLS_FIXER_MEMORY_PROBE "Record primary physical-partition bytes on audited retail 3.60" OFF)
+option(TLS_FIXER_MAPPING_PROBE "Read-only checker mapping type diagnostics" OFF)
+if(TLS_FIXER_MAPPING_PROBE AND (NOT TLS_FIXER_ENABLE_BOOT_TRACE OR TLS_FIXER_HTTP_TEST_TITLE_ID STREQUAL ""))
+    message(FATAL_ERROR "Mapping inspection requires tracing and an explicit diagnostic title")
+endif()
 option(TLS_FIXER_ALLOCATION_PROBE "Capture first physical-page allocation failure on audited retail 3.60" OFF)
 option(TLS_FIXER_STACK_HEADROOM "Measure native current kernel-stack headroom in trace records" OFF)
 option(TLS_FIXER_PREPARE_EXTENDED_STACK "Run preparation diagnostics on a 16 KiB native-managed stack" OFF)
@@ -145,8 +158,10 @@ target_compile_definitions(tls_fixer.elf PRIVATE
 	TLS_FIXER_PREPARE_ONLY=$<BOOL:${TLS_FIXER_PREPARE_ONLY}>
 		TLS_FIXER_ENABLE_BOOT_TRACE=$<BOOL:${TLS_FIXER_ENABLE_BOOT_TRACE}>
 		TLS_FIXER_TRACE_MODULE_PATHS=$<BOOL:${TLS_FIXER_TRACE_MODULE_PATHS}>
+	TLS_FIXER_BROWSER_INVENTORY=$<BOOL:${TLS_FIXER_BROWSER_INVENTORY}>
 	TLS_FIXER_TRACE_ACTIVATION_ONLY=$<BOOL:${TLS_FIXER_TRACE_ACTIVATION_ONLY}>
 	TLS_FIXER_MEMORY_PROBE=$<BOOL:${TLS_FIXER_MEMORY_PROBE}>
+	TLS_FIXER_MAPPING_PROBE=$<BOOL:${TLS_FIXER_MAPPING_PROBE}>
 	TLS_FIXER_ALLOCATION_PROBE=$<BOOL:${TLS_FIXER_ALLOCATION_PROBE}>
 	TLS_FIXER_STACK_HEADROOM=$<BOOL:${TLS_FIXER_STACK_HEADROOM}>
 	TLS_FIXER_PREPARE_EXTENDED_STACK=$<BOOL:${TLS_FIXER_PREPARE_EXTENDED_STACK}>
@@ -176,11 +191,18 @@ endif()
 if(TLS_FIXER_MEMORY_PROBE)
 	target_sources(tls_fixer.elf PRIVATE memory_probe.c)
 endif()
+if(TLS_FIXER_MAPPING_PROBE)
+    target_sources(tls_fixer.elf PRIVATE mapping_probe.c)
+    target_link_libraries(tls_fixer.elf SceSysmemForKernel_stub)
+endif()
 if(TLS_FIXER_ALLOCATION_PROBE)
 	target_sources(tls_fixer.elf PRIVATE allocation_probe.c)
 endif()
 if(TLS_FIXER_TRACE_MODULE_PATHS)
 	target_sources(tls_fixer.elf PRIVATE trace_status.c)
+endif()
+if(TLS_FIXER_BROWSER_INVENTORY)
+    target_sources(tls_fixer.elf PRIVATE browser_inventory.c)
 endif()
 if(TLS_FIXER_INSPECT_CONNECT_PATCH)
 	target_sources(tls_fixer.elf PRIVATE code_snapshot.c)

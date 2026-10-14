@@ -1,5 +1,6 @@
 #include "trace_status.h"
 #include "boot_trace.h"
+#include "browser_inventory.h"
 #include <kernel_mock.h>
 #include <assert.h>
 #include <pthread.h>
@@ -16,6 +17,12 @@ static int create_error, start_error, delete_error, wait_error, report_error, de
 static int automatic_changes, exited, started, joined, deleted, exit_value;
 static int enable_error;
 static unsigned int enable_calls, drains;
+#if TLS_FIXER_BROWSER_INVENTORY
+static unsigned int inventory_resets, inventory_ticks;
+void tls_fixer_browser_inventory_reset(void) { ++inventory_resets; }
+void tls_fixer_browser_inventory_request(SceUID pid) { (void)pid; }
+int tls_fixer_browser_inventory_tick(void) { ++inventory_ticks; return 0; }
+#endif
 
 int tls_fixer_boot_trace_enable_async(void) { ++enable_calls; return enable_error ? -14 : 0; }
 int tls_fixer_boot_trace_drain(void) {
@@ -130,9 +137,19 @@ int main(int argc, char **argv) {
     assert(result == 0 && tls_fixer_trace_status_start() < 0);
     assert(enable_calls == 1);
     if (automatic_changes) {
+#if TLS_FIXER_BROWSER_INVENTORY
+        wait_for(TLS_FIXER_TRACE_STATUS_MAX_UPDATES, TLS_FIXER_TRACE_STATUS_MAX_UPDATES + 5, 0);
+        assert(pthread_mutex_lock(&lock) == 0);
+        assert(!exited && reports == TLS_FIXER_TRACE_STATUS_MAX_UPDATES);
+        assert(pthread_mutex_unlock(&lock) == 0);
+#else
         wait_for(TLS_FIXER_TRACE_STATUS_MAX_UPDATES, 0, 1);
+#endif
         assert(tls_fixer_trace_status_stop() == 0 && deleted == 1);
         assert(reports == TLS_FIXER_TRACE_STATUS_MAX_UPDATES && modes[reports - 1] == 2);
+#if TLS_FIXER_BROWSER_INVENTORY
+        assert(inventory_resets == 1 && inventory_ticks > TLS_FIXER_TRACE_STATUS_MAX_UPDATES);
+#endif
         return 0;
     }
     if (report_error || delay_error) {

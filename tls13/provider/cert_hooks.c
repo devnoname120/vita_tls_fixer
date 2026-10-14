@@ -2,10 +2,12 @@
 
 #include "diagnostics.h"
 #include "provider.h"
+#include "private_mapping.h"
 #include "tls_fixer/x509_names.h"
 
 #include <psp2/libssl.h>
 #include <psp2/kernel/threadmgr/mutex.h>
+#include <psp2/kernel/modulemgr.h>
 #include <psp2/net/http.h>
 #include <psp2/rtc.h>
 
@@ -522,6 +524,16 @@ int tls_fixer_cert_hooks_ensure_ssl(void) {
     if (ssl_info.exports_start == 0 || ssl_info.exports_start >= UINT32_C(0xE0000000)) {
         result = -1;
         TLS_FIXER_LOG("event=certificate.ssl_gate reason=shared_or_missing_exports");
+        goto done;
+    }
+    SceKernelModuleInfo ssl_module = {0};
+    ssl_module.size = sizeof(ssl_module);
+    result = sceKernelGetModuleInfo(ssl_info.modid, &ssl_module);
+    if (result != 0 || strcmp(ssl_module.module_name, "SceLibSsl") != 0 ||
+        tls_fixer_require_private_mapping(ssl_module.segments[0].vaddr,
+            ssl_module.segments[0].memsz, 1) != 0) {
+        result = -1;
+        TLS_FIXER_LOG("event=certificate.ssl_gate reason=nonprivate_mapping");
         goto done;
     }
     for (size_t index = 0; index < TLS_FIXER_CERT_HOOK_COUNT; ++index) {

@@ -23,6 +23,7 @@
 #include "disarm_result.h"
 #include "hook_guard.h"
 #include "native_module_api.h"
+#include "browser_inventory.h"
 
 #ifndef TLS_FIXER_DISARM_RESULT_ONLY
 #define TLS_FIXER_DISARM_RESULT_ONLY 0
@@ -87,12 +88,45 @@ static tai_hook_ref_t g_loader_hook_ref;
 #if TLS_FIXER_BROWSER_POST_START
 static int g_start_hook_id = -1;
 static tai_hook_ref_t g_start_hook_ref;
+#if defined(__arm__) && TLS_FIXER_ENABLE_BOOT_TRACE
+typedef struct BrowserStartTrace { SceUID pid, module; } BrowserStartTrace;
+static int trace_browser_module_on_stack(void *argument) {
+    const BrowserStartTrace *call = argument;
+    SceKernelModuleInfo info;
+    uint32_t name[7];
+    memset(&info, 0, sizeof(info));
+    info.size = sizeof(info);
+    int result = ksceKernelGetModuleInfo(call->pid, call->module, &info);
+    if (result != 0) {
+        (void)tls_fixer_boot_trace_event("browser.module.info", call->pid, call->module, result);
+        return 0;
+    }
+    memcpy(name, info.module_name, sizeof(name));
+    (void)tls_fixer_boot_trace_event("browser.module.name", call->pid, name[0], name[1]);
+    (void)tls_fixer_boot_trace_event("browser.module.name2", call->pid, name[2], name[3]);
+    (void)tls_fixer_boot_trace_event("browser.module.text", call->pid,
+        (int32_t)(uintptr_t)info.segments[0].vaddr, (int32_t)info.state);
+    return 0;
+}
+static void trace_browser_module(SceUID pid, SceUID module) {
+    char title[16] = {0};
+    if (ksceKernelSysrootGetProcessTitleId(pid, title, sizeof(title)) < 0 ||
+        (memcmp(title, "NPXS10003", sizeof("NPXS10003")) != 0 &&
+         memcmp(title, "NPXS10083", sizeof("NPXS10083")) != 0)) return;
+    BrowserStartTrace call = {pid, module};
+    tls_fixer_browser_inventory_request(pid);
+    (void)ksceKernelRunWithStack(16384, trace_browser_module_on_stack, &call);
+}
+#endif
 
 static int start_for_pid_patched(SceUID pid, SceUID module, SceSize size,
     const void *data, uint32_t flags, const void *options, int *status) {
     const SceUID target_pid = pid == 0 ? ksceKernelGetProcessId() : pid;
     int result = TAI_CONTINUE(int, g_start_hook_ref, pid, module, size, data, flags, options, status);
     (void)tls_fixer_post_start_complete(target_pid, module, result);
+#if defined(__arm__) && TLS_FIXER_ENABLE_BOOT_TRACE
+    trace_browser_module(target_pid, module);
+#endif
     return result;
 }
 #endif
@@ -126,6 +160,20 @@ static SceUID load_for_pid_patched(
     SceUID result;
     tls_fixer_trace_status_note_load();
     const SceUID target_pid = pid == 0 ? ksceKernelGetProcessId() : pid;
+
+#if defined(__arm__) && TLS_FIXER_ENABLE_BOOT_TRACE
+    if (tls_fixer_path_has_suffix(path, "ScePsp2Compat.suprx", TLS_FIXER_MAX_MODULE_PATH)) {
+        static const char *const stages[] = {"compat.path0", "compat.path1", "compat.path2", "compat.path3",
+            "compat.path4", "compat.path5", "compat.path6", "compat.path7"};
+        uint32_t words[16] = {0};
+        size_t size = strnlen(path, sizeof(words));
+        memcpy(words, path, size);
+        (void)tls_fixer_boot_trace_event("compat.seen", target_pid, g_replace[0],
+            tls_fixer_kernel_browser_loader_ready());
+        for (size_t i = 0; i < sizeof(stages)/sizeof(stages[0]); ++i)
+            (void)tls_fixer_boot_trace_event(stages[i], target_pid, words[2*i], words[2*i+1]);
+    }
+#endif
 
     if (g_replace_iap &&
         (tls_fixer_path_equals(path, "vs0:sys/external/libhttp.suprx", TLS_FIXER_MAX_MODULE_PATH) ||
@@ -173,9 +221,18 @@ static SceUID load_for_pid_patched(
      * frees its hook records. Stateful user hooks require private HTTP/SSL code. */
     if ((loads_replacement_libhttp || loads_replacement_libssl) &&
         !TLS_FIXER_SKIP_HTTP_START && !TLS_FIXER_REDIRECTION_ONLY && !TLS_FIXER_PREPARE_ONLY &&
-        !TLS_FIXER_BROWSER_ACTIVATION &&
-        tls_fixer_kernel_http_process_allowed(target_pid) > 0) {
-        load_flags &= ~UINT32_C(1);
+        !TLS_FIXER_BROWSER_ACTIVATION) {
+        int allowed = tls_fixer_kernel_http_process_allowed(target_pid);
+        if ((flags & UINT32_C(0x08000000)) != 0)
+            (void)tls_fixer_boot_trace_event("http.private.policy", target_pid, route_kind, allowed);
+        if (allowed > 0) {
+            /* Removing only the explicit shared request still reuses shared Sony
+             * libraries. Use the direct loader mode too, then verify ownership. */
+            load_flags &= ~UINT32_C(0x08000001);
+        }
+        if ((flags & UINT32_C(0x08000000)) != 0)
+            (void)tls_fixer_boot_trace_event("http.private.flags", target_pid,
+                (int32_t)flags, (int32_t)load_flags);
     }
     result = TAI_CONTINUE(
         SceUID,
@@ -322,14 +379,14 @@ int module_start(SceSize argc, const void *args) {
     has_replacements = add_replace_flags();
     if (tls_fixer_boot_trace_event("startup.checks.return", 0, 0, has_replacements) < 0) goto failed_before_hook;
 #if TLS_FIXER_TRACE_MODULE_PATHS
-    uint32_t replacement_bits = 0;
     if (tls_fixer_boot_trace_event("trace.path.mask", 0,
             (int32_t)TLS_FIXER_PATH_OBSERVER_NAMESPACE_FLAG, 0) < 0) goto failed_before_hook;
+#endif
+    uint32_t replacement_bits = 0;
     for (size_t i = 0; i < sizeof(g_replace); ++i) {
         if (g_replace[i]) replacement_bits |= UINT32_C(1) << i;
     }
     if (tls_fixer_boot_trace_event("startup.replacements", 0, (int32_t)replacement_bits, 0) < 0) goto failed_before_hook;
-#endif
     if (g_replace_iap || g_replace[0]) {
         int init_result;
         if (tls_fixer_boot_trace_event("loader.init.enter", 0, 0, 0) < 0) goto failed_before_hook;
@@ -339,10 +396,8 @@ int module_start(SceSize argc, const void *args) {
         ksceDebugPrintf("tls_fixer: exact-module gates app=%d browser=%d\n",
             tls_fixer_kernel_loader_ready(), tls_fixer_kernel_browser_loader_ready());
     }
-#if TLS_FIXER_TRACE_MODULE_PATHS
     int provider_bits = (!!tls_fixer_kernel_loader_ready()) | ((!!tls_fixer_kernel_browser_loader_ready()) << 1);
     if (tls_fixer_boot_trace_event("startup.providers", 0, provider_bits, 0) < 0) goto failed_before_hook;
-#endif
 
     if (TLS_FIXER_INITIALIZE_ONLY || !has_replacements) {
         return SCE_KERNEL_START_SUCCESS;

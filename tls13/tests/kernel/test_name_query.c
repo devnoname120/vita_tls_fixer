@@ -77,7 +77,7 @@ int main(void) {
     for (unsigned int i = 0; i < 80; ++i) {
         unsigned int before_target = name_target_calls, before_provider = name_provider_calls;
         unsigned int before_info = target_queries;
-        expected_path = "vs0:/data/external/tls_fixer/tls_fixer_http.suprx";
+        expected_path = "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx";
         assert(tls_fixer_kernel_inject_for_pid(99, 88) == 0);
         expected_path = "wb0:/tls_fixer/tls_fixer.suprx";
         assert(tls_fixer_kernel_inject_browser_for_pid(99, 88, expected_path) == 0);

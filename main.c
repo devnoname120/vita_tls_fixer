@@ -29,7 +29,7 @@ unsigned int _newlib_heap_size_user = 8u * 1024u * 1024u;
 
 static const char tls_fixer_config_block[] =
     "# TLS_FIXER\n*KERNEL\nur0:tai/tls_fixer.skprx\n\n";
-static const char browser_provider_global[] = "ur0:tai/tls_fixer.suprx";
+static const char browser_provider_global[] = "ur0:tai/tls_fixer-native/tls_fixer.suprx";
 
 static const char *const new_modules[] = {
     "vs0:/data/external/tls_fixer/ScePsp2Compat.suprx",
@@ -37,8 +37,8 @@ static const char *const new_modules[] = {
     "vs0:/data/external/tls_fixer/libssl.suprx",
     "vs0:/data/external/tls_fixer/old_dns_fix.suprx",
     "vs0:/data/external/tls_fixer/np_commerce2.suprx",
-    "vs0:/data/external/tls_fixer/tls_fixer_http.suprx",
-    "vs0:/data/external/tls_fixer/tls_fixer.suprx",
+    "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx",
+    "vs0:/data/external/tls_fixer/native/tls_fixer.suprx",
 };
 
 static const char *const install_menu[MENU_COUNT] = {
@@ -463,6 +463,14 @@ static int install_compat(int requested_state) {
     }
 
     printf("Installing browser compatibility and TLS 1.3 modules... \n");
+    if (!path_exists("ur0:tai/tls_fixer-native")) {
+        result = sceIoMkdir("ur0:tai/tls_fixer-native", 0777);
+        if (result < 0) return result;
+    }
+    if (!path_exists("vs0:/data/external/tls_fixer/native")) {
+        result = sceIoMkdir("vs0:/data/external/tls_fixer/native", 0777);
+        if (result < 0) return result;
+    }
     result = replace_file("app0:tls_fixer.suprx", browser_provider_global);
     if (result >= 0) result = replace_file("app0:tls_fixer.suprx", new_modules[6]);
     if (result >= 0) result = replace_file("app0:compat.suprx", new_modules[0]);
@@ -516,6 +524,10 @@ static int install_http_modules(int requested_state) {
         }
     } else {
         printf("Installing the tls_fixer HTTP, SSL, and TLS 1.3 modules... \n");
+        if (!path_exists("vs0:/data/external/tls_fixer/native")) {
+            result = sceIoMkdir("vs0:/data/external/tls_fixer/native", 0777);
+            if (result < 0) return result;
+        }
         result = replace_file("app0:tls_fixer_http.suprx", new_modules[5]);
         if (result >= 0) {
             result = replace_file("app0:lhttp.suprx", new_modules[1]);

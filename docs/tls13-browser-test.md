@@ -1,10 +1,10 @@
-# First browser TLS 1.3 hardware test
+# Archived first browser TLS 1.3 hardware test
 
 **Testing suspended:** a user-reported crash at the boot epilepsy warning is under investigation. Do not install or refresh either exported test build. The immediate recovery action is L-held plugin-bypass boot, then disabling only the tls_fixer kernel entry in the active taiHEN configuration. Preserve backups and do not format or restore the system. The procedure below is historical until the boot failure is understood and corrected.
 
-This package contains the browser backend, not just the earlier SceHttp adapter. It is an experimental hardware-test build. Host TLS tests and cross-compilation have passed; no Vita browser result has yet been recorded.
+This document records the earlier experimental package and test protocol. At that stage, host TLS tests and cross-compilation had passed but Browser execution had not yet been recorded. Current results and installation paths are documented in [README.md](../README.md), [http-kernel-runtime.md](http-kernel-runtime.md) and TLS13_PROGRESS.md sections 23.329–23.330.
 
-Use the **revision-2** VPK (`tls_fixer-TLS13-browser-test-r2.vpk`). It corrects provider loading when Sony's native loader receives PID zero for the current process. The earlier VPK with SHA-256 `4f289628815da2f568e02f8aed2a83709efa3a83bf5e8eb860fdb88d88cb4464` can miss that injection path and is superseded. A previously downloaded or FTP-staged copy does not update automatically.
+The withdrawn **revision-2** VPK (`tls_fixer-TLS13-browser-test-r2.vpk`) corrected provider loading when Sony's native loader received PID zero for the current process. Do not install that package. The earlier VPK with SHA-256 `4f289628815da2f568e02f8aed2a83709efa3a83bf5e8eb860fdb88d88cb4464` can miss that injection path and is superseded. A previously downloaded or FTP-staged copy does not update automatically.
 
 ## Install or refresh
 

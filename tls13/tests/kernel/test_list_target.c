@@ -33,7 +33,7 @@ int main(void) {
     module_info_error = 1;
     for (unsigned int i = 0; i < 80; ++i) {
         unsigned int before_list = list_queries, before_target = target_queries;
-        expected_path = "vs0:/data/external/tls_fixer/tls_fixer_http.suprx";
+        expected_path = "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx";
         assert(tls_fixer_kernel_inject_for_pid(99, 88) == 0);
         expected_path = "wb0:/tls_fixer/tls_fixer.suprx";
         assert(tls_fixer_kernel_inject_browser_for_pid(99, 88, expected_path) == 0);

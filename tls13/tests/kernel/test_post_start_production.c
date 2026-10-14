@@ -67,11 +67,11 @@ int main(void) {
     const char *private_paths[] = {"vs0:sys/external/libhttp.suprx", "vs0:sys/external/libssl.suprx"};
     for (unsigned i=0;i<2;++i) {
         reset(); http_process_allowed = 1;
-        assert(load_for_pid_patched(0, private_paths[i], 0x8001, NULL)==88);
-        assert(seen_flags==(TLS_FIXER_SKIP_HTTP_START ? 0x8001u : 0x8000u));
+        assert(load_for_pid_patched(0, private_paths[i], 0x08008001, NULL)==88);
+        assert(seen_flags==(TLS_FIXER_SKIP_HTTP_START ? 0x08008001u : 0x8000u));
         reset(); http_process_allowed = 0;
-        assert(load_for_pid_patched(0, private_paths[i], 0x8001, NULL)==88);
-        assert(seen_flags==0x8001);
+        assert(load_for_pid_patched(0, private_paths[i], 0x08008001, NULL)==88);
+        assert(seen_flags==0x08008001);
     }
     http_process_allowed = 1;
     reset();

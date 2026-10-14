@@ -2,6 +2,8 @@
 #include <psp2/libssl.h>
 #include <psp2/net/http.h>
 #include <psp2/rtc.h>
+#include <psp2common/kernel/modulemgr.h>
+#include <psp2/kernel/sysmem.h>
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
@@ -14,6 +16,21 @@ static struct {
 int mock_hook_fail_index = -1;
 int mock_legacy_certificate_result;
 int mock_ssl_shared;
+
+int sceKernelGetModuleInfo(SceUID id, SceKernelModuleInfo *info) {
+    assert(id == 42 && info->size == sizeof(*info));
+    strcpy(info->module_name, "SceLibSsl");
+    info->segments[0].vaddr = (void *)(uintptr_t)0x81010000;
+    info->segments[0].memsz = 0x66ea4;
+    return 0;
+}
+
+int sceKernelGetMemBlockInfoByAddr(void *address, SceKernelMemBlockInfo *info) {
+    assert(address == (void *)(uintptr_t)0x81010000 && info->size == sizeof(*info));
+    info->mappedBase = address; info->mappedSize = 0x67000;
+    info->type = 0x0c20d050; info->access = 5;
+    return 0;
+}
 
 int taiGetModuleInfo(const char *name, tai_module_info_t *info) {
     assert(strcmp(name, "SceLibSsl") == 0 && info->size == sizeof(*info));

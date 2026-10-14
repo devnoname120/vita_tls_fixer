@@ -126,6 +126,8 @@ static int activation_stage(const char *stage, int32_t pid, int32_t object,
         strncmp(stage, "dns.", 4) == 0 ||
         strncmp(stage, "http.", 5) == 0 ||
         strncmp(stage, "browser.defer.", 14) == 0 ||
+        strncmp(stage, "browser.module", 14) == 0 ||
+        strncmp(stage, "compat.", 7) == 0 ||
         strncmp(stage, "prepare.", 8) == 0 ||
         strncmp(stage, "prereq.", 7) == 0 ||
         strcmp(stage, "native.start.return") == 0 ||

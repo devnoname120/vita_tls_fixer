@@ -2,10 +2,9 @@
 
 tls_fixer updates the PlayStation Vita HTTPS stack on systems using enso. This development build adds separate TLS 1.2/1.3 providers for applications using Sony's `SceHttp` and for the browser's libcurl backend in the exact bundled `ScePsp2Compat` module. Both use source-built Mbed TLS 4.2.0 and TF-PSA-Crypto 1.2.0.
 
-**Current test status (2026-10-13):** the normal combined coordinator reached Cloudflare Browser TLS 1.3 on retail 3.60 in two separate cold boots, including a repeat with the kernel extracted from the rebuilt VPK. Both tests started Browser before any screen capture or other app; native screenshots taken afterward independently show TLS 1.3/X25519. The same kernel failed in earlier capture-assisted runs. A diagnostic recorded a 32 KiB allocation request with only 16 KiB free in the kernel physical-memory partition; the exact cause of the differing outcomes remains unproven. Treat this as a one-shot testing build, not a generally validated release.
+**Current test status (2026-10-14):** the normal combined coordinator, with HTTP and DNS enabled and kernel diagnostics disabled, passed the Cloudflare Browser TLS 1.3 test on retail 3.60. The independent Sony-API checker then passed strict TLS 1.2 and TLS 1.3 requests in three separate processes, including two normal exits/relaunches. The HTTP provider uses a small SceLibKernel/SceSysmem runtime and private transport mappings. The exact rebuilt VPK kernel and providers passed the same Browser control and nine successful modern requests across three fresh checker processes, including two normal exits/relaunches. See `TLS13_PROGRESS.md` sections 23.329–23.331.
 
-**Earlier test packages are withdrawn:** a previous test installation caused a boot failure on the primary Vita. The device was recovered, and a later controlled one-shot Browser test verified TLS 1.3 with the boot entry disabled afterward. Only the retail 3.60 profile has current device execution evidence; other hardware profiles remain unverified on devices. The renamed certificate updater has passed live download and isolated install/refresh checks on retail 3.60. These results do not establish production readiness or resolve the original boot defect. See `AGENTS.md` and `TLS13_PROGRESS.md` section 23.
-
+**Earlier test packages are withdrawn.** Earlier broad activation failed while Sony shared consumers linked private HTTP exports; scoped tests also exposed stale hooks in shared mappings. The coordinator now preserves Sony transport for shared or unclassified consumers, including Shell/Paf, and verifies private mappings before publishing application hooks. The original historical boot fault is not established as having a single cause. Only retail 3.60 has physical-device execution evidence; other firmware/hardware profiles remain offline checks. This is a one-shot development build.
 The experimental kernel now disables its own taiHEN boot entries before other initialization. It does not re-enable them automatically. This is a single-use test safeguard, not permanent production activation or restoration of previously overwritten files.
 
 ## Installation
@@ -18,7 +17,9 @@ The installer procedure is retained for development. It writes persistent system
 
 The normal CROSS menu toggles the selected component. Browser installation deploys both `ScePsp2Compat.suprx` and `tls_fixer.suprx`; it requires the current kernel plugin and a usable CA bundle. Refreshing the full package avoids leaving an old loader installed. The CA-only option does not install the redirection plugin.
 
-The bubble is only an installer and uninstaller. It may be removed after a successful installation.
+The rebuilt package installs its HTTP provider at `vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx` and Browser provider at `ur0:tai/tls_fixer-native/tls_fixer.suprx`, with a mirror at `vs0:/data/external/tls_fixer/native/tls_fixer.suprx`. Previous provider copies remain available during qualification.
+
+The packaged installer has been verified to open its menu on the qualified retail 3.60 boot. This check did not run a full system-file installation or prove its interruption safety. The bubble is only an installer and uninstaller and may be removed after a successful installation.
 
 ## TLS 1.3 architecture
 
@@ -60,8 +61,9 @@ Activation is intentionally narrow:
 - generic HTTP injection excludes the Browser controller (`NPXS10003`) and WebKit helper (`NPXS10083`) before allocating its preparation stack; page TLS uses the dedicated Browser provider;
 - Browser and HTTP injection wait until native module start/import linking returns successfully; the normal kernel build requires this ordering and rejects early injection;
 - normal provider preparation uses the native 16 KiB stack and target/provider name lookup; every VPK build reconfigures the normal kernel profile, even when a newer diagnostic artifact is cached;
-- HTTP-provider loading requires its Sony `SceLibc` dependency to be present; failure leaves the native backend available;
-- the Browser provider is installed at `ur0:tai/tls_fixer.suprx` and loaded globally into its target process; the compatibility checksum still uses the Browser's private mount;
+- the HTTP provider uses a process-private 2 MiB heap, native mutex and a small SceLibKernel/SceSysmem C runtime shim; it imports neither SceLibc nor Paf and does not patch dependency sources;
+- shared or unclassified HTTP/SSL importers retain Sony transport; eligible application transports load privately, and the provider validates complete private text/data allocations before heap setup or hooks;
+- the Browser provider is installed at `ur0:tai/tls_fixer-native/tls_fixer.suprx` and loaded globally into its target process; the compatibility checksum still uses the Browser's private mount;
 - the provider validates the mapped executable/data segment dimensions and masked bytes at every hook site;
 - browser connect interception is installed last and TLS ownership is enabled only after the complete hook set succeeds; on an earlier partially published hook failure, inert forwarding hooks stay resident rather than unloading code another thread might execute;
 - unknown or mismatched modules stay on their original TLS backend; active user providers and the kernel loader reject hot unload and remain until process exit or reboot.
@@ -72,16 +74,17 @@ The kernel translates its internal module GUID to the target process's PUID befo
 
 Firmware profiles cover the 31 retail/testkit/devkit combinations available in the supplied external 3.60-3.74 corpus. Compiled kernel/WebKit guards and linked firmware imports pass against those images. Five kit images are unavailable; only the retail 3.60 profile has been exercised on hardware. See [the firmware matrix](docs/tls13-firmware-support.md) for precise coverage and evidence limits. Loaded module identities select profiles, independently of version spoofing.
 
-The first implementation supports client-side TLS 1.2 and TLS 1.3 through the bundled `libhttp` HTTPS path. It is not a general TLS 1.3 replacement for every Vita `SceSsl` consumer.
+The current provider supports client-side TLS 1.2 and TLS 1.3 through the bundled `libhttp` HTTPS path. TLS 1.0/1.1 checker requests currently fail after the provider starts; there is no legacy support claim or fresh-socket retry through Sony after a provider handshake fails. It is not a general TLS 1.3 replacement for every Vita `SceSsl` consumer.
 
 The adapter implements Sony's recovered retry/error conventions, hostname verification, and application certificate callbacks. Nonnegative callback results do not automatically permit an invalid certificate: the original post-callback process/version/system-parameter policy is also applied using the gated module's existing imports. Its behavior is covered by host tests; execution of those imports and hooks still requires Vita validation.
 
 Borrowed callback certificate handles expire when the callback returns. Subject/issuer name results have independent storage and remain valid until `sceSslFreeSslCertName`. All eight public certificate inspection hooks are exercised by native loopback tests. The provider remains resident until process exit; hot unloading is rejected because an empty connection registry alone does not prove that no thread is executing hook code.
 
-Some cases deliberately remain on BSAFE TLS 1.2:
+The following cases retain Sony's transport; the negotiated version depends on that transport and endpoint:
 
 - applications that install custom CA certificates with `sceHttpsLoadCert`;
 - applications that install a client certificate/private key;
+- Shell and applications with shared or unclassified HTTP/SSL importers, including ScePaf consumers;
 - other consumers that bypass both supported transport boundaries;
 - unsupported or modified `libhttp` binaries;
 - provider initialization, trust-store parsing, module validation, or hook-installation failure.
@@ -106,11 +109,10 @@ Browser-specific tests also cover blocking cancellation from another thread, ind
 
 The source cross-builds with hard-float VitaSDK GCC 15.2. Full build commands and artifact identities are recorded in `TLS13_PROGRESS.md`. On 2026-10-12, one controlled primary 3.60 Vita Browser test rendered the specified Cloudflare trace page with **TLS 1.3 and X25519**, correlated with successful provider startup, a completed verified handshake and application data in the runtime trace. The self-disarming test entry remained disabled afterward; this is one-shot acceptance, not a production deployment or proof that the original boot defect is resolved. Broader firmware, memory, abort/proxy and lifecycle coverage remains unverified. See `TLS13_PROGRESS.md` section 23.275 and `build/browser-tls13-acceptance-20261012.json` for the exact evidence, `docs/tls13-browser-path.md` for the recovered boundary, and `docs/tls13-browser-test.md` for the hardware protocol.
 
-On 2026-10-13, the ordinary combined coordinator passed two cold-boot Browser tests with HTTP and DNS enabled and diagnostics disabled. Both results were confirmed by native screenshots after the user reported success; neither boot used pre-launch capture or app warmup. The second kernel was extracted from the rebuilt VPK, and each boot disabled its own next-boot entry. These tests qualify Browser execution with the full coordinator present; they do not independently exercise another application's `SceHttp` requests or the latest installer's system-file writes. The current source passes 342 normal and 342 sanitizer-enabled host cases, 114 Python cases with two skips, and compiled compatibility checks for all 31 available firmware/hardware images (five images unavailable). See `TLS13_PROGRESS.md` sections 23.312-23.314 for artifacts and unresolved capture-assisted failures.
-
+On 2026-10-14, the ordinary combined coordinator passed the Browser cold control followed by strict `sceHttp` HTTP 200 requests for the BrowserLeaks report and dedicated TLS 1.2/1.3 endpoints across three process lifetimes. Each process loaded the authoritative 176-root bundle and reported zero SSL/certificate verification errors. Earlier scoped runs passed the same modern requests. Kernel diagnostic recorders can affect activation when their bounded queues fill; the shipping build resets them OFF. The source passes 355 ordinary and 355 sanitizer-enabled host tests, with compiled compatibility checks for all 31 available firmware/hardware images (five unavailable). The exact rebuilt VPK repeated the Browser and three-process application tests using its final native provider paths. Installer system-file writes remain a separate evidence boundary; qualification preserved the previous working copies.
 See `docs/tls13-hardware-validation.md` for the validation protocol and `TLS13_PROGRESS.md` for the reverse-engineering and implementation record.
 
-An independent [Vita TLS Check sample](samples/scehttp_tls_check/README.md) now exercises public `sceHttp`/`sceHttps` calls against BrowserLeaks and SSL Labs. It has a compact native-font interface, protocol results, server-reported cipher details, and per-request error logs. It links no third-party HTTP/TLS implementation and performs no plugin installation or trust-store changes, so the same VPK can compare the stock stack and installed providers. Native request failures are recorded separately from the successful Browser tests above.
+An independent [Vita TLS Check sample](samples/scehttp_tls_check/README.md) now exercises public `sceHttp`/`sceHttps` calls against BrowserLeaks and SSL Labs. It has a compact native-font interface, protocol results, server-reported cipher details, and per-request error logs. It links no third-party HTTP/TLS implementation and performs no plugin installation or trust-store changes, so the same VPK can compare the stock stack and installed providers. Per-request logs distinguish protocol rejection, SSL failures, network errors and successful HTTP responses. The checker's modern requests have passed with the provider; its legacy TLS 1.0/1.1 checks still fail.
 
 ## Building
 

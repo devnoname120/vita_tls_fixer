@@ -97,9 +97,10 @@ Confirm the VPK includes `THIRD_PARTY_NOTICES.md`, `licenses/Mbed-TLS-LICENSE.tx
 ur0:tai/tls_fixer.skprx
 vs0:/data/external/tls_fixer/libhttp.suprx
 vs0:/data/external/tls_fixer/libssl.suprx
-vs0:/data/external/tls_fixer/tls_fixer_http.suprx
+vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx
 vs0:/data/external/tls_fixer/ScePsp2Compat.suprx
-vs0:/data/external/tls_fixer/tls_fixer.suprx
+vs0:/data/external/tls_fixer/native/tls_fixer.suprx
+ur0:tai/tls_fixer-native/tls_fixer.suprx
 vs0:/data/external/cert/CA_LIST.cer
 ```
 

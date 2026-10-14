@@ -6,6 +6,7 @@ _Static_assert(sizeof(void *) == 4, "ARM32 pointers");
 _Static_assert(sizeof(SceSize) == 4, "Module-list count width");
 _Static_assert(sizeof(SceKernelModuleInfo) == 0x1b8, "FW 3.60 module-info output extent");
 _Static_assert(offsetof(SceKernelModuleInfo, modid) == 0x04, "Module PUID output");
+_Static_assert(offsetof(SceKernelModuleInfo, modattr) == 0x08, "Declared SELF module attribute");
 _Static_assert(offsetof(SceKernelModuleInfo, module_name) == 0x0c, "Module name output");
 _Static_assert(offsetof(SceKernelModuleInfo, path) == 0x54, "Module path output");
 _Static_assert(offsetof(SceKernelModuleInfo, segments) == 0x154, "Segment output");

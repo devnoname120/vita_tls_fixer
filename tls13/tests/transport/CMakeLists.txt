@@ -16,6 +16,7 @@ add_executable(tls_fixer_transport_tests
     taihen_mock.c
     ../../provider/cert_hooks.c
     ../../provider/platform_shims.c
+    ../../provider/private_mapping.c
     ../../provider/transport.c
     ../../provider/trust_store.c
     ../../provider/vita_net.c

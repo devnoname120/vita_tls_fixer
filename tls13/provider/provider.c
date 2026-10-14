@@ -4,6 +4,7 @@
 #include "transport.h"
 #include "user_runtime.h"
 #include "mapped_signature.h"
+#include "private_mapping.h"
 
 #include <psp2/kernel/modulemgr.h>
 #include <psp2common/kernel/modulemgr.h>
@@ -277,6 +278,11 @@ int tls_fixer_http_validate_module(
         info.segments[1].memsz != TLS_FIXER_LIBHTTP_DATA_MEMORY_SIZE) {
         return -1;
     }
+    if (tls_fixer_require_private_mapping(info.segments[0].vaddr, info.segments[0].memsz, 1) != 0 ||
+        tls_fixer_require_private_mapping(info.segments[1].vaddr, info.segments[1].memsz, 0) != 0) {
+        TLS_FIXER_LOG("event=module.gate reason=nonprivate_mapping");
+        return -1;
+    }
     if (!tls_fixer_http_create_mov_pair_valid(
             (const uint8_t *)info.segments[0].vaddr + TLS_FIXER_HOOK_CREATE_OFFSET,
             sizeof(g_create_bytes))) {
@@ -360,11 +366,6 @@ int module_start(SceSize argc, const void *args) {
     TlsFixerStartArgs start_args;
     size_t index;
     TLS_FIXER_LOG("event=module.start argc=%u", (unsigned int)argc);
-    int runtime_result = tls_fixer_user_runtime_init();
-    TLS_FIXER_LOG("event=runtime.init backend=SceLibKernel rc=%08X heap_bytes=2097152",
-        runtime_result);
-    if (runtime_result < 0) return SCE_KERNEL_START_FAILED;
-
     memset(&g_tls_fixer_http, 0, sizeof(g_tls_fixer_http));
     for (index = 0; index < TLS_FIXER_HOOK_COUNT; ++index) {
         g_tls_fixer_http.hook_ids[index] = -1;
@@ -394,6 +395,10 @@ int module_start(SceSize argc, const void *args) {
     }
     g_tls_fixer_http.global_https_options_address =
         g_tls_fixer_http.data_address + TLS_FIXER_LIBHTTP_GLOBAL_HTTPS_OPTIONS_OFFSET;
+    int runtime_result = tls_fixer_user_runtime_init();
+    TLS_FIXER_LOG("event=runtime.init backend=SceLibKernel rc=%08X heap_bytes=2097152",
+        runtime_result);
+    if (runtime_result < 0) return SCE_KERNEL_START_FAILED;
 
     {
         TLS_FIXER_LOG("event=global.init.enter");
