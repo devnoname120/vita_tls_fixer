@@ -37,9 +37,6 @@ int main(void) {
     assert(run(TLS_FIXER_OPTION_SYSTEM, 1, k|h|c).present == c);
     assert(run(TLS_FIXER_OPTION_CERTIFICATES, 1, k|b|h|c).present == (k|b|h));
     assert(run(TLS_FIXER_OPTION_FULL, 1, k|b|h|c).present == 0);
-    /* The download action refreshes certificates even when already installed. */
-    State refresh = run(TLS_FIXER_OPTION_DOWNLOAD_CERTIFICATES, 1, k|b|h|c);
-    assert(refresh.present == (k|b|h|c) && refresh.count == 1 && refresh.calls[0] == c);
     TlsFixerInstallPlan p;
     assert(tls_fixer_plan_option(TLS_FIXER_OPTION_FULL, 0, 0, 0, &p) == 0);
     State failed = {.fail = c};

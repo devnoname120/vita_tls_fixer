@@ -15,8 +15,9 @@ The installer procedure is retained for development. It writes persistent system
 1. Install the VPK and open **tls_fixer 0.1.0**.
 2. Select **Full (browser plugin + system plugin + certs)**, **browser plugin only**, **system plugin only**, or **certs only**. Browser/system choices include the shared coordinator automatically and leave unselected components unchanged. Certificate-only installation does not enable a plugin.
 3. Press **CROSS** to install the selected component, or uninstall it if already installed. Press **SQUARE** to reinstall/refresh that selected option. Removing one provider preserves the coordinator while the other provider remains installed.
-4. **Download latest TLS certificates** always downloads/prepares and installs refreshed Sony + Mozilla certificates; it never toggles into an uninstall action. The download uses only embedded Mozilla roots, with embedded fallback when unavailable.
-5. Reboot after the installer reports success.
+4. Reboot after the installer reports success.
+
+The dedicated certificate-download option is temporarily removed following a reported Vita crash. Full and certs-only installation retain their existing certificate updater; this menu removal does not diagnose or repair that shared path.
 
 The installer header credits **devnoname120** and displays **Thanks to SKGleba for the initial iTLS plugin!**. Vita package metadata uses the platform's `##.##` format (`00.10`) for the displayed semantic release `0.1.0`.
 

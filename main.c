@@ -47,7 +47,6 @@ static const char *const install_menu[MENU_COUNT] = {
     " -> Install browser plugin only",
     " -> Install system plugin only",
     " -> Install certs only",
-    " -> Download latest TLS certificates",
     " -> Exit",
 };
 
@@ -56,7 +55,6 @@ static const char *const uninstall_menu[MENU_COUNT] = {
     " -> Uninstall browser plugin only",
     " -> Uninstall system plugin only",
     " -> Uninstall certs only",
-    " -> Download latest TLS certificates",
     " -> Exit",
 };
 

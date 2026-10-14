@@ -21,10 +21,6 @@ int tls_fixer_plan_option(enum TlsFixerOption option, int removing,
     case TLS_FIXER_OPTION_CERTIFICATES:
         plan->components = TLS_FIXER_COMPONENT_CERTIFICATES;
         break;
-    case TLS_FIXER_OPTION_DOWNLOAD_CERTIFICATES:
-        plan->components = TLS_FIXER_COMPONENT_CERTIFICATES;
-        plan->removing = 0;
-        break;
     default: return -1;
     }
     return 0;
