@@ -4,7 +4,8 @@
 
 static int mutex_live, mutex_locked, native_starts;
 SceUID ksceKernelCreateMutex(const char *name, unsigned int attr, int count, const void *options) {
-    assert(disarm_calls == 1 && disarm_result == 0 && hook_installations == 0);
+    assert_startup_disarm();
+    assert(hook_installations == 0);
     assert(name != NULL && attr == 0 && count == 0 && options == NULL && !mutex_live);
     mutex_live = 1;
     return 41;
@@ -36,7 +37,12 @@ static int original_start(SceUID pid, SceUID module, SceSize size, const void *d
 }
 int main(void) {
     reset(); checking_startup = 1;
+#if !TLS_FIXER_ENABLE_SELF_DISARM
+    /* A disarm failure must be irrelevant when normal activation omits it. */
+    disarm_result = -1;
+#endif
     assert(module_start(0, NULL) == SCE_KERNEL_START_SUCCESS);
+    assert(disarm_calls == (TLS_FIXER_ENABLE_SELF_DISARM ? 1 : 0));
     assert(hook_installations == 2 && installed_start != NULL && mutex_live);
     checking_startup = 0;
     int options = 4, status = -999;

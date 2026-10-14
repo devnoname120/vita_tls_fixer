@@ -111,9 +111,16 @@ int tls_fixer_boot_trace_path(const char *stage, int32_t pid, int32_t object, in
 #endif
 
 int tls_fixer_self_disarm(void) { ++disarm_calls; return disarm_result; }
+static void assert_startup_disarm(void) {
+#if TLS_FIXER_ENABLE_SELF_DISARM
+    assert(disarm_calls == 1 && disarm_result == 0);
+#else
+    assert(disarm_calls == 0);
+#endif
+}
 static void startup_operation(void) {
     ++startup_operations;
-    if (checking_startup) assert(disarm_calls == 1 && disarm_result == 0);
+    if (checking_startup) assert_startup_disarm();
 #if TLS_FIXER_ENABLE_BOOT_TRACE
     assert(trace_opens > 0 && !trace_open_fail);
 #endif
@@ -137,7 +144,8 @@ int ksceIoGetstat(const char *path, SceIoStat *status) { startup_operation(); (v
 SceUID ksceKernelSearchModuleByName(const char *name) { startup_operation(); (void)name; return 11; }
 int tls_fixer_validate_loader_hook(SceUID module) {
     startup_operation();
-    assert(module == 11 && disarm_calls == 1 && disarm_result == 0 && hook_installations == 0);
+    assert_startup_disarm();
+    assert(module == 11 && hook_installations == 0);
     ++hook_validations;
     return hook_validation_result;
 }

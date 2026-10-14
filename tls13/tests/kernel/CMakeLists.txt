@@ -278,6 +278,14 @@ target_compile_options(tls_fixer_post_start_production_tests PRIVATE -Wall -Wext
 target_link_libraries(tls_fixer_post_start_production_tests PRIVATE tls_fixer_core)
 add_test(NAME tls_fixer_post_start_production COMMAND tls_fixer_post_start_production_tests)
 
+add_executable(tls_fixer_persistent_activation_tests test_post_start_production.c ../../../kernel/post_start.c)
+target_include_directories(tls_fixer_persistent_activation_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_persistent_activation_tests PRIVATE TLS_FIXER_BROWSER_POST_START=1
+    TLS_FIXER_ENABLE_SELF_DISARM=0)
+target_compile_options(tls_fixer_persistent_activation_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_persistent_activation_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_persistent_activation COMMAND tls_fixer_persistent_activation_tests)
+
 add_executable(tls_fixer_untraced_browser_control_tests test_post_start_production.c ../../../kernel/post_start.c)
 target_include_directories(tls_fixer_untraced_browser_control_tests PRIVATE include ../transport/include ../../../kernel)
 target_compile_definitions(tls_fixer_untraced_browser_control_tests PRIVATE TLS_FIXER_BROWSER_POST_START=1

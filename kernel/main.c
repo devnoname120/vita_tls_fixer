@@ -25,6 +25,10 @@
 #include "native_module_api.h"
 #include "browser_inventory.h"
 
+#ifndef TLS_FIXER_ENABLE_SELF_DISARM
+#define TLS_FIXER_ENABLE_SELF_DISARM 1
+#endif
+
 #ifndef TLS_FIXER_DISARM_RESULT_ONLY
 #define TLS_FIXER_DISARM_RESULT_ONLY 0
 #endif
@@ -336,6 +340,7 @@ int module_start(SceSize argc, const void *args) {
     (void)argc;
     (void)args;
 
+#if TLS_FIXER_ENABLE_SELF_DISARM
     int disarm_outcome = tls_fixer_self_disarm();
     int report_result = 0;
     if (TLS_FIXER_DISARM_RESULT_ONLY || TLS_FIXER_ENABLE_BOOT_TRACE) {
@@ -351,6 +356,7 @@ int module_start(SceSize argc, const void *args) {
     if (TLS_FIXER_SELF_DISARM_ONLY) {
         return SCE_KERNEL_START_SUCCESS;
     }
+#endif
     int trace_result = tls_fixer_boot_trace_open();
     if (TLS_FIXER_ENABLE_BOOT_TRACE) {
         int setup_report = tls_fixer_write_trace_setup_result(trace_result);
@@ -366,7 +372,8 @@ int module_start(SceSize argc, const void *args) {
     }
     tls_fixer_memory_probe_record("mem.start", 0);
 #if defined(__arm__) && !TLS_FIXER_SELF_DISARM_ONLY && !TLS_FIXER_DISARM_RESULT_ONLY
-    /* Disarming is durable; resolve once here, never from a loader-hook callback. */
+    /* Resolve once here, never from a loader-hook callback. One-shot builds
+     * have already completed durable disarming above. */
     if (tls_fixer_boot_trace_event("native.bind.enter", 0, 0, 0) < 0) goto failed_before_hook;
     int bind_result = tls_fixer_native_module_api_init();
     if (tls_fixer_boot_trace_event("native.bind.return", 0, 0, bind_result) < 0 || bind_result < 0)

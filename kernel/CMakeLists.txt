@@ -25,6 +25,7 @@ elseif(TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^(ux0|ur0):" AND NOT TLS_FIXER_HTTP
     message(FATAL_ERROR "A separately staged HTTP provider requires an explicit diagnostic title")
 endif()
 
+option(TLS_FIXER_ENABLE_SELF_DISARM "Disable this plugin's boot entries before activation" ON)
 option(TLS_FIXER_SELF_DISARM_ONLY "Build a diagnostic with no module redirection or TLS injection" OFF)
 option(TLS_FIXER_INITIALIZE_ONLY "Stop the diagnostic after loader initialization, before installing hooks" OFF)
 option(TLS_FIXER_REDIRECTION_ONLY "Install module path redirection but do not start TLS or DNS providers" OFF)
@@ -55,6 +56,9 @@ option(TLS_FIXER_BROWSER_POST_START "Defer browser injection until native module
 option(TLS_FIXER_SKIP_DNS_START "Exclude legacy DNS helper startup for controlled isolation" OFF)
 option(TLS_FIXER_SKIP_HTTP_START "Exclude HTTP-provider startup for controlled isolation" OFF)
 option(TLS_FIXER_DISARM_RESULT_ONLY "Report the self-disarm result without later initialization" OFF)
+if(NOT TLS_FIXER_ENABLE_SELF_DISARM AND (TLS_FIXER_SELF_DISARM_ONLY OR TLS_FIXER_DISARM_RESULT_ONLY))
+    message(FATAL_ERROR "Self-disarm diagnostics require TLS_FIXER_ENABLE_SELF_DISARM")
+endif()
 set(TLS_FIXER_NORMAL_ACTIVATION OFF)
 if(NOT (TLS_FIXER_SELF_DISARM_ONLY OR TLS_FIXER_DISARM_RESULT_ONLY OR TLS_FIXER_INITIALIZE_ONLY
    OR TLS_FIXER_REDIRECTION_ONLY OR TLS_FIXER_PREPARE_ONLY OR TLS_FIXER_BROWSER_ACTIVATION))
@@ -145,13 +149,16 @@ link_directories(
 
 add_executable(tls_fixer.elf
 	main.c
-	self_disarm.c
 	native_contract.c
 )
+if(TLS_FIXER_ENABLE_SELF_DISARM)
+    target_sources(tls_fixer.elf PRIVATE self_disarm.c)
+endif()
 
 target_compile_definitions(tls_fixer.elf PRIVATE
     TLS_FIXER_HTTP_PROVIDER_PATH="${TLS_FIXER_HTTP_PROVIDER_PATH}"
     TLS_FIXER_HTTP_TEST_TITLE_ID="${TLS_FIXER_HTTP_TEST_TITLE_ID}"
+	TLS_FIXER_ENABLE_SELF_DISARM=$<BOOL:${TLS_FIXER_ENABLE_SELF_DISARM}>
 	TLS_FIXER_SELF_DISARM_ONLY=$<BOOL:${TLS_FIXER_SELF_DISARM_ONLY}>
 	TLS_FIXER_INITIALIZE_ONLY=$<BOOL:${TLS_FIXER_INITIALIZE_ONLY}>
 	TLS_FIXER_REDIRECTION_ONLY=$<BOOL:${TLS_FIXER_REDIRECTION_ONLY}>
