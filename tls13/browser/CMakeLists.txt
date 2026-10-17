@@ -7,8 +7,13 @@ add_executable(tls_fixer
     webkit_callback.c
     ../provider/ca_file.c
     ../provider/platform_shims.c
-    ../provider/trace.c
 )
+if(TLS_FIXER_ENABLE_DEBUG_LOG)
+    target_sources(tls_fixer PRIVATE ../provider/trace.c)
+else()
+    target_sources(tls_fixer PRIVATE quiet_output.c)
+    target_link_options(tls_fixer PRIVATE -Wl,--wrap=printf -Wl,--wrap=puts)
+endif()
 target_include_directories(tls_fixer PRIVATE . ../provider)
 target_compile_features(tls_fixer PRIVATE c_std_11)
 target_compile_definitions(tls_fixer PRIVATE TLS_FIXER_ENABLE_DEBUG_LOG=$<BOOL:${TLS_FIXER_ENABLE_DEBUG_LOG}>

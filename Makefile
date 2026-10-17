@@ -53,8 +53,9 @@ PACKAGE_ASSETS = misc/compat.suprx misc/lhttp.suprx misc/lssl.suprx misc/comm2.s
 
 all: $(TARGET).vpk
 
-.PHONY: force-normal-kernel
+.PHONY: force-normal-kernel force-normal-providers
 force-normal-kernel:
+force-normal-providers:
 
 $(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(DNS_FIX_MODULE) $(TLS13_PROVIDER) $(BROWSER_PROVIDER) \
         THIRD_PARTY_NOTICES.md $(LICENSE_FILES) $(PACKAGE_ASSETS)
@@ -105,9 +106,15 @@ $(CURL_LIBRARY): installer/curl/CMakeLists.txt $(CURL_ARCHIVE)
 		-DTLS_FIXER_CURL_ARCHIVE=$(CURL_ARCHIVE)
 	cmake --build $(BUILD_DIR)/curl-vita -j6
 
-$(TLS13_PROVIDER): $(TLS13_SOURCES) $(MBEDTLS_ARCHIVE)
+$(TLS13_PROVIDER): force-normal-providers $(TLS13_SOURCES) $(MBEDTLS_ARCHIVE) Makefile
 	cmake -S tls13 -B $(BUILD_DIR)/tls13-vita \
 		-DTLS_FIXER_BUILD_VITA_PROVIDER=ON \
+		-DTLS_FIXER_ENABLE_DEBUG_LOG=OFF \
+		-DTLS_FIXER_BROWSER_START_DIAGNOSTICS=OFF \
+		-DTLS_FIXER_BROWSER_PASSTHROUGH_ONLY=OFF \
+		-DTLS_FIXER_BROWSER_INITIALIZE_ONLY=OFF \
+		-DTLS_FIXER_BROWSER_HOOK_MASK= \
+		-DTLS_FIXER_ENABLE_RUNTIME_UDP=OFF \
 		-DTLS_FIXER_MBEDTLS_ARCHIVE=$(MBEDTLS_ARCHIVE) \
 		-DTLS_FIXER_HTTP_CA_PATH=vs0:/data/external/cert/CA_LIST.cer \
 		-DCMAKE_BUILD_TYPE=Release \

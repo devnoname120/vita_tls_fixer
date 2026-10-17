@@ -2,6 +2,7 @@
 #include "font.h"
 #include "input.h"
 #include "model.h"
+#include "probe.h"
 #include "ui.h"
 #include <psp2/ctrl.h>
 #include <psp2/display.h>
@@ -27,6 +28,8 @@ static int busy, active_request = -1, cancelled, abort_sent;
 static uint64_t request_begin;
 static unsigned request_identity, next_request_identity, run_identity;
 static char notice[120];
+#define VERIFY_FLAGS (SCE_HTTPS_FLAG_SERVER_VERIFY | SCE_HTTPS_FLAG_CN_CHECK | \
+    SCE_HTTPS_FLAG_NOT_AFTER_CHECK | SCE_HTTPS_FLAG_NOT_BEFORE_CHECK | SCE_HTTPS_FLAG_KNOWN_CA_CHECK)
 static void startup_note(const char *stage, int result) {
     check_diag("event=startup stage=%s rc=%08X", stage, (unsigned)result);
     (void)sceIoMkdir("ux0:/data/vita-tls-check", 0777);
@@ -52,8 +55,10 @@ static int stopped(void) {
 }
 static void publish(unsigned row, const CheckResult *r) {
     lock();
-    if (row == 4)
+    if (row == CHECK_REPORT)
         service.connection = *r;
+    else if (row == CHECK_PLAYSTATION)
+        service.playstation = *r;
     else
         service.protocols[row] = *r;
     unlock();
@@ -78,18 +83,22 @@ static void abort_current(int user_cancel) {
     }
     unlock();
 }
-static int fetch(const char *endpoint, char *body, size_t *length, CheckResult *r) {
+static int fetch(void *context, unsigned test, int verify, char *body, size_t *length,
+                 CheckResult *r) {
+    (void)context;
     int tmpl = -1, conn = -1, req = -1, rc = 0;
     uint64_t begin = now_ms();
     char url[320];
+    const char *endpoint = check_endpoint(test);
     unsigned identity = ++next_request_identity;
     memset(r, 0, sizeof(*r));
     r->state = CHECK_FAIL;
+    r->tls_fixer_active = service.tls_fixer_enabled == 1;
     *length = 0;
     snprintf(url, sizeof(url), "%s%ccheck=%llu", endpoint, strchr(endpoint, '?') ? '&' : '?',
              (unsigned long long)sceKernelGetSystemTimeWide());
-    check_diag("event=request.begin run=%u request=%u service=%s endpoint=%s", run_identity,
-               identity, "BrowserLeaks", endpoint);
+    check_diag("event=request.begin run=%u request=%u service=%s endpoint=%s verify=%d", run_identity,
+               identity, test == CHECK_PLAYSTATION ? "PlayStation" : "BrowserLeaks", endpoint, verify);
 #define REQUIRE(call)                                                                              \
     do {                                                                                           \
         check_diag("event=api.enter request=%u call=%s", identity, #call);                         \
@@ -100,13 +109,30 @@ static int fetch(const char *endpoint, char *body, size_t *length, CheckResult *
         if (rc < 0)                                                                                \
             goto done;                                                                             \
     } while (0)
-    REQUIRE(tmpl = sceHttpCreateTemplate("Vita-TLS-Check/1.0", SCE_HTTP_VERSION_1_1, 0));
+    if (stopped()) {
+        rc = (int)0x80431080;
+        goto done;
+    }
+    if (!verify && test >= 4) {
+        rc = -1;
+        snprintf(r->message, sizeof(r->message), "Unverified request refused for this endpoint");
+        goto done;
+    }
+    /* sceHttps policy is global to this process. Only this worker sends HTTP.
+     * Reset it before every fresh attempt, and restore it on every retry exit. */
+    REQUIRE(sceHttpsEnableOption(VERIFY_FLAGS));
+    if (!verify) {
+        REQUIRE(sceHttpsDisableOption(VERIFY_FLAGS));
+        r->verification_disabled = 1;
+    }
+    REQUIRE(tmpl = sceHttpCreateTemplate("Vita-TLS-Check/1.2", SCE_HTTP_VERSION_1_1, 0));
     REQUIRE(sceHttpSetResolveTimeOut(tmpl, 3000000));
     REQUIRE(sceHttpSetResolveRetry(tmpl, 1));
     REQUIRE(sceHttpSetConnectTimeOut(tmpl, 5000000));
     REQUIRE(sceHttpSetSendTimeOut(tmpl, 5000000));
     REQUIRE(sceHttpSetRecvTimeOut(tmpl, 5000000));
     REQUIRE(sceHttpSetAutoRedirect(tmpl, SCE_HTTP_DISABLE));
+    REQUIRE(sceHttpSetCookieEnabled(tmpl, SCE_HTTP_DISABLE));
     REQUIRE(sceHttpSetResponseHeaderMaxSize(tmpl, 16384));
     REQUIRE(conn = sceHttpCreateConnectionWithURL(tmpl, url, SCE_HTTP_DISABLE));
     REQUIRE(req = sceHttpCreateRequestWithURL(conn, SCE_HTTP_METHOD_GET, url, 0));
@@ -126,6 +152,19 @@ static int fetch(const char *endpoint, char *body, size_t *length, CheckResult *
     check_diag_sync();
     REQUIRE(sceHttpSendRequest(req, NULL, 0));
     REQUIRE(sceHttpGetStatusCode(req, &r->http_code));
+    if (test == CHECK_PLAYSTATION) {
+        /* This root URL is not a public Store operation. Any final HTTP response,
+         * including 403/404/503, proves verified HTTPS reachability; no sign-in
+         * or successful commerce operation is implied. Do not read its body. */
+        if (r->http_code >= 200 && r->http_code <= 599) {
+            r->state = CHECK_PASS;
+            snprintf(r->message, sizeof(r->message), "Connected (HTTP %d)", r->http_code);
+        } else {
+            rc = -1;
+            snprintf(r->message, sizeof(r->message), "Unexpected HTTP status %d", r->http_code);
+        }
+        goto done;
+    }
     while (*length < CHECK_BODY_MAX) {
         if (stopped()) {
             rc = (int)0x80431080;
@@ -207,6 +246,16 @@ done:
             r->state = CHECK_FAIL;
         }
     }
+    if (!verify) {
+        r->restore_error = sceHttpsEnableOption(VERIFY_FLAGS);
+        check_diag("event=verification.restore request=%u rc=%08X", identity,
+                   (unsigned)r->restore_error);
+        if (r->restore_error < 0) {
+            rc = r->error = r->restore_error;
+            r->state = CHECK_FAIL;
+            snprintf(r->message, sizeof(r->message), "Could not restore certificate checks");
+        }
+    }
     if (rc < 0 && !r->message[0])
         snprintf(r->message, sizeof(r->message), "%s",
                  check_error_name(rc, r->ssl_error, r->ssl_detail));
@@ -252,15 +301,16 @@ static void save_report(const CheckService *s) {
         return;
     }
     fprintf(f,
-            "Vita TLS Check 1.0\nAPI=sceHttp\nservice=%s\nCertificate "
-            "verification=enabled\nConnection "
-            "reuse=disabled\nRedirects=disabled\nLegacy failures are displayed as Blocked; "
-            "request errors remain below.\n",
-            "BrowserLeaks");
+            "Vita TLS Check 1.2\nAPI=sceHttp\nservice=%s\nCertificate "
+            "verification=enabled for primary requests\nConnection "
+            "reuse=disabled\nRedirects=disabled\nProtocol-only diagnostic retries may disable "
+            "certificate checks; both attempts are recorded.\n",
+            "BrowserLeaks + PlayStation");
     fprintf(f, "tls_fix=%s (started provider in this process)\n",
             s->tls_fixer_enabled < 0 ? "checking" : s->tls_fixer_enabled ? "enabled" : "not enabled");
-    for (unsigned i = 0; i < 5; ++i) {
-        const CheckResult *r = i == 4 ? &s->connection : &s->protocols[i];
+    for (unsigned i = 0; i < CHECK_TEST_COUNT; ++i) {
+        const CheckResult *r = i == CHECK_REPORT ? &s->connection
+                               : i == CHECK_PLAYSTATION ? &s->playstation : &s->protocols[i];
         fprintf(f,
                 "\nURL=%s\nstate=%d\nHTTP=%d\nerror=0x%08X\nssl_error=0x%08X\nssl_"
                 "detail=0x%"
@@ -268,6 +318,24 @@ static void save_report(const CheckService *s) {
                 check_endpoint(i), r->state,
                 r->http_code, (unsigned)r->error, (unsigned)r->ssl_error, r->ssl_detail,
                 r->elapsed_ms, r->message);
+        fprintf(f, "protocol_confirmed=%d\nverification_restore_error=0x%08X\n",
+                r->protocol_confirmed, (unsigned)r->restore_error);
+        if (i < 4) {
+            char detail[128];
+            check_protocol_detail(i, r, detail, sizeof(detail));
+            fprintf(f, "classification=%s\ndetail=%s\n",
+                    check_protocol_display(i, r).label, detail);
+            fprintf(f, "expected_tls_fixer_policy_block=%d\n",
+                    check_expected_legacy_block(i, r));
+        }
+        if (r->retry.attempted)
+            fprintf(f, "retry_verification=%s\nretry_protocol_confirmed=%d\n"
+                    "retry_HTTP=%d\nretry_error=0x%08X\nretry_ssl_error=0x%08X\n"
+                    "retry_ssl_detail=0x%08X\nretry_elapsed_ms=%u\n"
+                    "retry_restore_error=0x%08X\n", r->retry.verification_disabled ? "disabled" : "unavailable",
+                    r->retry.protocol_confirmed,
+                    r->retry.http_code, (unsigned)r->retry.error, (unsigned)r->retry.ssl_error,
+                    r->retry.ssl_detail, r->retry.elapsed_ms, (unsigned)r->retry.restore_error);
     }
     const CheckHandshake *h = &s->handshake;
     fprintf(f,
@@ -297,7 +365,7 @@ static void save_report(const CheckService *s) {
 static int run_checks(SceSize argc, void *argv) {
     (void)argc;
     (void)argv;
-    check_diag("event=run.begin run=%u service=%s", run_identity, "BrowserLeaks");
+    check_diag("event=run.begin run=%u service=%s", run_identity, "BrowserLeaks+PlayStation");
     check_diag_modules("worker.before-requests");
     char *body = malloc(CHECK_BODY_MAX + 1);
     CheckHandshake *h = calloc(1, sizeof(*h));
@@ -311,24 +379,34 @@ static int run_checks(SceSize argc, void *argv) {
         free(h);
         return 0;
     }
-    for (int test = 4; test >= 0; --test) {
+    /* Every check is independent. The optional report is last, so its request
+     * and parser cannot gate the protocol tiles or PlayStation reachability. */
+    static const unsigned order[] = {3, 2, 1, 0, CHECK_PLAYSTATION, CHECK_REPORT};
+    int policy_failed = 0;
+    for (unsigned step = 0; step < sizeof(order) / sizeof(order[0]); ++step) {
+        unsigned test = order[step];
         CheckResult r = {0};
-        if (stopped()) {
+        if (stopped() || policy_failed) {
             r.state = CHECK_INFO;
-            snprintf(r.message, sizeof(r.message), "Cancelled / not tested");
+            snprintf(r.message, sizeof(r.message), "%s", policy_failed
+                     ? "Not tested: certificate policy error" : "Cancelled / not tested");
             publish((unsigned)test, &r);
             continue;
         }
-        const char *url = check_endpoint((unsigned)test);
         r.state = CHECK_RUNNING;
         publish((unsigned)test, &r);
         size_t n = 0;
-        int fetched = fetch(url, body, &n, &r);
+        int fetched;
+        if (test < 4) {
+            check_run_protocol(test, fetch, NULL, body, &n, &r);
+            fetched = r.error;
+        } else
+            fetched = fetch(NULL, test, 1, body, &n, &r);
         if (fetched < 0 && stopped()) {
             r.state = CHECK_INFO;
             snprintf(r.message, sizeof(r.message), "Cancelled / not tested");
         } else if (fetched == 0) {
-            if (test == 4) {
+            if (test == CHECK_REPORT) {
                 int ok = check_parse_browserleaks(body, n, h);
                 if (ok) {
                     r.state = CHECK_FAIL;
@@ -341,15 +419,11 @@ static int run_checks(SceSize argc, void *argv) {
                     service.handshake = *h;
                     unlock();
                 }
-            } else if (check_protocol_body((unsigned)test, body, n))
-                snprintf(r.message, sizeof(r.message), "Connected to TLS 1.%d endpoint", test);
-            else {
-                r.state = CHECK_FAIL;
-                r.error = -1;
-                snprintf(r.message, sizeof(r.message),
-                         "Unexpected response; protocol not confirmed");
+            } else if (test == CHECK_PLAYSTATION) {
+                /* fetch already confirmed the verified HTTPS response. */
             }
         }
+        policy_failed = r.restore_error < 0;
         publish((unsigned)test, &r);
     }
     free(body);
@@ -368,7 +442,7 @@ static int run_checks(SceSize argc, void *argv) {
     busy = 0;
     unlock();
     check_diag_modules("worker.after-requests");
-    check_diag("event=run.end run=%u service=%s", run_identity, "BrowserLeaks");
+    check_diag("event=run.end run=%u service=%s", run_identity, "BrowserLeaks+PlayStation");
     check_diag_sync();
     return 0;
 }
@@ -520,9 +594,7 @@ int main(void) {
         goto init_failed;
     http_ready = 1;
     check_diag("event=api.enter call=sceHttpsEnableOption verification=enabled");
-    rc = sceHttpsEnableOption(SCE_HTTPS_FLAG_SERVER_VERIFY | SCE_HTTPS_FLAG_CN_CHECK |
-                              SCE_HTTPS_FLAG_NOT_AFTER_CHECK | SCE_HTTPS_FLAG_NOT_BEFORE_CHECK |
-                              SCE_HTTPS_FLAG_KNOWN_CA_CHECK);
+    rc = sceHttpsEnableOption(VERIFY_FLAGS);
     check_diag("event=api.return call=sceHttpsEnableOption rc=%08X verification=enabled",
                (unsigned)rc);
     check_diag_modules("main.after-http-init");

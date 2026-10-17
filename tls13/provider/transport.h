@@ -40,6 +40,7 @@ typedef struct TlsFixerConnection {
     TlsFixerConnectionState state;
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config config;
+    mbedtls_x509_crt_profile certificate_profile;
     SceUID mutex;
     int32_t last_tls_error;
     int32_t last_net_error;

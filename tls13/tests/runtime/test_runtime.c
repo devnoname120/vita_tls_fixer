@@ -11,6 +11,7 @@ static int failure, block_live, mutex_live, heap_live, fail_allocate;
 static void *block;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static unsigned used, peak;
+static unsigned console_calls;
 typedef union Header { size_t bytes; max_align_t alignment; } Header;
 SceUID sceKernelAllocMemBlock(const char *name, int type, SceSize size, const void *options) {
     (void)name; (void)type; (void)options;
@@ -75,8 +76,8 @@ int sceClibVsnprintf(char *s, SceSize n, const char *f, va_list args) {
     }
     return result;
 }
-int sceClibVprintf(const char *f, va_list args) { return vprintf(f,args); }
-int sceClibPrintf(const char *f, ...) { va_list a; va_start(a,f); int r=vprintf(f,a); va_end(a); return r; }
+int sceClibVprintf(const char *f, va_list args) { ++console_calls; return vprintf(f,args); }
+int sceClibPrintf(const char *f, ...) { ++console_calls; va_list a; va_start(a,f); int r=vprintf(f,a); va_end(a); return r; }
 static void *worker(void *unused) {
     (void)unused;
     for (int i=0;i<500;++i) {
@@ -113,6 +114,8 @@ int main(void) {
     assert(__wrap_memchr(text,'f',7)==text+6);
     assert(__wrap_snprintf(text,4,"%s","abcdef")==6 && strcmp(text,"abc")==0);
     assert(__wrap_snprintf(NULL,0,"%zu/%llu",(size_t)17,1234567890123ULL)==16);
+    assert(__wrap_printf("%s:%u", "quiet", 17)==8);
+    assert(__wrap_puts("quiet")>=0 && console_calls==0);
     TlsFixerRuntimeStats stats;
     assert(tls_fixer_user_runtime_stats(&stats)==0 && stats.outstanding==0 && stats.used==0 && stats.peak>0);
     assert(tls_fixer_user_runtime_destroy()==0 && tls_fixer_user_runtime_destroy()==0);

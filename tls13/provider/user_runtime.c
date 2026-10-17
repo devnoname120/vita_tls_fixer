@@ -12,6 +12,9 @@
 #include <stdint.h>
 
 #define TLS_FIXER_HTTP_HEAP_BYTES (2u * 1024u * 1024u)
+#ifndef TLS_FIXER_ENABLE_DEBUG_LOG
+#define TLS_FIXER_ENABLE_DEBUG_LOG 0
+#endif
 
 static SceUID g_heap_block = -1, g_heap_mutex = -1;
 static SceClibMspace g_heap;
@@ -153,8 +156,20 @@ int __wrap_snprintf(char *output, size_t capacity, const char *format, ...) {
 int __wrap_printf(const char *format, ...) {
     va_list args;
     va_start(args, format);
+#if TLS_FIXER_ENABLE_DEBUG_LOG
     int result = sceClibVprintf(format, args);
+#else
+    /* Preserve printf's count result without emitting library diagnostics. */
+    int result = __wrap_vsnprintf(NULL, 0, format, args);
+#endif
     va_end(args);
     return result;
 }
-int __wrap_puts(const char *source) { return sceClibPrintf("%s\n", source); }
+int __wrap_puts(const char *source) {
+#if TLS_FIXER_ENABLE_DEBUG_LOG
+    return sceClibPrintf("%s\n", source);
+#else
+    (void)source;
+    return 0;
+#endif
+}

@@ -19,9 +19,9 @@
   },
   "combined": {
     "path": "certs.cer",
-    "policy": "Sony plus selected Mozilla certificates; duplicate DER identities removed; no system-store input",
-    "bytes": 257799,
-    "sha256": "fa1bb62997d6f14b0532310a9a04bd3c0b6a45225c879b0b36cb04658bd111f7",
+    "policy": "Preserve the original Sony file byte-for-byte; append unique selected Mozilla certificates; no system-store input",
+    "bytes": 262065,
+    "sha256": "6207e9479c428abc26337d18e66b79979f55e1ea1f62ab62874a02859695306a",
     "certificate_blocks": 176,
     "unique_certificates": 176
   }

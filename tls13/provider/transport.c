@@ -260,6 +260,11 @@ static int setup_connection(TlsFixerConnection *connection, const char *hostname
         return result;
     }
 
+    connection->certificate_profile = mbedtls_x509_crt_profile_default;
+    /* System endpoints such as native-vita.np.ac.playstation.net require
+     * SHA-1 certificate signatures. */
+    connection->certificate_profile.allowed_mds |= MBEDTLS_X509_ID_FLAG(MBEDTLS_MD_SHA1);
+    mbedtls_ssl_conf_cert_profile(&connection->config, &connection->certificate_profile);
     mbedtls_ssl_conf_min_tls_version(
         &connection->config,
         MBEDTLS_SSL_VERSION_TLS1_2);

@@ -3,7 +3,7 @@
 #include "model.h"
 #define CHECK_WIDTH 960
 #define CHECK_HEIGHT 544
-#define CHECK_VISIBLE_CIPHERS 5
+#define CHECK_VISIBLE_CIPHERS 4
 void check_draw(uint32_t *pixels, const CheckService *service, int page,
                 unsigned scroll, int busy, const char *notice);
 #endif

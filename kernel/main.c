@@ -382,7 +382,9 @@ int module_start(SceSize argc, const void *args) {
     if (tls_fixer_allocation_probe_prepare() < 0) goto failed_before_hook;
     if (tls_fixer_boot_trace_event("startup.checks.enter", 0, 0, 0) < 0) goto failed_before_hook;
 
+#if TLS_FIXER_ENABLE_BOOT_TRACE
     ksceDebugPrintf("tls_fixer module loaded\n");
+#endif
     has_replacements = add_replace_flags();
     if (tls_fixer_boot_trace_event("startup.checks.return", 0, 0, has_replacements) < 0) goto failed_before_hook;
 #if TLS_FIXER_TRACE_MODULE_PATHS
@@ -400,8 +402,10 @@ int module_start(SceSize argc, const void *args) {
         init_result = tls_fixer_kernel_loader_init();
         tls_fixer_memory_probe_record("mem.loader.ready", 0);
         if (tls_fixer_boot_trace_event("loader.init.return", 0, 0, init_result) < 0) goto failed_before_hook;
+#if TLS_FIXER_ENABLE_BOOT_TRACE
         ksceDebugPrintf("tls_fixer: exact-module gates app=%d browser=%d\n",
             tls_fixer_kernel_loader_ready(), tls_fixer_kernel_browser_loader_ready());
+#endif
     }
     int provider_bits = (!!tls_fixer_kernel_loader_ready()) | ((!!tls_fixer_kernel_browser_loader_ready()) << 1);
     if (tls_fixer_boot_trace_event("startup.providers", 0, provider_bits, 0) < 0) goto failed_before_hook;

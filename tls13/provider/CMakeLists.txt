@@ -9,11 +9,13 @@ add_executable(tls_fixer_http
     platform_shims.c
     private_mapping.c
     transport.c
-    trace.c
     trust_store.c
     user_runtime.c
     vita_net.c
 )
+if(TLS_FIXER_ENABLE_DEBUG_LOG)
+    target_sources(tls_fixer_http PRIVATE trace.c)
+endif()
 
 target_include_directories(tls_fixer_http PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

@@ -18,6 +18,23 @@ int main(int argc, char **argv) {
     assert(check_parse_browserleaks(body, n, &s->handshake) == 0);
     free(body);
     s->connection.state = CHECK_PASS;
+    s->started = s->complete = 1;
+    s->playstation.state = CHECK_PASS;
+    s->playstation.http_code = 403;
+    s->playstation.elapsed_ms = 342;
+    strcpy(s->playstation.message, "Connected (HTTP 403)");
+    if (argc > 6) {
+        s->playstation.state = (enum CheckState)atoi(argv[6]);
+        if (s->playstation.state == CHECK_FAIL) {
+            s->playstation.http_code = 0;
+            s->playstation.error = (int)0x80431075;
+            s->playstation.ssl_error = (int)0x80435060;
+            strcpy(s->playstation.message, "Certificate rejected");
+        } else if (s->playstation.state != CHECK_PASS) {
+            s->playstation.http_code = 0;
+            s->playstation.message[0] = 0;
+        }
+    }
     s->tls_fixer_enabled = argc > 5 ? atoi(argv[5]) : 1;
     for (int i = 0; i < 4; ++i) {
         s->protocols[i].state = i < 2 && !(argc > 4 && !strcmp(argv[4], "insecure"))
@@ -26,8 +43,26 @@ int main(int argc, char **argv) {
         s->protocols[i].http_code = connected ? 200 : 0;
         s->protocols[i].elapsed_ms = 173 + i * 20;
         s->protocols[i].error = connected ? 0 : (int)0x80431075;
+        s->protocols[i].ssl_error = connected ? 0 : (int)0x80435061;
+        s->protocols[i].tls_fixer_active = s->tls_fixer_enabled == 1;
         snprintf(s->protocols[i].message, sizeof(s->protocols[i].message), "%s",
                  connected ? "Connected to version-specific endpoint" : "TLS handshake failed");
+        if (argc > 4 && !strcmp(argv[4], "policy") && i < 2) {
+            s->protocols[i].ssl_detail = 0xffff8880u;
+        } else if (argc > 4 && !strcmp(argv[4], "certificate") && i < 2) {
+            s->protocols[i].state = CHECK_WARNING;
+            s->protocols[i].ssl_error = (int)0x80435060;
+            s->protocols[i].ssl_detail = 0x20;
+            s->protocols[i].retry = (CheckRetry){.attempted=1, .verification_disabled=1, .protocol_confirmed=1,
+                .http_code=200, .elapsed_ms=120};
+            strcpy(s->protocols[i].message, "Untrusted certificate chain");
+        } else if (argc > 4 && !strcmp(argv[4], "network")) {
+            s->protocols[i].state = CHECK_FAIL;
+            s->protocols[i].error = (int)0x80431068;
+            s->protocols[i].ssl_error = 0;
+            s->protocols[i].http_code = 0;
+            strcpy(s->protocols[i].message, "Request timed out");
+        }
     }
     uint32_t *allocation = malloc((CHECK_WIDTH * CHECK_HEIGHT + 2) * sizeof(uint32_t));
     assert(allocation);

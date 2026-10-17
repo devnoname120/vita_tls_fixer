@@ -41,37 +41,99 @@ int main(int argc, char **argv) {
     assert(!check_protocol_body(3, "TLS 1.2", 7));
     assert(!check_protocol_body(1, "<html>login</html>", 18));
     assert(!check_protocol_body(1, "TLS 1.1junk", 11));
-    assert(check_endpoint(5) == NULL);
+    assert(check_endpoint(CHECK_TEST_COUNT) == NULL);
     assert(!strcmp(check_endpoint(0), "https://tls10.browserleaks.com/"));
     assert(!strcmp(check_endpoint(4), "https://tls.browserleaks.com/tls?minify=1"));
+    assert(!strcmp(check_endpoint(CHECK_PLAYSTATION),
+                   "https://native-vita.np.ac.playstation.net/"));
     for (unsigned version = 0; version < 4; ++version) {
-        CheckProtocolDisplay pass = check_protocol_display(version, CHECK_PASS);
-        CheckProtocolDisplay fail = check_protocol_display(version, CHECK_FAIL);
+        CheckResult passed = {.state = CHECK_PASS}, failed = {.state = CHECK_FAIL};
+        CheckProtocolDisplay pass = check_protocol_display(version, &passed);
+        CheckProtocolDisplay fail = check_protocol_display(version, &failed);
         if (version < 2) {
             assert(pass.style == CHECK_WARNING && !strcmp(pass.label, "Insecure") &&
                    !strcmp(pass.qualifier, "vulnerable") && pass.detail_style == CHECK_FAIL);
-            assert(fail.style == CHECK_PASS && !strcmp(fail.label, "Blocked") &&
-                   !strcmp(fail.qualifier, "secure") && fail.detail_style == CHECK_PASS);
         } else {
             assert(pass.style == CHECK_PASS && !strcmp(pass.label, "Connected") &&
                    !strcmp(pass.qualifier, "secure"));
-            assert(fail.style == CHECK_FAIL && !strcmp(fail.label, "Failed") && !fail.qualifier);
         }
-        CheckProtocolDisplay waiting = check_protocol_display(version, CHECK_WAIT);
+        assert(fail.style == CHECK_FAIL && !strcmp(fail.label, "Failed") && !fail.qualifier);
+        CheckResult pending = {.state = CHECK_WAIT};
+        CheckProtocolDisplay waiting = check_protocol_display(version, &pending);
         assert(waiting.style == CHECK_WAIT && !strcmp(waiting.label, "Waiting") && !waiting.qualifier);
-        assert(check_protocol_display(version, CHECK_RUNNING).style == CHECK_RUNNING);
-        assert(check_protocol_display(version, CHECK_INFO).style == CHECK_INFO);
+        pending.state = CHECK_RUNNING;
+        assert(check_protocol_display(version, &pending).style == CHECK_RUNNING);
+        pending.state = CHECK_INFO;
+        assert(check_protocol_display(version, &pending).style == CHECK_INFO);
         CheckResult result = {.state = CHECK_FAIL, .error = (int)0x80431075};
         strcpy(result.message, "TLS handshake failed");
         char detail[128];
         check_protocol_detail(version, &result, detail, sizeof(detail));
-        assert(!strcmp(detail, version < 2 ? "Disabled (secure)" : "TLS handshake failed"));
+        assert(!strcmp(detail, "TLS handshake failed"));
         assert(result.error == (int)0x80431075 && result.state == CHECK_FAIL);
         if (version < 2) {
             result.state = CHECK_PASS;
             check_protocol_detail(version, &result, detail, sizeof(detail));
             assert(strstr(detail, "endpoint (vulnerable)") != NULL);
         }
+        CheckResult cases[] = {
+            {.state=CHECK_FAIL, .error=(int)0x80431075, .ssl_error=(int)0x80435060,
+             .ssl_detail=0x20},
+            {.state=CHECK_FAIL, .error=(int)0x80431068},
+            {.state=CHECK_FAIL, .error=(int)0x80436007},
+            {.state=CHECK_FAIL, .error=(int)0x80431075, .ssl_error=(int)0x80435061},
+            {.state=CHECK_FAIL, .error=-1, .http_code=403},
+        };
+        const char *labels[] = {"Cert error", "Unreachable", "Unreachable", "TLS error", "Failed"};
+        for (unsigned i=0; i<sizeof(cases)/sizeof(cases[0]); ++i) {
+            cases[i].tls_fixer_active = 1;
+            CheckProtocolDisplay d = check_protocol_display(version, &cases[i]);
+            assert(!strcmp(d.label, labels[i]) && d.style != CHECK_PASS && !d.qualifier);
+            check_protocol_detail(version, &cases[i], detail, sizeof(detail));
+            assert(strstr(detail, "secure") == NULL && strstr(detail, "Disabled") == NULL);
+        }
+        CheckResult policy = {.state=CHECK_FAIL, .error=(int)0x80431075,
+            .ssl_error=(int)0x80435061, .ssl_detail=0xffff8880u, .tls_fixer_active=1};
+        assert(check_expected_legacy_block(version, &policy) == (version < 2));
+        CheckProtocolDisplay expected = check_protocol_display(version, &policy);
+        if (version < 2) {
+            assert(expected.style==CHECK_PASS && expected.detail_style==CHECK_PASS);
+            assert(!strcmp(expected.label,"Blocked") && !strcmp(expected.qualifier,"secure"));
+            check_protocol_detail(version,&policy,detail,sizeof(detail));
+            assert(!strcmp(detail,"Disabled by tls_fixer (secure)"));
+            assert(!check_should_retry_unverified(version,&policy));
+            assert(policy.state==CHECK_FAIL && policy.ssl_detail==0xffff8880u);
+        } else {
+            assert(expected.style==CHECK_FAIL && !strcmp(expected.label,"TLS error"));
+        }
+        policy.ssl_detail=0xffff9180u;
+        assert(check_expected_legacy_block(version,&policy)==(version<2));
+        for(int active=-1;active<=0;++active) {
+            policy.tls_fixer_active=active;
+            assert(!check_expected_legacy_block(version,&policy));
+        }
+        policy.tls_fixer_active=1;
+        const unsigned unrelated_details[]={0,0x20,0xffffffb4u,0xffff9200u};
+        for(unsigned i=0;i<sizeof(unrelated_details)/sizeof(unrelated_details[0]);++i) {
+            policy.ssl_detail=unrelated_details[i];
+            assert(!check_expected_legacy_block(version,&policy));
+        }
+        policy.ssl_detail=0xffff8880u;
+        policy.retry.protocol_confirmed=1;
+        assert(!check_expected_legacy_block(version,&policy));
+        policy.retry.protocol_confirmed=0;
+        policy.retry.ssl_error=(int)0x80435060;
+        assert(!check_expected_legacy_block(version,&policy));
+        policy.retry.ssl_error=0;
+        policy.restore_error=-1;
+        assert(!check_expected_legacy_block(version,&policy));
+        policy.restore_error=0;
+        policy.http_code=200;
+        assert(!check_expected_legacy_block(version,&policy));
+        policy.http_code=0;
+        policy.ssl_error=(int)0x80435060;
+        assert(!check_expected_legacy_block(version,&policy));
+        assert(!strcmp(check_protocol_display(version,&policy).label,"Cert error"));
     }
     assert(check_provider_module_active("tls_fixer_http", 6));
     assert(!check_provider_module_active("tls_fixer_http", 5));
@@ -80,7 +142,10 @@ int main(int argc, char **argv) {
     assert(!check_provider_module_active("SceLibHttp", 6));
     assert(!check_provider_module_active(NULL, 6));
     assert(
-        !strcmp(check_error_name((int)0x80431075, (int)0x80435060, 0x20), "Certificate rejected"));
+        !strcmp(check_error_name((int)0x80431075, (int)0x80435060, 0x20), "Untrusted certificate chain"));
+    assert(!strcmp(check_error_name((int)0x80431075, (int)0x80435060, 8), "Certificate expired"));
+    assert(!strcmp(check_error_name((int)0x80431075, (int)0x80435060, 4), "Certificate hostname mismatch"));
+    assert(!strcmp(check_error_name((int)0x80431068, (int)0x80435060, 8), "Request timed out"));
     assert(!strcmp(check_error_name((int)0x80431075, (int)0x80435062, 4), "TLS request failed"));
     assert(!strcmp(check_error_name((int)0x80436007, 0, 0), "DNS lookup failed"));
     if (argc == 2) {

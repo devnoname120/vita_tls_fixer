@@ -103,7 +103,8 @@ int main(int argc, char **argv) {
     strcpy(hostname, "localhost");
     if (strcmp(scenario, "wrong-host") == 0 || strcmp(scenario, "host-disabled") == 0 ||
         strcmp(scenario, "wrong-host-peer-disabled") == 0 ||
-        strcmp(scenario, "default-callback-wrong-host") == 0) strcpy(hostname, "wrong.invalid");
+        strcmp(scenario, "default-callback-wrong-host") == 0 ||
+        strcmp(scenario, "sha1-wrong-host") == 0) strcpy(hostname, "wrong.invalid");
     if (strcmp(scenario, "ipv4-host") == 0) strcpy(hostname, "127.0.0.1");
     if (strcmp(scenario, "ipv6-host") == 0) strcpy(hostname, "::1");
     index = strcmp(scenario, "second-socket") == 0 ? 1 : 0;
@@ -210,9 +211,17 @@ int main(int argc, char **argv) {
     if (strcmp(scenario, "untrusted") == 0 || strcmp(scenario, "wrong-host") == 0 ||
         strcmp(scenario, "default-callback-untrusted") == 0 ||
         strcmp(scenario, "default-callback-wrong-host") == 0 ||
-        strcmp(scenario, "expired") == 0 || strcmp(scenario, "wrong-host-peer-disabled") == 0) {
+        strcmp(scenario, "expired") == 0 || strcmp(scenario, "wrong-host-peer-disabled") == 0 ||
+        strcmp(scenario, "sha1-wrong-host") == 0 || strcmp(scenario, "sha1-untrusted") == 0 ||
+        strcmp(scenario, "sha1-expired") == 0) {
         assert((result == TLS_FIXER_CURLE_SSL_CACERT || result == TLS_FIXER_CURLE_PEER_FAILED_VERIFICATION) && !done);
         assert(tls_fixer_read_u32(easy, TLS_FIXER_CURL_VERIFY_RESULT_OFFSET) != 0);
+        if (strcmp(scenario, "sha1-wrong-host") == 0)
+            assert(tls_fixer_read_u32(easy, TLS_FIXER_CURL_VERIFY_RESULT_OFFSET) == 62);
+        if (strcmp(scenario, "sha1-untrusted") == 0)
+            assert(tls_fixer_read_u32(easy, TLS_FIXER_CURL_VERIFY_RESULT_OFFSET) == 20);
+        if (strcmp(scenario, "sha1-expired") == 0)
+            assert(tls_fixer_read_u32(easy, TLS_FIXER_CURL_VERIFY_RESULT_OFFSET) == 10);
         goto shutdown;
     }
     if (result != 0 || !done) {

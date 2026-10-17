@@ -54,6 +54,7 @@ typedef struct BrowserConnection {
     unsigned char lookahead;
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config config;
+    mbedtls_x509_crt_profile certificate_profile;
     mbedtls_x509_crt custom_ca;
     int ciphers[8];
     char hostname[1024];
@@ -260,6 +261,11 @@ static int initialize_connection(BrowserConnection *connection, uint32_t cipher_
     result = mbedtls_ssl_config_defaults(&connection->config, MBEDTLS_SSL_IS_CLIENT,
         MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
     if (result != 0) return TLS_FIXER_CURLE_OUT_OF_MEMORY;
+    connection->certificate_profile = mbedtls_x509_crt_profile_default;
+    /* System endpoints such as native-vita.np.ac.playstation.net require
+     * SHA-1 certificate signatures. */
+    connection->certificate_profile.allowed_mds |= MBEDTLS_X509_ID_FLAG(MBEDTLS_MD_SHA1);
+    mbedtls_ssl_conf_cert_profile(&connection->config, &connection->certificate_profile);
     mbedtls_ssl_conf_min_tls_version(&connection->config, MBEDTLS_SSL_VERSION_TLS1_2);
     mbedtls_ssl_conf_max_tls_version(&connection->config, MBEDTLS_SSL_VERSION_TLS1_3);
     mbedtls_ssl_conf_ciphersuites(&connection->config, connection->ciphers);

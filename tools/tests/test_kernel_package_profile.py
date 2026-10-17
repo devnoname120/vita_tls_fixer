@@ -11,6 +11,32 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @unittest.skipUnless(shutil.which("make"), "make is required")
 class KernelPackageProfileTests(unittest.TestCase):
+    def test_cached_debug_provider_is_reconfigured_for_vpk(self):
+        makefile = (ROOT / "Makefile").read_text()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Makefile").write_text(makefile)
+            (root / "tls13").mkdir()
+            (root / "build/deps").mkdir(parents=True)
+            (root / "build/deps/mbedtls-4.2.0.tar.bz2").touch()
+            provider = root / "build/tls13-vita/provider/tls_fixer_http.suprx"
+            provider.parent.mkdir(parents=True)
+            provider.write_bytes(b"recent debug provider")
+            os.utime(provider, (2_000_000_000, 2_000_000_000))
+            (provider.parent.parent / "CMakeCache.txt").write_text(
+                "TLS_FIXER_ENABLE_DEBUG_LOG:BOOL=ON\n"
+                "TLS_FIXER_ENABLE_RUNTIME_UDP:BOOL=ON\n"
+            )
+            result = subprocess.run(
+                ["make", "-n", "build/tls13-vita/provider/tls_fixer_http.suprx"],
+                cwd=root, check=True, capture_output=True, text=True,
+            )
+            self.assertIn("cmake -S tls13 -B build/tls13-vita", result.stdout)
+            for option in ("ENABLE_DEBUG_LOG", "ENABLE_RUNTIME_UDP", "BROWSER_START_DIAGNOSTICS",
+                           "BROWSER_PASSTHROUGH_ONLY", "BROWSER_INITIALIZE_ONLY"):
+                self.assertIn(f"-DTLS_FIXER_{option}=OFF", result.stdout)
+            self.assertIn("-DTLS_FIXER_BROWSER_HOOK_MASK=", result.stdout)
+
     def test_recent_cached_kernel_still_reconfigures_normal_profile(self):
         makefile = (ROOT / "Makefile").read_text()
         rule = next(line for line in makefile.splitlines() if line.startswith("$(KERNEL_MODULE):"))

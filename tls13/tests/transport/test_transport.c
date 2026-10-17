@@ -134,7 +134,8 @@ int main(int argc, char **argv) {
     sony = arena + 0x200;
     hostname = (char *)arena + 0x400;
     global_options = (uint32_t *)(arena + 0x800);
-    strcpy(hostname, strcmp(scenario, "wrong-host") == 0 ? "wrong.invalid" : "localhost");
+    strcpy(hostname, strcmp(scenario, "wrong-host") == 0 || strcmp(scenario, "sha1-wrong-host") == 0
+        ? "wrong.invalid" : "localhost");
     if (strcmp(scenario, "ipv4-host") == 0) strcpy(hostname, "127.0.0.1");
     if (strcmp(scenario, "ipv6-host") == 0) strcpy(hostname, "::1");
     if (strcmp(scenario, "wrong-ip") == 0) strcpy(hostname, "127.0.0.2");
@@ -181,11 +182,19 @@ int main(int argc, char **argv) {
     result = wait_handshake(request);
 
     if (strcmp(scenario, "wrong-host") == 0 || strcmp(scenario, "untrusted") == 0 ||
-        strcmp(scenario, "wrong-ip") == 0 || strcmp(scenario, "callback-reject") == 0) {
+        strcmp(scenario, "wrong-ip") == 0 || strcmp(scenario, "callback-reject") == 0 ||
+        strcmp(scenario, "sha1-wrong-host") == 0 || strcmp(scenario, "sha1-untrusted") == 0 ||
+        strcmp(scenario, "sha1-expired") == 0) {
         assert(result == TLS_FIXER_SCE_HTTP_ERROR_SSL);
         assert(tls_fixer_read_i32(sony, TLS_FIXER_CONNECTION_SSL_ERROR_OFFSET) == TLS_FIXER_SCE_HTTPS_ERROR_CERT);
         assert(callbacks == 1);
         assert((callback_detail == 0) == (callback_result < 0));
+        if (strcmp(scenario, "sha1-wrong-host") == 0)
+            assert(callback_detail & TLS_FIXER_SCE_HTTPS_DETAIL_CN_CHECK);
+        if (strcmp(scenario, "sha1-untrusted") == 0)
+            assert(callback_detail & TLS_FIXER_SCE_HTTPS_DETAIL_UNKNOWN_CA);
+        if (strcmp(scenario, "sha1-expired") == 0)
+            assert(callback_detail & TLS_FIXER_SCE_HTTPS_DETAIL_NOT_AFTER);
         goto cleanup;
     }
     if (strcmp(scenario, "bad-record") == 0) {

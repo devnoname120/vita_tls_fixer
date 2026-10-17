@@ -1,126 +1,72 @@
-# tls_fixer 0.1.0
+# tls_fixer 0.1
 
-tls_fixer updates the PlayStation Vita HTTPS stack on systems using enso. This development build adds separate TLS 1.2/1.3 providers for applications using Sony's `SceHttp` and for the browser's libcurl backend in the exact bundled `ScePsp2Compat` module. Both use source-built Mbed TLS 4.2.0 and TF-PSA-Crypto 1.2.0.
+TLS 1.2 and TLS 1.3 for the PS Vita browser and supported applications using Sony's `sceHttp` APIs. By **devnoname120**.
 
-**Current test status (2026-10-14):** the previous self-disarming VPK's normal combined coordinator, with HTTP and DNS enabled and kernel diagnostics disabled, passed the Cloudflare Browser TLS 1.3 test on retail 3.60. The independent Sony-API checker then passed strict TLS 1.2 and TLS 1.3 requests in three separate processes, including two normal exits/relaunches. The HTTP provider uses a small SceLibKernel/SceSysmem runtime and private transport mappings. That exact self-disarming VPK passed the same Browser control and nine successful modern requests across three fresh checker processes, including two normal exits/relaunches. The subsequently requested persistent VPK changes only the kernel's self-disarm behavior; its installer, providers and certificate bundles are byte-identical, but persistent device use has not yet been qualified. See `TLS13_PROGRESS.md` sections 23.329–23.331.
+tls_fixer provides modern TLS transport using Mbed TLS 4.2.0 and TF-PSA-Crypto 1.2.0, alongside an authoritative Sony + curl/Mozilla certificate bundle. Sony's HTTP implementation continues to handle URLs, redirects, authentication, cookies and request processing.
 
-**Earlier test packages are withdrawn.** Earlier broad activation failed while Sony shared consumers linked private HTTP exports; scoped tests also exposed stale hooks in shared mappings. The coordinator now preserves Sony transport for shared or unclassified consumers, including Shell/Paf, and verifies private mappings before publishing application hooks. The original historical boot fault is not established as having a single cause. Only retail 3.60 has physical-device execution evidence; other firmware/hardware profiles remain offline checks. The current normal VPK uses persistent activation for real-world testing.
-
-**Boot behavior:** the normal VPK builds with `TLS_FIXER_ENABLE_SELF_DISARM=OFF`. It does not comment out its taiHEN entry and remains configured across reboots until explicitly uninstalled or disabled. Standalone kernel/diagnostic builds default to self-disarming (`ON`), which disables their own entries before other initialization. The earlier device acceptance runs used that one-shot safeguard; sustained use of the persistent variant remains a separate test.
+**[Download the latest release](https://github.com/devnoname120/vita_tls_fixer/releases/latest)**
 
 ## Installation
 
-The installer procedure is retained for development. It writes persistent system files and is not the isolated one-shot procedure used for the successful Browser test. Earlier exported test packages remain withdrawn. On 2026-10-14, persistent activation was explicitly requested for the friend's real-world test package; the prior acceptance results still describe the self-disarming build.
+A hacked PS Vita with working taiHEN is required.
 
-1. Install the VPK and open **tls_fixer 0.1.0**.
-2. Select **Full (browser plugin + system plugin + certs)**, **browser plugin only**, **system plugin only**, or **certs only**. Browser/system choices include the shared coordinator automatically and leave unselected components unchanged. Certificate-only installation does not enable a plugin.
-3. Press **CROSS** to install the selected component, or uninstall it if already installed. Press **SQUARE** to reinstall/refresh that selected option. Removing one provider preserves the coordinator while the other provider remains installed.
-4. Reboot after the installer reports success.
+1. Install `tls_fixer.vpk` through VitaShell, then open **tls_fixer**.
+2. Select the components to install:
+   - **Full:** browser plugin, system plugin and certificates. Recommended for a new installation.
+   - **Browser plugin only**
+   - **System plugin only**
+   - **Certificates only**
+3. Press **Cross** to install the selected option. If it is already installed, Cross removes it instead; **Square** reinstalls or refreshes the selected option.
+4. After a successful operation, the installer reboots the Vita automatically.
 
-The dedicated certificate-download option is temporarily removed following a reported Vita crash. Full and certs-only installation retain their existing certificate updater; this menu removal does not diagnose or repair that shared path.
+Browser and system installations include the shared kernel coordinator. Removing one provider preserves the coordinator while the other remains installed. Certificate-only installation does not enable a plugin. The installer keeps the original system files for uninstall and leaves unselected components unchanged.
 
-The installer header credits **devnoname120** and displays **Thanks to SKGleba for the initial iTLS plugin!**. Vita package metadata uses the platform's `##.##` format (`00.10`) for the displayed semantic release `0.1.0`.
+The release uses **persistent activation**: it stays enabled across reboots until uninstalled or disabled. Provider file/console logging, runtime UDP diagnostics and kernel trace/probe modes are disabled in the release build. The installer still displays its progress and errors on screen.
 
-The rebuilt package installs its HTTP provider at `vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx` and Browser provider at `ur0:tai/tls_fixer-native/tls_fixer.suprx`, with a mirror at `vs0:/data/external/tls_fixer/native/tls_fixer.suprx`. Previous provider copies remain available during qualification.
+The installer displays version `0.1.0`; the VPK's two-part metadata version is `00.10`. Both identify release **0.1**.
 
-The packaged installer has been verified to open its menu on the qualified retail 3.60 boot. This check did not run a full system-file installation or prove its interruption safety. The bubble is only an installer and uninstaller and may be removed after a successful installation.
+## Coverage
 
-## TLS 1.3 architecture
+- **Browser:** a dedicated provider replaces the TLS transport in the bundled `ScePsp2Compat`/libcurl backend. HTTP processing remains with libcurl; ALPN advertises HTTP/1.1.
+- **System HTTP:** a separate provider replaces the TLS transport inside the bundled `SceLibHttp` for compatible processes with private mappings. Applications continue to call the ordinary Sony `sceHttp`/`sceHttps` APIs.
+- **Certificates:** Sony roots are combined with curl/Mozilla roots while preserving the original Sony file's byte layout, which native certificate selectors require.
+- **Firmware 3.60 compatibility:** the existing NP hostname helper is included with the system component.
 
-The Vita `libssl.suprx` is a Sony-adapted RSA BSAFE Micro Edition Suite 3.2.1 implementation. The firmware 3.73 binary adds Vita-specific TLS 1.2 support but cannot be incrementally configured for TLS 1.3.
+The new providers support TLS 1.2/1.3. TLS 1.0/1.1 are intentionally excluded from their configuration. This is not a universal replacement for every `SceSsl` consumer: Shell/Paf shared consumers, custom CA/client-certificate configurations, unsupported modules and other unsupported transport settings can retain Sony's native implementation. Provider initialization or validation failure also retains the original path. There is no second handshake implementation fallback after the provider has sent TLS handshake bytes.
 
-The application provider, `tls_fixer_http.suprx`, replaces only the internal TLS transport used by the exact bundled `libhttp.suprx`:
+The coordinator validates module identities, signatures and mappings before injecting providers. Browser processes use their dedicated provider and are excluded from generic HTTP injection. Kernel code is checked for unmanaged floating-point/SIMD instructions; user providers use a small native Vita runtime and process-private transport state.
 
-```text
-application using SceHttp
-        |
-        v
-Sony libhttp HTTP state machine
-        |
-        | six validated internal hooks
-        v
-tls_fixer_http.suprx
-        |
-        v
-Mbed TLS 4.2.0 / TF-PSA-Crypto 1.2.0
-        |
-        v
-SceNet socket
-```
+Firmware profiles cover the available **3.60–3.74 retail, testkit and devkit** images. Static checks passed for 31 supplied combinations; five kit images were unavailable. Physical-device validation is on **retail 3.60**. See the [firmware evidence matrix](docs/tls13-firmware-support.md) for the exact coverage; static checks do not establish hardware execution on every model/firmware combination.
 
-Sony's URL handling, redirects, authentication, cookies, proxy logic, gzip handling, request state machine, and public `SceHttp` ABI remain in use. The original `libssl` remains loaded for imports and for connections that use the compatibility fallback.
+## Certificates
 
-The browser provider, `tls_fixer.suprx`, has a different boundary:
+Full and certificates-only installation attempt to fetch the latest [curl/Mozilla CA bundle](https://curl.se/ca/cacert.pem). The download uses libcurl with certificate and hostname validation against **only the embedded Mozilla bundle**. If the network, download or bundle validation fails, installation falls back to the Mozilla snapshot embedded in the VPK.
 
-```text
-WebKit -> bundled ScePsp2Compat/libcurl -> browser TLS backend
-       -> Mbed TLS 4.2.0 -> SceNet socket
-```
+The selected Mozilla bundle is merged with the embedded Sony bundle. The complete original Sony PEM prefix, including its comments and line endings, is preserved; only additional certificate identities are appended. This preserves the fixed offsets and hashes used by native Sony services.
 
-It hooks the complete connection driver, pending-data check, keep-alive health check and close operation, then installs TLS send/receive callbacks in libcurl's existing slots. OpenSSL objects are not impersonated. A one-byte lookahead preserves the old non-consuming health-check behavior. Libcurl still owns HTTP processing, redirects, sockets and request deadlines. Only HTTP/1.1 is advertised through ALPN; HTTP/2 is not advertised to the old HTTP engine.
+The existing system trust store is **not imported**. The embedded Sony roots and selected Mozilla bundle are authoritative. The old system certificate file is retained only for uninstall. Missing or invalid embedded inputs stop certificate installation.
 
-Activation is intentionally narrow:
+Packaged fallback:
 
-- the kernel plugin hashes each installed replacement module and injects only its matching provider;
-- generic HTTP injection excludes the Browser controller (`NPXS10003`) and WebKit helper (`NPXS10083`) before allocating its preparation stack; page TLS uses the dedicated Browser provider;
-- Browser and HTTP injection wait until native module start/import linking returns successfully; the normal kernel build requires this ordering and rejects early injection;
-- normal provider preparation uses the native 16 KiB stack and target/provider name lookup; every VPK build reconfigures the normal kernel profile, even when a newer diagnostic artifact is cached;
-- the HTTP provider uses a process-private 2 MiB heap, native mutex and a small SceLibKernel/SceSysmem C runtime shim; it imports neither SceLibc nor Paf and does not patch dependency sources;
-- shared or unclassified HTTP/SSL importers retain Sony transport; eligible application transports load privately, and the provider validates complete private text/data allocations before heap setup or hooks;
-- the Browser provider is installed at `ur0:tai/tls_fixer-native/tls_fixer.suprx` and loaded globally into its target process; the compatibility checksum still uses the Browser's private mount;
-- the provider validates the mapped executable/data segment dimensions and masked bytes at every hook site;
-- browser connect interception is installed last and TLS ownership is enabled only after the complete hook set succeeds; on an earlier partially published hook failure, inert forwarding hooks stay resident rather than unloading code another thread might execute;
-- unknown or mismatched modules stay on their original TLS backend; active user providers and the kernel loader reject hot unload and remain until process exit or reboot.
+- Sony firmware 3.74 bundle: **69 certificates**.
+- curl/Mozilla snapshot dated 2026-09-25: **121 certificates**.
+- Combined bundle: **176 unique certificates**.
 
-The kernel translates its internal module GUID to the target process's PUID before passing start arguments. Browser module and CA paths preserve the existing browser mount namespace rather than assuming the process can open an absolute `vs0:` path.
+The separate Sony, Mozilla and combined files are included in the VPK, with provenance and hashes in `certificate-sources.json`. There is no separate certificate-download menu option; use Full or certificates-only refresh.
 
-## Compatibility policy
+## Validation
 
-Firmware profiles cover the 31 retail/testkit/devkit combinations available in the supplied external 3.60-3.74 corpus. Compiled kernel/WebKit guards and linked firmware imports pass against those images. Five kit images are unavailable; only the retail 3.60 profile has been exercised on hardware. See [the firmware matrix](docs/tls13-firmware-support.md) for precise coverage and evidence limits. Loaded module identities select profiles, independently of version spoofing.
+Release qualification on retail 3.60 confirmed Browser TLS 1.3 with the Cloudflare control, certificate-verified system HTTP TLS 1.2/1.3 requests, and the BrowserLeaks detailed report. PlayStation HTTPS connectivity and normal Store sign-in have also been confirmed after the native certificate-layout repair. Store sign-in still requires the account linked to the console and a PlayStation Device Setup Password; legacy account-management operations are separate server features.
 
-The current provider supports client-side TLS 1.2 and TLS 1.3 through the bundled `libhttp` HTTPS path. TLS 1.0/1.1 checker requests currently fail after the provider starts; there is no legacy support claim or fresh-socket retry through Sony after a provider handshake fails. It is not a general TLS 1.3 replacement for every Vita `SceSsl` consumer.
+The final console-output removal was verified by a native build, 357 sanitizer-enabled production tests and a packaged-import audit; the device protocol/Store checks used the preceding build. The installer, certificates, DNS helper and bundled Sony modules are byte-identical to that device-tested package.
 
-The adapter implements Sony's recovered retry/error conventions, hostname verification, and application certificate callbacks. Nonnegative callback results do not automatically permit an invalid certificate: the original post-callback process/version/system-parameter policy is also applied using the gated module's existing imports. Its behavior is covered by host tests; execution of those imports and hooks still requires Vita validation.
+Host tests cover transport handshakes, certificate and hostname checks, callbacks, nonblocking retries, cancellation, module guards, hook lifetimes, certificate merging and installer options. Native builds enforce the normal kernel/provider configuration even if a diagnostic build was previously cached.
 
-Borrowed callback certificate handles expire when the callback returns. Subject/issuer name results have independent storage and remain valid until `sceSslFreeSslCertName`. All eight public certificate inspection hooks are exercised by native loopback tests. The provider remains resident until process exit; hot unloading is rejected because an empty connection registry alone does not prove that no thread is executing hook code.
-
-The following cases retain Sony's transport; the negotiated version depends on that transport and endpoint:
-
-- applications that install custom CA certificates with `sceHttpsLoadCert`;
-- applications that install a client certificate/private key;
-- Shell and applications with shared or unclassified HTTP/SSL importers, including ScePaf consumers;
-- other consumers that bypass both supported transport boundaries;
-- unsupported or modified `libhttp` binaries;
-- provider initialization, trust-store parsing, module validation, or hook-installation failure.
-
-There is no fallback to a second TLS implementation after provider handshake bytes have been sent on a socket.
-
-The browser adapter supports its recovered default configuration, peer and hostname verification, PEM CA files, TLS 1.2/1.3, nonblocking operation and both libcurl socket slots. The exact built-in `SceWebKit` SSL-context callback is recognized only for the normal clean-chain path with peer and hostname verification enabled and no custom CA; successful Mbed TLS verification supplies the security decision without invoking Sony's OpenSSL callback. Arbitrary callbacks, altered verification policy, client certificates/keys, CA directories, CRLs, issuer restrictions, certificate-info requests, explicit legacy protocol selection or unsupported cipher expressions deliberately remain on embedded OpenSSL **before** any provider handshake. It does not silently ignore these settings, emulate Sony callback objects or synthesize acceptance after a certificate failure. TLS 1.2 cipher support is restricted to the supported ECDHE/AES-GCM suites; obsolete RC4/3DES entries in the old browser default list are not enabled. Cross-connection session resumption and TLS 1.3 early data are not implemented.
-
-Browser diagnostics go to `sceClibPrintf` and first try `ux0:/data/tls_fixer-browser-<PID>.log`. If that mount is not writable in the WebKit process, they fall back to `savedata0:/temp/tls_fixer-browser-<PID>.log`. At most 512 records of less than 512 bytes are emitted per provider lifetime. Failed file logging does not change TLS results. Logs contain activation/error codes, scalar compatibility-rejection reasons, socket identifiers, protocol and cipher, not callback addresses, application payloads, keys or URLs. Restart the browser to start a new diagnostic budget.
-
-## Validation status
-
-Validation is separated into native execution, cross-compilation, and device execution. Native tests compile the production TLS transport, certificate hooks, and crypto platform port against Mbed TLS 4.2.0, with test implementations of Vita/taiHEN services. They cover:
-
-- exact hash/ELF/segment/signature validation for the bundled `libhttp` and `ScePsp2Compat`;
-- TLS 1.2 and TLS 1.3 loopback handshakes, SNI, certificate rejection/authorized override, IP identities, nonblocking retries, ticket handling, abrupt EOF, callback reentry and stable write retries;
-- all eight certificate inspection functions, retained names, stale handles and hook-installation rollback;
-- the actual bundled CA file, failed entropy/RTC initialization, bounded input loading, and registry lifetime invariants;
-- AddressSanitizer, UndefinedBehaviorSanitizer, and leak checking across the provider and source-built TLS/crypto libraries.
-
-Browser-specific tests also cover blocking cancellation from another thread, independent peer/hostname policy, expired certificates, custom/missing CA files, socket slot 1, pre-wire native fallback, module activation failures, process-visible module IDs, mount-preserving paths, kernel load recursion and bounded diagnostics.
-
-The source cross-builds with hard-float VitaSDK GCC 15.2. Full build commands and artifact identities are recorded in `TLS13_PROGRESS.md`. On 2026-10-12, one controlled primary 3.60 Vita Browser test rendered the specified Cloudflare trace page with **TLS 1.3 and X25519**, correlated with successful provider startup, a completed verified handshake and application data in the runtime trace. The self-disarming test entry remained disabled afterward; this is one-shot acceptance, not a production deployment or proof that the original boot defect is resolved. Broader firmware, memory, abort/proxy and lifecycle coverage remains unverified. See `TLS13_PROGRESS.md` section 23.275 and `build/browser-tls13-acceptance-20261012.json` for the exact evidence, `docs/tls13-browser-path.md` for the recovered boundary, and `docs/tls13-browser-test.md` for the hardware protocol.
-
-On 2026-10-14, the ordinary combined coordinator passed the Browser cold control followed by strict `sceHttp` HTTP 200 requests for the BrowserLeaks report and dedicated TLS 1.2/1.3 endpoints across three process lifetimes. Each process loaded the authoritative 176-root bundle and reported zero SSL/certificate verification errors. Earlier scoped runs passed the same modern requests. Kernel diagnostic recorders can affect activation when their bounded queues fill; the shipping build resets them OFF. The TLS acceptance build passed 355 ordinary and 355 sanitizer-enabled host tests. The persistent-activation change passes all 356 ordinary cases plus six focused sanitizer cases, with compiled compatibility checks for all 31 available firmware/hardware images (five unavailable). The self-disarming VPK repeated the Browser and three-process application tests using its final native provider paths. Installer system-file writes remain a separate evidence boundary; qualification preserved the previous working copies.
-See `docs/tls13-hardware-validation.md` for the validation protocol and `TLS13_PROGRESS.md` for the reverse-engineering and implementation record.
-
-An independent [Vita TLS Check sample](samples/scehttp_tls_check/README.md) now exercises public `sceHttp`/`sceHttps` calls against BrowserLeaks. It has a compact native-font interface, protocol results, server-reported cipher details, and per-request error logs. It links no third-party HTTP/TLS implementation and performs no plugin installation or trust-store changes, so the same VPK can compare the stock stack and installed providers. Per-request logs distinguish protocol rejection, SSL failures, network errors and successful HTTP responses. The checker's modern requests have passed with the provider; its legacy TLS 1.0/1.1 checks still fail.
+The independent [Vita TLS Check sample](samples/scehttp_tls_check/README.md) uses Sony networking APIs without linking another TLS implementation. It can compare the stock stack and installed providers, including protocol results, certificate errors, negotiated cipher information and PlayStation connectivity. It is a separate diagnostic application and is not installed by `tls_fixer.vpk`.
 
 ## Building
 
-Fetch the pinned upstream source archive on the host using authenticated `gh`, then build with the hard-float VitaSDK toolchain. The development container command is:
+Use a compatible hard-float VitaSDK toolchain. Fetch the pinned source archives on the host, then build:
 
 ```sh
 python3 tools/fetch_mbedtls.py
@@ -129,60 +75,26 @@ docker run --rm -v "$PWD":/src -w /src vitasdk/vitasdk:latest \
   sh -lc 'make clean && make'
 ```
 
-The provider and its dependencies are built with the same project configuration headers from the SHA-256-verified Mbed TLS 4.2.0 release. VitaSDK's prebuilt Mbed TLS libraries are not linked. The release archive is cached under ignored `build/deps/`; CMake rejects a missing or altered archive. No GitHub credentials need to enter the build container.
+Output: `tls_fixer.vpk`. The archives are SHA-256 verified and cached under ignored `build/deps/`. The project builds the providers' TLS libraries from unmodified upstream sources using its configuration headers and native platform adapter. The installer uses source-built libcurl with VitaSDK OpenSSL and native lock wrappers.
 
-Core-only tests run on a native C compiler. The full transport tests currently require Linux, Python with TLS 1.3 support, OpenSSL, and pthreads; the VitaSDK container supplies them:
+Host verification:
 
 ```sh
+python3 -m unittest discover -s tools/tests
 docker run --rm -v "$PWD":/src -w /src vitasdk/vitasdk:latest sh -c '
-  cmake -S tls13 -B build/tls13-transport-san -G Ninja \
+  cmake -S tls13 -B build/tls13-transport-san \
     -DTLS_FIXER_BUILD_HOST_TESTS=ON -DTLS_FIXER_BUILD_TRANSPORT_TESTS=ON \
     -DTLS_FIXER_ENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug &&
-  cmake --build build/tls13-transport-san &&
+  cmake --build build/tls13-transport-san -j4 &&
   ASAN_OPTIONS=detect_leaks=1 ctest --test-dir build/tls13-transport-san --output-on-failure'
-python3 -m unittest discover -s tools/tests
 ```
 
-Exact bundled-module validation:
+Diagnostic source/build options remain available for development; they are not enabled in the normal VPK.
 
-```sh
-python3 tools/validate_libhttp.py \
-  --descriptor tls13/supported_libhttp.json \
-  --elf .reverse-tmp/lhttp-3.73-fresh.elf \
-  --self misc/lhttp.suprx
-python3 tools/validate_libhttp.py \
-  --descriptor tls13/supported_browser.json \
-  --elf .reverse-tmp/compat-bundled.suprx.elf \
-  --self misc/compat.suprx
-```
+## Credits and third-party software
 
-The unpacked analysis ELF is not distributed by the repository and must be produced from the bundled module for this optional static check.
+**Thanks to SKGleba for the initial [iTLS plugin](https://github.com/SKGleba/iTLS-Enso)!** His work updating the Vita's certificates has been very useful and is integrated into tls_fixer, together with the original installer and module-redirection foundations. Existing author notices are preserved in the source.
 
-## Firmware modules and CA sources
+Additional thanks to Team Molecule, the HenKaku Discord testers, Cuevavirus for the 3.60 NP hostname fix, CreepNT for the `vshIoMount` fix, and olokos for the external CA bundle.
 
-- bundled HTTP/SSL modules: firmware 3.73
-- embedded Sony CA bundle: the complete firmware 3.74 file, 69 certificates
-- embedded curl/Mozilla bundle: snapshot dated 2026-09-25, fetched 2026-10-12, 121 certificates
-- embedded combined fallback: 176 unique certificates after deduplication
-
-When installing or refreshing certificates, the installer attempts to download the latest [curl/Mozilla PEM bundle](https://curl.se/ca/cacert.pem). That HTTPS request uses libcurl with peer and hostname verification enabled and **only the embedded Mozilla bundle** as its trust source. Default CA files/directories, native CA fallback, environment proxies and redirects are disabled; an OpenSSL callback replaces the verification store with the embedded Mozilla roots.
-
-If networking is unavailable, the transfer fails, or the response is not a complete usable CA bundle, the installer uses the Mozilla snapshot embedded in the VPK. It combines the selected Mozilla certificates with the embedded Sony bundle and removes duplicate certificates before installation. Successful downloads replace the Mozilla component rather than accumulating roots from older snapshots. Download and merge limits are bounded, with a five-second network-readiness wait and a 30-second libcurl transfer timeout.
-
-The **embedded Sony bundle plus the selected curl/Mozilla bundle are authoritative**. The existing system `CA_LIST.cer` is never an input to this merge or to the download's trust store. It is retained only as the original uninstall backup. Missing or corrupt embedded inputs stop certificate installation rather than importing system roots. `certificate-sources.json` records the packaged snapshot hashes and provenance.
-
-The separate Sony, Mozilla and combined PEM files are shipped inside the VPK. The combined file is also the fixture used by provider trust-store tests; the installer constructs its actual installation bytes from the two authoritative source bundles. The updater has passed live-endpoint and controlled HTTPS tests on the host, plus live HTTPS download, embedded fallback preparation and isolated install/refresh checks on retail 3.60. The Vita installer uses native lightweight mutexes for OpenSSL's opaque locks: VitaSDK's pthread rwlocks exhausted synchronization resources while parsing the complete bundles, producing a misleading malloc failure. The 8 MiB newlib heap is retained. The system CA replacement's existing interruption window remains; the isolated test does not establish crash durability.
-
-## Third-party software
-
-Both `tls_fixer_http.suprx` and `tls_fixer.suprx` statically link the source-built Mbed TLS 4.2.0 and TF-PSA-Crypto 1.2.0 libraries. See `THIRD_PARTY_NOTICES.md` and `licenses/`; the corresponding license files are included in the VPK.
-
-## Credits
-
-Thank you to **skgleba** for [iTLS-Enso](https://github.com/SKGleba/iTLS-Enso) and his work updating the Vita's certificates. That work has been very useful and is integrated into **tls_fixer**, together with the original installer and module-redirection foundations. Existing author notices are preserved in the source.
-
-- Team Molecule
-- testers from the HenKaku Discord server
-- Cuevavirus for the firmware 3.60 NP server fix
-- CreepNT for the `vshIoMount` fix
-- olokos for the external CA bundle
+See [Third-Party Notices](THIRD_PARTY_NOTICES.md) and [licenses](licenses/) for component versions, source archives and license texts. The required third-party notices and licenses are included in the VPK.

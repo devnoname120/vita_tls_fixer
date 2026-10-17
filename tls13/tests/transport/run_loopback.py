@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import datetime
 from pathlib import Path
 import resource
 import socket
@@ -26,6 +27,23 @@ def certificates(directory):
             "-CAcreateserial", "-days", "2", "-extfile", "server.ext", "-out", "server.pem")
     openssl(directory, "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256",
             "-nodes", "-keyout", "other.key", "-out", "other.pem", "-days", "2", "-subj", "/CN=other root")
+    openssl(directory, "req", "-x509", "-newkey", "rsa:2048", "-sha256", "-nodes",
+            "-keyout", "sha1-ca.key", "-out", "sha1-ca.pem", "-days", "2",
+            "-subj", "/CN=tls_fixer SHA1 test root")
+    openssl(directory, "x509", "-req", "-in", "server.csr", "-CA", "sha1-ca.pem",
+            "-CAkey", "sha1-ca.key", "-CAcreateserial", "-sha1", "-days", "2",
+            "-extfile", "server.ext", "-out", "sha1-server.pem")
+    (directory / "sha1-index.txt").write_text("")
+    (directory / "sha1-serial").write_text("01\n")
+    (directory / "sha1-ca.conf").write_text(
+        "[ca]\ndefault_ca=sign\n[sign]\ndatabase=sha1-index.txt\nserial=sha1-serial\n"
+        "new_certs_dir=.\npolicy=policy\n[policy]\ncommonName=supplied\n")
+    now = datetime.datetime.now(datetime.timezone.utc)
+    openssl(directory, "ca", "-config", "sha1-ca.conf", "-batch", "-notext",
+            "-cert", "sha1-ca.pem", "-keyfile", "sha1-ca.key", "-md", "sha1",
+            "-startdate", (now - datetime.timedelta(days=3)).strftime("%Y%m%d%H%M%SZ"),
+            "-enddate", (now - datetime.timedelta(days=1)).strftime("%Y%m%d%H%M%SZ"),
+            "-extfile", "server.ext", "-in", "server.csr", "-out", "sha1-expired.pem")
 
 
 def run_case(binary, directory, scenario, version):
@@ -38,7 +56,11 @@ def run_case(binary, directory, scenario, version):
     negotiated = []
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = context.maximum_version = version
-    context.load_cert_chain(directory / "server.pem", directory / "server.key")
+    certificate = "server.pem"
+    if scenario.startswith("sha1-"):
+        context.set_ciphers("DEFAULT:@SECLEVEL=0")
+        certificate = "sha1-expired.pem" if scenario == "sha1-expired" else "sha1-server.pem"
+    context.load_cert_chain(directory / certificate, directory / "server.key")
     context.set_servername_callback(lambda connection, name, unused: negotiated.append(name))
 
     def serve():
@@ -65,14 +87,16 @@ def run_case(binary, directory, scenario, version):
                 else:
                     connection.unwrap().close()
         except (OSError, ssl.SSLError) as exc:
-            if scenario not in {"wrong-host", "wrong-ip", "untrusted", "bad-record", "callback-reject", "changed-write-retry"}:
+            if scenario not in {"wrong-host", "wrong-ip", "untrusted", "bad-record", "callback-reject", "changed-write-retry",
+                                "sha1-wrong-host", "sha1-untrusted", "sha1-expired"}:
                 errors.append(str(exc))
         finally:
             listener.close()
 
     worker = threading.Thread(target=serve, daemon=True)
     worker.start()
-    trust = directory / ("other.pem" if scenario == "untrusted" else "ca.pem")
+    trust = directory / ("other.pem" if scenario in {"untrusted", "sha1-untrusted"}
+                         else "sha1-ca.pem" if scenario.startswith("sha1-") else "ca.pem")
     expected_version = "TLSv1.3" if version == ssl.TLSVersion.TLSv1_3 else "TLSv1.2"
     try:
         result = subprocess.run([str(binary), str(trust), str(port), scenario, expected_version],
@@ -84,7 +108,8 @@ def run_case(binary, directory, scenario, version):
         raise AssertionError(f"{scenario}: exit {result.returncode}\n{result.stdout}\n{result.stderr}")
     if errors or worker.is_alive():
         raise AssertionError(f"{scenario}: server did not terminate cleanly: {errors}")
-    if scenario not in {"bad-record", "wrong-host", "wrong-ip", "ipv4-host", "ipv6-host", "override-allowed"}:
+    if scenario not in {"bad-record", "wrong-host", "wrong-ip", "ipv4-host", "ipv6-host", "override-allowed",
+                        "sha1-wrong-host"}:
         assert "localhost" in negotiated, (scenario, "SNI missing", negotiated)
     if scenario != "bad-record":
         assert expected_version in negotiated, (scenario, negotiated)
@@ -101,6 +126,10 @@ def main():
         directory = Path(temporary)
         certificates(directory)
         cases = [("valid", ssl.TLSVersion.TLSv1_2), ("valid", ssl.TLSVersion.TLSv1_3)]
+        cases.extend(("sha1-cert", version) for version in
+                     [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
+        cases.extend((scenario, ssl.TLSVersion.TLSv1_3) for scenario in
+                     ["sha1-wrong-host", "sha1-untrusted", "sha1-expired"])
         cases.extend((scenario, ssl.TLSVersion.TLSv1_3) for scenario in
                      ["wrong-host", "untrusted", "abrupt", "bad-record", "reentrant", "recreate-invalid",
                       "ipv4-host", "ipv6-host", "wrong-ip", "override-allowed", "callback-reject",

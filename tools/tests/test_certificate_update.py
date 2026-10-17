@@ -1,6 +1,8 @@
 import base64
 import contextlib
+import hashlib
 import http.server
+import json
 import os
 from pathlib import Path
 import re
@@ -127,6 +129,7 @@ class CertificateUpdateTests(unittest.TestCase):
     def require_fallback(self, result, data):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('downloaded=0', result.stdout)
+        self.assertTrue(data.startswith(self.roots['sony'].read_bytes()))
         self.assertEqual(certificates(data), certificates(self.roots['sony'].read_bytes()) |
                          certificates(self.roots['mozilla'].read_bytes()))
 
@@ -142,6 +145,20 @@ class CertificateUpdateTests(unittest.TestCase):
         self.assertIn('combined=2', result.stdout)
         self.assertEqual(certificates(data), certificates(body))
         self.assertNotIn(next(iter(certificates(self.roots['mozilla'].read_bytes()))), certificates(data))
+
+    def test_sony_file_layout_survives_download_and_crlf_encoding(self):
+        sony = self.directory / 'sony-native-layout.pem'
+        original = (b'# Sony certificate position is part of the native ABI\r\n' +
+                    self.roots['sony'].read_bytes().replace(b'\n', b'\r\n') +
+                    b'\r\n# A second embedded Sony authority\r\n' +
+                    self.roots['mozilla'].read_bytes().replace(b'\n', b'\r\n'))
+        sony.write_bytes(original)
+        with self.endpoint(self.roots['new'].read_bytes() + self.roots['sony'].read_bytes()) as url:
+            result, data = self.prepare(url, sony=sony)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(data.startswith(original), 'Sony comments, offsets and CRLFs must remain exact')
+        self.assertEqual(certificates(data), certificates(original) | certificates(self.roots['new'].read_bytes()))
+        self.assertEqual(data.count(b'-----BEGIN CERTIFICATE-----'), 3)
 
     def test_connection_failure_uses_embedded(self):
         with socket.socket() as listener:
@@ -199,7 +216,21 @@ class CertificateUpdateTests(unittest.TestCase):
         expected = certificates((ROOT / 'misc/sony-certs.pem').read_bytes())
         expected.update(certificates((ROOT / 'misc/mozilla-certs.pem').read_bytes()))
         self.assertEqual(certificates(data), expected)
+        self.assertTrue(data.startswith((ROOT / 'misc/sony-certs.pem').read_bytes()))
+        # Fixed DNAS PEM ranges and hashes from the native 3.60 SceSsl loader.
+        # Preserving DER identities while rewriting these bytes is insufficient.
+        native = [
+            (20, 'f4ba0fc74e45c147685cacb2c2a80b481ea6e260'),
+            (1452, '5af08bf76d25c39c3d5b59bfae4fad1e180029ce'),
+            (2884, 'ca67864b35c5da9b291caf59e59d96dd9d654e52'),
+            (4316, 'a5108fa3ca94f36fcba70c2304350bee600036f5'),
+            (5748, '7121e9fc59c1f2df557f6b70022bd42c32e801c3')]
+        for offset, digest in native:
+            self.assertEqual(hashlib.sha1(data[offset:offset + 1410]).hexdigest(), digest)
         self.assertEqual(data, (ROOT / 'misc/certs.cer').read_bytes())
+        manifest = json.loads((ROOT / 'misc/certificate-sources.json').read_text())['combined']
+        self.assertEqual(manifest['bytes'], len(data))
+        self.assertEqual(manifest['sha256'], hashlib.sha256(data).hexdigest())
 
 
 if __name__ == '__main__':

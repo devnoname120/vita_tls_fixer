@@ -299,6 +299,7 @@ int tls_fixer_http_validate_module(
     if (result != TLS_FIXER_MODULE_GATE_OK) {
         TLS_FIXER_LOG("event=module.gate rc=%08X failed_signature=%u failed_byte=%u",
             result, (unsigned int)failed_signature, (unsigned int)failed_byte);
+#if TLS_FIXER_ENABLE_DEBUG_LOG
         if (failed_signature < g_libhttp_descriptor.signature_count &&
             failed_byte < g_libhttp_signatures[failed_signature].length) {
             const TlsFixerMaskedSignature *sig = &g_libhttp_signatures[failed_signature];
@@ -306,6 +307,7 @@ int tls_fixer_http_validate_module(
                 (unsigned int)(sig->offset + failed_byte), sig->bytes[failed_byte],
                 ((const uint8_t *)info.segments[0].vaddr)[sig->offset + failed_byte]);
         }
+#endif
         return result;
     }
 

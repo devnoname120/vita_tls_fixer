@@ -3,6 +3,10 @@ target_link_libraries(tls_fixer_browser_config_tests PRIVATE tls_fixer_core)
 target_compile_options(tls_fixer_browser_config_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_test(NAME tls_fixer_browser_config COMMAND tls_fixer_browser_config_tests)
 
+add_executable(tls_fixer_browser_quiet_output_tests test_quiet_output.c ../../browser/quiet_output.c)
+target_compile_options(tls_fixer_browser_quiet_output_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+add_test(NAME tls_fixer_browser_quiet_output COMMAND tls_fixer_browser_quiet_output_tests)
+
 add_executable(tls_fixer_browser_config_runtime_tests test_config.c ../../browser/config.c)
 target_link_libraries(tls_fixer_browser_config_runtime_tests PRIVATE tls_fixer_core)
 target_compile_definitions(tls_fixer_browser_config_runtime_tests PRIVATE

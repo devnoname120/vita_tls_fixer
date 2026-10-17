@@ -223,12 +223,19 @@ int tls_fixer_prepare_certificates(const char *sony_path, const char *mozilla_pa
     errno = 0;
     bundle->failure_stage = "combining certificate identities";
     combined = sk_X509_new_null();
-    if (combined == NULL || append_unique(combined, sony) != 0 || append_unique(combined, selected) != 0) goto done;
+    if (combined == NULL || append_unique(combined, sony) != 0) goto done;
+    int sony_unique_count = sk_X509_num(combined);
+    if (append_unique(combined, selected) != 0) goto done;
     bundle->failure_stage = "creating combined PEM buffer";
     output = BIO_new(BIO_s_mem());
-    if (output == NULL || BIO_puts(output, "# tls_fixer: authoritative Sony + curl/Mozilla CA bundle\n") <= 0) goto done;
+    /* Sony's native CA selectors use fixed offsets and hashes of the original
+     * PEM bytes. Preserve that entire file, including comments and CRLFs; DER
+     * identity alone does not preserve its on-disk ABI. Append only new roots. */
+    if (output == NULL || BIO_write(output, sony_data, (int)sony_size) != (int)sony_size) goto done;
+    if (sony_data[sony_size - 1] != '\n' && BIO_puts(output, "\n") <= 0) goto done;
+    if (BIO_puts(output, "# tls_fixer: additional curl/Mozilla CA certificates\n") <= 0) goto done;
     bundle->failure_stage = "encoding combined certificates";
-    for (int i = 0; i < sk_X509_num(combined); ++i) {
+    for (int i = sony_unique_count; i < sk_X509_num(combined); ++i) {
         if (!PEM_write_bio_X509(output, sk_X509_value(combined, i))) goto done;
     }
     char *bytes = NULL;
