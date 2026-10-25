@@ -33,18 +33,18 @@ int sceKernelLockMutex(SceUID id, int count, unsigned *timeout) {
 int sceKernelUnlockMutex(SceUID id, int count) { (void)count; assert(id == 2); return pthread_mutex_unlock(&lock); }
 int sceKernelDeleteMutex(SceUID id) { assert(id == 2 && mutex_live); mutex_live = 0; return 0; }
 SceClibMspace sceClibMspaceCreate(void *base, SceSize size) {
-    assert(base == block && size == 2097152);
+    assert(base == block && size == 131072);
     if (failure == 4) return NULL;
     heap_live = 1; used = peak = 0; return block;
 }
 void sceClibMspaceDestroy(SceClibMspace heap) { assert(heap == block && heap_live && used == 0); heap_live = 0; }
 int sceClibMspaceIsHeapEmpty(SceClibMspace heap) { assert(heap == block); return used == 0; }
 void sceClibMspaceMallocStats(SceClibMspace heap, SceClibMspaceStats *s) {
-    assert(heap == block); *s = (SceClibMspaceStats){2097152, 2097152, peak, used};
+    assert(heap == block); *s = (SceClibMspaceStats){131072, 131072, peak, used};
 }
 void *sceClibMspaceMalloc(SceClibMspace heap, SceSize size) {
     assert(heap == block && heap_live);
-    if (fail_allocate || size > 2097152 - used) return NULL;
+    if (fail_allocate || size > 131072 - used) return NULL;
     Header *h = malloc(sizeof(*h) + size); assert(h); h->bytes = size;
     used += size; if (used > peak) peak = used; return h + 1;
 }
@@ -54,7 +54,7 @@ void sceClibMspaceFree(SceClibMspace heap, void *pointer) {
 }
 void *sceClibMspaceRealloc(SceClibMspace heap, void *pointer, SceSize size) {
     assert(heap == block); Header *h = (Header *)pointer - 1;
-    if (fail_allocate || size > 2097152 - used + h->bytes) return NULL;
+    if (fail_allocate || size > 131072 - used + h->bytes) return NULL;
     size_t old = h->bytes; h = realloc(h, sizeof(*h) + size); assert(h); h->bytes = size;
     used = used - (unsigned)old + size; if (used > peak) peak = used; return h + 1;
 }
@@ -97,6 +97,9 @@ int main(void) {
     assert(tls_fixer_user_runtime_init()==0);
     assert(tls_fixer_user_runtime_init()<0);
     assert(__wrap_calloc(SIZE_MAX,2)==NULL && __wrap_malloc(SIZE_MAX)==NULL);
+    assert(__wrap_malloc(131073)==NULL);
+    void *full=__wrap_malloc(131072); assert(full && __wrap_malloc(1)==NULL);
+    __wrap_free(full);
     char *p=__wrap_malloc(128); assert(p); memset(p,0x5a,128);
     assert(tls_fixer_user_runtime_destroy()<0);
     fail_allocate=1; assert(__wrap_realloc(p,256)==NULL && p[0]==0x5a); fail_allocate=0;

@@ -3,7 +3,10 @@ set(TLS_FIXER_HTTP_CA_PATH "vs0:/data/external/cert/CA_LIST.cer" CACHE STRING
     "Authoritative HTTP trust bundle; diagnostics use a separately staged VPK bundle")
 
 add_executable(tls_fixer_http
+    ca_index.c
     ca_file.c
+    host_redirect.c
+    game_ca.c
     cert_hooks.c
     provider.c
     platform_shims.c
@@ -55,7 +58,13 @@ foreach(function ${tls_fixer_runtime_wrappers})
 endforeach()
 set_source_files_properties(user_runtime.c PROPERTIES COMPILE_OPTIONS "-fno-builtin")
 
+set(TLS_FIXER_KERNEL_STUB "${CMAKE_BINARY_DIR}/../kernel/stubs/libtls_fixer_kernel_stub.a" CACHE FILEPATH
+    "Kernel redirect-list reader stub")
+if(NOT EXISTS "${TLS_FIXER_KERNEL_STUB}")
+    message(FATAL_ERROR "Build the tls_fixer kernel first to generate ${TLS_FIXER_KERNEL_STUB}")
+endif()
 target_link_libraries(tls_fixer_http PRIVATE
+    ${TLS_FIXER_KERNEL_STUB}
     tls_fixer_core
     mbedtls
     mbedx509

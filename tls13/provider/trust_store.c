@@ -47,17 +47,10 @@ int tls_fixer_trust_store_init(void) {
         return result;
     }
 
-    mbedtls_x509_crt_init(&g_tls_fixer_http.ca_chain);
-    g_tls_fixer_http.ca_chain_initialized = 1;
-    result = tls_fixer_load_ca_file(&g_tls_fixer_http.ca_chain, ca_path);
-#if TLS_FIXER_ENABLE_DEBUG_LOG
-    size_t certificate_count = 0;
-    for (const mbedtls_x509_crt *crt = &g_tls_fixer_http.ca_chain; crt != NULL; crt = crt->next) {
-        if (crt->raw.p != NULL) ++certificate_count;
-    }
+    result = tls_fixer_ca_index_build(&g_tls_fixer_http.ca_index, ca_path);
+    g_tls_fixer_http.ca_index_initialized = (result == 0);
     TLS_FIXER_LOG("event=trust.ready rc=%08X roots=%u path=%s", result,
-        (unsigned int)certificate_count, ca_path);
-#endif
+        (unsigned int)g_tls_fixer_http.ca_index.count, ca_path);
     if (result != 0) {
         tls_fixer_trust_store_free();
     }
@@ -65,9 +58,9 @@ int tls_fixer_trust_store_init(void) {
 }
 
 void tls_fixer_trust_store_free(void) {
-    if (g_tls_fixer_http.ca_chain_initialized) {
-        mbedtls_x509_crt_free(&g_tls_fixer_http.ca_chain);
-        g_tls_fixer_http.ca_chain_initialized = 0;
+    if (g_tls_fixer_http.ca_index_initialized) {
+        tls_fixer_ca_index_free(&g_tls_fixer_http.ca_index);
+        g_tls_fixer_http.ca_index_initialized = 0;
     }
     if (g_tls_fixer_http.crypto_initialized) {
         mbedtls_psa_crypto_free();

@@ -96,6 +96,8 @@ add_library(tls_fixer_core STATIC
     src/cert_policy.c
     src/error_map.c
     src/module_gate.c
+    src/host_map.c
+    src/redirect_list.c
     src/path.c
     src/registry.c
     src/x509_names.c
@@ -156,6 +158,7 @@ if(TLS_FIXER_BUILD_HOST_TESTS)
     add_test(NAME tls_fixer_browser_paths COMMAND tls_fixer_browser_path_tests)
     add_subdirectory(tests/kernel)
     add_subdirectory(tests/runtime)
+    add_subdirectory(tests/redirect)
 endif()
 
 if(TLS_FIXER_BUILD_VITA_PROVIDER OR TLS_FIXER_BUILD_TRANSPORT_TESTS OR TLS_FIXER_BUILD_VITA_PROBE)

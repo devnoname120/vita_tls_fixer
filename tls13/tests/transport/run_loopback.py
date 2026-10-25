@@ -95,11 +95,18 @@ def run_case(binary, directory, scenario, version):
 
     worker = threading.Thread(target=serve, daemon=True)
     worker.start()
-    trust = directory / ("other.pem" if scenario in {"untrusted", "sha1-untrusted"}
+    trust = directory / ("other.pem" if scenario in {"untrusted", "sha1-untrusted", "game-ca"}
                          else "sha1-ca.pem" if scenario.startswith("sha1-") else "ca.pem")
+    if scenario == "memory-full-ca":
+        trust = directory / "full.pem"
+        bundle = Path(__file__).resolve().parents[3] / "misc/certs.cer"
+        trust.write_bytes(bundle.read_bytes() + b"\n" + (directory / "ca.pem").read_bytes())
     expected_version = "TLSv1.3" if version == ssl.TLSVersion.TLSv1_3 else "TLSv1.2"
     try:
-        result = subprocess.run([str(binary), str(trust), str(port), scenario, expected_version],
+        command = [str(binary), str(trust), str(port), scenario, expected_version]
+        if scenario in {"game-ca", "game-ca-system"}:
+            command.append(str(directory / ("ca.pem" if scenario == "game-ca" else "other.pem")))
+        result = subprocess.run(command,
                                 capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired as exc:
         raise AssertionError(f"{scenario}: transport timed out") from exc
@@ -126,6 +133,9 @@ def main():
         directory = Path(temporary)
         certificates(directory)
         cases = [("valid", ssl.TLSVersion.TLSv1_2), ("valid", ssl.TLSVersion.TLSv1_3)]
+        cases.extend(("memory-full-ca", version) for version in [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
+        cases.extend((name, version) for name in ["game-ca", "game-ca-system"]
+                     for version in [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
         cases.extend(("sha1-cert", version) for version in
                      [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
         cases.extend((scenario, ssl.TLSVersion.TLSv1_3) for scenario in

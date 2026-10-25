@@ -40,6 +40,7 @@ static const char *const new_modules[] = {
     "vs0:/data/external/tls_fixer/np_commerce2.suprx",
     "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx",
     "vs0:/data/external/tls_fixer/native/tls_fixer.suprx",
+    "vs0:/data/external/tls_fixer/native/tls_fixer_psn.suprx",
 };
 
 static const char *const install_menu[MENU_COUNT] = {
@@ -481,24 +482,22 @@ static int install_compat(int requested_state) {
     return result;
 }
 
-static int install_dns_fix(int requested_state) {
+static int install_psn_redirect(int requested_state) {
     int result;
-    int removing = requested_state == 1;
-
-    if (removing) {
-        printf("Removing the 3.60 DNS fix... \n");
-        result = remove_if_exists(new_modules[3]);
-        if (result >= 0) {
-            result = remove_if_exists(new_modules[4]);
-        }
-        return result;
+    if (requested_state == 1) {
+        result = remove_if_exists(new_modules[7]);
+    } else {
+        printf("Installing the PSN sign-in redirect... \n");
+        result = replace_file("app0:tls_fixer_psn.suprx", new_modules[7]);
+        if (result >= 0 && !path_exists("ux0:data/tls_fixer"))
+            result = sceIoMkdir("ux0:data/tls_fixer", 0777);
+        /* An upgrade or reinstall must preserve the user's host mappings. */
+        if (result >= 0 && !path_exists("ux0:data/tls_fixer/redirects.txt"))
+            result = replace_file("app0:redirects.txt", "ux0:data/tls_fixer/redirects.txt");
     }
-
-    printf("Installing the 3.60 DNS fix... \n");
-    result = replace_file("app0:dnsfix.suprx", new_modules[3]);
-    if (result >= 0) {
-        result = replace_file("app0:comm2.suprx", new_modules[4]);
-    }
+    /* Superseded Shell helper and prepatched Store library from older packages. */
+    if (result >= 0) result = remove_if_exists(new_modules[3]);
+    if (result >= 0) result = remove_if_exists(new_modules[4]);
     return result;
 }
 
@@ -541,10 +540,7 @@ static int install_http_modules(int requested_state) {
         }
     }
 
-    if (result >= 0 && (removing ||
-        (firmware.version & UINT32_C(0xffff0000)) == UINT32_C(0x03600000))) {
-        result = install_dns_fix(requested_state);
-    }
+    if (result >= 0) result = install_psn_redirect(requested_state);
     return result;
 }
 
@@ -638,6 +634,7 @@ static int browser_payload_present(void) {
         path_exists(browser_provider_global);
 }
 static int system_payload_present(void) {
+    if (path_exists(new_modules[7])) return 1;
     for (unsigned i = 1; i <= 5; ++i)
         if (path_exists(new_modules[i])) return 1;
     return 0;

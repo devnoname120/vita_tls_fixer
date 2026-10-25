@@ -19,6 +19,18 @@ class KernelPackageProfileTests(unittest.TestCase):
             (root / "tls13").mkdir()
             (root / "build/deps").mkdir(parents=True)
             (root / "build/deps/mbedtls-4.2.0.tar.bz2").touch()
+            # The user provider now imports the kernel's redirect-list syscall,
+            # so its dry-run must also resolve the kernel build prerequisites.
+            rule = next(line for line in makefile.splitlines() if line.startswith("$(KERNEL_MODULE):"))
+            dependencies = rule.split(":", 1)[1].replace(
+                "$(FIRMWARE_PROFILES)", "tls13/include/tls_fixer/firmware_profiles.h"
+            ).split()
+            for dependency in dependencies:
+                self.assertNotIn("$", dependency)
+                path = root / dependency
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if dependency != "Makefile":
+                    path.touch()
             provider = root / "build/tls13-vita/provider/tls_fixer_http.suprx"
             provider.parent.mkdir(parents=True)
             provider.write_bytes(b"recent debug provider")
@@ -32,6 +44,8 @@ class KernelPackageProfileTests(unittest.TestCase):
                 cwd=root, check=True, capture_output=True, text=True,
             )
             self.assertIn("cmake -S tls13 -B build/tls13-vita", result.stdout)
+            self.assertLess(result.stdout.index("cmake --build build/kernel"),
+                            result.stdout.index("cmake -S tls13"))
             for option in ("ENABLE_DEBUG_LOG", "ENABLE_RUNTIME_UDP", "BROWSER_START_DIAGNOSTICS",
                            "BROWSER_PASSTHROUGH_ONLY", "BROWSER_INITIALIZE_ONLY"):
                 self.assertIn(f"-DTLS_FIXER_{option}=OFF", result.stdout)

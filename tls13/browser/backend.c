@@ -2,6 +2,7 @@
 #include "runtime_udp.h"
 #include "tls_fixer/browser_start_diagnostics.h"
 #include "ca_file.h"
+#include "ca_index.h"
 #include "crypto_platform.h"
 #include "diagnostics.h"
 #include "tls_fixer/registry.h"
@@ -67,7 +68,7 @@ static struct {
     TlsFixerRegistry registry;
     SceUID registry_mutex;
     SceUID attach_mutex;
-    mbedtls_x509_crt ca;
+    TlsFixerCaIndex ca_index;
     int default_ca_error;
     uint32_t enabled;
     enum DefaultCaState default_ca_state;
@@ -109,14 +110,13 @@ static int ensure_default_ca(void) {
     int result;
     if (browser.default_ca_state == DEFAULT_CA_READY) return 0;
     if (browser.default_ca_state == DEFAULT_CA_FAILED) return browser.default_ca_error;
-    result = tls_fixer_load_ca_file(&browser.ca,
+    result = tls_fixer_ca_index_build(&browser.ca_index,
         browser.ops.default_ca_path != NULL ? browser.ops.default_ca_path : TLS_FIXER_DEFAULT_CA_PATH);
     if (result == 0) {
         browser.default_ca_state = DEFAULT_CA_READY;
         return 0;
     }
-    mbedtls_x509_crt_free(&browser.ca);
-    mbedtls_x509_crt_init(&browser.ca);
+    tls_fixer_ca_index_free(&browser.ca_index);
     browser.default_ca_error = result;
     browser.default_ca_state = DEFAULT_CA_FAILED;
     return result;
@@ -140,7 +140,6 @@ int tls_fixer_browser_init(const TlsFixerBrowserOps *ops) {
     stage = TLS_FIXER_START_PSA;
     result = (int)psa_crypto_init();
     if (result != PSA_SUCCESS) goto failed;
-    mbedtls_x509_crt_init(&browser.ca);
     browser.registry_mutex = sceKernelCreateMutex("tls_fixer browser registry", 0, 0, NULL);
     browser.attach_mutex = sceKernelCreateMutex("tls_fixer browser attach", 0, 0, NULL);
     if (browser.registry_mutex < 0 || browser.attach_mutex < 0) {
@@ -159,7 +158,7 @@ failed:
         stage == TLS_FIXER_START_ATTACH_MUTEX ? browser.attach_mutex : result);
     if (browser.attach_mutex >= 0) (void)sceKernelDeleteMutex(browser.attach_mutex);
     if (browser.registry_mutex >= 0) (void)sceKernelDeleteMutex(browser.registry_mutex);
-    mbedtls_x509_crt_free(&browser.ca);
+    tls_fixer_ca_index_free(&browser.ca_index);
     mbedtls_psa_crypto_free();
     tls_fixer_crypto_platform_free();
     memset(&browser, 0, sizeof(browser));
@@ -178,7 +177,7 @@ int tls_fixer_browser_destroy(void) {
     tls_fixer_browser_enable(0);
     result = tls_fixer_registry_destroy(&browser.registry);
     if (result != TLS_FIXER_REGISTRY_OK) return result;
-    mbedtls_x509_crt_free(&browser.ca);
+    tls_fixer_ca_index_free(&browser.ca_index);
     mbedtls_psa_crypto_free();
     tls_fixer_crypto_platform_free();
     (void)sceKernelDeleteMutex(browser.attach_mutex);
@@ -189,6 +188,18 @@ int tls_fixer_browser_destroy(void) {
 
 size_t tls_fixer_browser_connection_count(void) {
     return browser.initialized ? tls_fixer_registry_count(&browser.registry) : 0;
+}
+
+/* Called by Mbed TLS for each certificate it checked: a self-signed server certificate that is
+ * itself in the store counts as trusted; its other checks (host name, dates, signature strength)
+ * still apply */
+static int trust_exact_self_signed(void *context, mbedtls_x509_crt *certificate, int depth,
+    uint32_t *flags) {
+    if (depth == 0 && (*flags & MBEDTLS_X509_BADCERT_NOT_TRUSTED) != 0 &&
+        tls_fixer_ca_trusts_exact(tls_fixer_ca_index_find, context, certificate)) {
+        *flags &= ~(uint32_t)MBEDTLS_X509_BADCERT_NOT_TRUSTED;
+    }
+    return 0;
 }
 
 static int bio_result(BrowserConnection *connection, int result, int sending) {
@@ -240,7 +251,6 @@ static int initialize_connection(BrowserConnection *connection, uint32_t cipher_
         MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
         MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
     };
-    mbedtls_x509_crt *ca = &browser.ca;
     size_t count = 0;
     int result;
 
@@ -256,7 +266,6 @@ static int initialize_connection(BrowserConnection *connection, uint32_t cipher_
         connection->custom_ca_initialized = 1;
         result = tls_fixer_load_ca_file(&connection->custom_ca, connection->ca_file);
         if (result != 0) return TLS_FIXER_CURLE_SSL_CACERT_BADFILE;
-        ca = &connection->custom_ca;
     }
     result = mbedtls_ssl_config_defaults(&connection->config, MBEDTLS_SSL_IS_CLIENT,
         MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
@@ -270,7 +279,12 @@ static int initialize_connection(BrowserConnection *connection, uint32_t cipher_
     mbedtls_ssl_conf_max_tls_version(&connection->config, MBEDTLS_SSL_VERSION_TLS1_3);
     mbedtls_ssl_conf_ciphersuites(&connection->config, connection->ciphers);
     mbedtls_ssl_conf_authmode(&connection->config, MBEDTLS_SSL_VERIFY_OPTIONAL);
-    mbedtls_ssl_conf_ca_chain(&connection->config, ca, NULL);
+    if (connection->custom_ca_requested) {
+        mbedtls_ssl_conf_ca_chain(&connection->config, &connection->custom_ca, NULL);
+    } else {
+        mbedtls_ssl_conf_ca_cb(&connection->config, tls_fixer_ca_index_find, &browser.ca_index);
+        mbedtls_ssl_conf_verify(&connection->config, trust_exact_self_signed, &browser.ca_index);
+    }
     result = mbedtls_ssl_conf_alpn_protocols(&connection->config, alpn);
     if (result != 0) return TLS_FIXER_CURLE_SSL_CONNECT_ERROR;
     result = mbedtls_ssl_setup(&connection->ssl, &connection->config);

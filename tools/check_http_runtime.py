@@ -8,7 +8,8 @@ from firmware_matrix import bundled_module
 SCE_LIBC = 0xBE43BB07
 SCE_LIBKERNEL = 0xCAE9ACE6
 SCE_SYSMEM = 0x37FE725A
-ALLOWED = {0x203D1A28, SCE_SYSMEM, 0x6704D3C6, 0x6BF8B2A2, 0x859A24B1,
+TLS_FIXER_REDIRECTS = 0x0A106567
+ALLOWED = {TLS_FIXER_REDIRECTS, 0x203D1A28, SCE_SYSMEM, 0x6704D3C6, 0x6BF8B2A2, 0x859A24B1,
            SCE_LIBKERNEL, 0xEAED1616, 0xF2FF276E, 0xF9AC7CF8, 0x8AF17416}
 
 def main():
@@ -35,6 +36,9 @@ def main():
         raise SystemExit("HTTP provider is missing its native runtime foundation")
     if libraries - ALLOWED:
         raise SystemExit('Unexpected runtime libraries: ' + str([hex(x) for x in libraries - ALLOWED]))
+    redirect_functions = {nid for (library, nid) in module.imports if library == TLS_FIXER_REDIRECTS}
+    if redirect_functions != {0x9462927F}:
+        raise SystemExit("Unexpected tls_fixer redirect syscall imports")
     print("HTTP runtime imports: SceLibKernel/SceSysmem present, SceLibc absent")
 
 if __name__ == "__main__":

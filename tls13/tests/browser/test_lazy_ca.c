@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "backend.h"
 #include "ca_file.h"
+#include "ca_index.h"
 #include "tls_fixer/sony_abi.h"
 #include <vita_mock.h>
 
@@ -15,6 +16,13 @@ static int ca_calls;
 static int ca_failure;
 
 int __wrap_tls_fixer_load_ca_file(mbedtls_x509_crt *chain, const char *path) {
+    assert(chain != NULL);
+    assert(strcmp(path, "wb0:/cert/CA_LIST.cer") == 0);
+    ++ca_calls;
+    return ca_failure ? -0x2180 : 0;
+}
+
+int __wrap_tls_fixer_ca_index_build(TlsFixerCaIndex *chain, const char *path) {
     assert(chain != NULL);
     assert(strcmp(path, "wb0:/cert/CA_LIST.cer") == 0);
     ++ca_calls;

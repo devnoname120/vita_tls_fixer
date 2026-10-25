@@ -17,6 +17,7 @@
 
 #include "tls_fixer/path.h"
 #include "tls13_loader.h"
+#include "psn_redirect.h"
 #include "memory_probe.h"
 #include "allocation_probe.h"
 #include "self_disarm.h"
@@ -87,6 +88,7 @@ static const char *const g_replacement_modules[] = {
 static uint8_t g_replace[sizeof(g_replacement_modules) / sizeof(g_replacement_modules[0])];
 static uint8_t g_replace_iap;
 static uint8_t g_dns_fix_state;
+static int g_psn_redirect_ready;
 static int g_loader_hook_id = -1;
 static tai_hook_ref_t g_loader_hook_ref;
 #if TLS_FIXER_BROWSER_POST_START
@@ -144,7 +146,9 @@ static int add_replace_flags(void) {
     }
     g_replace_iap = (uint8_t)(g_replace[1] && g_replace[2]);
     g_dns_fix_state = (uint8_t)((g_replace[3] && g_replace[4]) ? 2 : 0);
-    return g_replace[0] || g_replace_iap || g_dns_fix_state;
+    g_psn_redirect_ready = tls_fixer_psn_redirect_init();
+    if (g_psn_redirect_ready) g_dns_fix_state = 0;
+    return g_replace[0] || g_replace_iap || g_dns_fix_state || g_psn_redirect_ready;
 }
 
 static SceUID load_for_pid_patched(
@@ -164,6 +168,9 @@ static SceUID load_for_pid_patched(
     SceUID result;
     tls_fixer_trace_status_note_load();
     const SceUID target_pid = pid == 0 ? ksceKernelGetProcessId() : pid;
+    const int psn_redirect = tls_fixer_psn_redirect_wanted(target_pid, path,
+        tls_fixer_path_equals(path, "vs0:sys/external/libhttp.suprx", TLS_FIXER_MAX_MODULE_PATH) ||
+        tls_fixer_path_equals(path, "vs0:/sys/external/libhttp.suprx", TLS_FIXER_MAX_MODULE_PATH));
 
 #if defined(__arm__) && TLS_FIXER_ENABLE_BOOT_TRACE
     if (tls_fixer_path_has_suffix(path, "ScePsp2Compat.suprx", TLS_FIXER_MAX_MODULE_PATH)) {
@@ -252,6 +259,11 @@ static SceUID load_for_pid_patched(
     }
     if (TLS_FIXER_REDIRECTION_ONLY || !trace_ok) goto hook_return;
 
+#if TLS_FIXER_BROWSER_POST_START
+    if (result >= 0 && psn_redirect) (void)tls_fixer_post_start_defer_psn(target_pid, result);
+#else
+    (void)psn_redirect;
+#endif
     if (!TLS_FIXER_SKIP_HTTP_START && !TLS_FIXER_BROWSER_ACTIVATION && result >= 0 && loads_replacement_libhttp && tls_fixer_kernel_loader_ready()) {
 #if TLS_FIXER_BROWSER_POST_START
         if (tls_fixer_boot_trace_event("http.defer.enter", target_pid, result, 0) < 0) goto hook_return;
@@ -448,6 +460,7 @@ failed_before_hook:
 #endif
     /* A worker that could not be joined must not outlive its module's code. */
     if (tls_fixer_trace_status_stop() < 0) return SCE_KERNEL_START_SUCCESS;
+    tls_fixer_psn_redirect_destroy();
     tls_fixer_kernel_loader_destroy();
     (void)tls_fixer_boot_trace_close();
     return SCE_KERNEL_START_FAILED;
@@ -463,6 +476,7 @@ int module_stop(SceSize argc, const void *args) {
     if (g_start_hook_id >= 0 || tls_fixer_post_start_destroy() < 0) return SCE_KERNEL_STOP_FAIL;
 #endif
     if (tls_fixer_trace_status_stop() < 0) return SCE_KERNEL_STOP_FAIL;
+    tls_fixer_psn_redirect_destroy();
     tls_fixer_kernel_loader_destroy();
     (void)tls_fixer_boot_trace_close();
     return SCE_KERNEL_STOP_SUCCESS;

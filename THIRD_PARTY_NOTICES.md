@@ -29,3 +29,7 @@ The VitaSDK build used for validation supplies OpenSSL 1.1.1t, zlib 1.3.2 and Zs
 `mozilla-certs.pem` is the curl project's PEM conversion of Mozilla's CA data, under the Mozilla Public License 2.0. Its upstream header is retained unchanged. The complete license is included as `licenses/Mozilla-MPL-2.0.txt`. The source snapshot is available at https://curl.se/ca/cacert.pem and its upstream source is Mozilla NSS `certdata.txt`, identified in the PEM header. The packaged snapshot date, source URL and SHA-256 are recorded in `certificate-sources.json`.
 
 The separate Sony firmware certificate bundle remains Sony-origin material. Runtime merging preserves the selected certificates and removes duplicate DER identities; it does not import the existing system trust store. All notices and license files described here are packaged in the VPK.
+
+## Certificate lookup and redirect components
+
+Components marked `SPDX-License-Identifier: 0BSD` use the Zero-Clause BSD license. Its license text is included in `licenses/0BSD-LICENSE.txt` and packaged in the VPK.

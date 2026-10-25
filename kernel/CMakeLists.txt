@@ -150,6 +150,7 @@ link_directories(
 add_executable(tls_fixer.elf
 	main.c
 	native_contract.c
+	redirects.c
 )
 if(TLS_FIXER_ENABLE_SELF_DISARM)
     target_sources(tls_fixer.elf PRIVATE self_disarm.c)
@@ -261,3 +262,15 @@ add_custom_target(tls_fixer_kernel_register_check
 	VERBATIM
 )
 add_dependencies(tls_fixer.skprx tls_fixer_kernel_register_check)
+
+# Only the combined provider installs the Shell/Store redirect helper. Isolation
+# diagnostics retain their selected activation scope.
+if(TLS_FIXER_NORMAL_ACTIVATION)
+    target_sources(tls_fixer.elf PRIVATE psn_redirect.c)
+    target_compile_definitions(tls_fixer.elf PRIVATE TLS_FIXER_ENABLE_PSN_REDIRECT=1)
+endif()
+add_custom_target(tls_fixer_stubs ALL
+    COMMAND vita-elf-export kernel tls_fixer.elf ${CMAKE_CURRENT_SOURCE_DIR}/tls_fixer.yml tls_fixer_exports.yml
+    COMMAND vita-libs-gen tls_fixer_exports.yml stubs
+    COMMAND make -C stubs
+    DEPENDS tls_fixer.elf)

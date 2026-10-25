@@ -1,6 +1,9 @@
 #ifndef TLS_FIXER_MBEDTLS_USER_CONFIG_H
 #define TLS_FIXER_MBEDTLS_USER_CONFIG_H
 
+/* Load candidate roots only while verifying a peer chain. */
+#define MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK
+
 #undef MBEDTLS_NET_C
 #undef MBEDTLS_TIMING_C
 #undef MBEDTLS_SSL_SRV_C

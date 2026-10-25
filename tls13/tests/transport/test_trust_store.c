@@ -9,7 +9,7 @@
 TlsFixerProviderGlobal g_tls_fixer_http;
 
 static void require_clean(void) {
-    assert(!g_tls_fixer_http.ca_chain_initialized);
+    assert(!g_tls_fixer_http.ca_index_initialized);
     assert(!g_tls_fixer_http.crypto_initialized);
 }
 
@@ -28,10 +28,7 @@ int main(int argc, char **argv) {
     require_clean();
     mock_ca_namespace_unterminated = 0;
     assert(tls_fixer_trust_store_init() == 0);
-    for (const mbedtls_x509_crt *certificate = &g_tls_fixer_http.ca_chain;
-         certificate != NULL; certificate = certificate->next) {
-        if (certificate->raw.p != NULL) ++count;
-    }
+    count = g_tls_fixer_http.ca_index.count;
     assert(count != 0);
     tls_fixer_trust_store_free();
     require_clean();

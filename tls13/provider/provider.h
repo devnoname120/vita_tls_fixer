@@ -8,6 +8,7 @@
 #include <psp2/types.h>
 
 #include <mbedtls/x509_crt.h>
+#include "ca_index.h"
 
 #include "tls_fixer/cert_registry.h"
 #include "tls_fixer/module_gate.h"
@@ -42,9 +43,9 @@ typedef struct TlsFixerProviderGlobal {
     TlsFixerCertPolicy cert_policy;
     TlsFixerCertRegistry cert_registry;
     SceUID registry_mutex;
-    mbedtls_x509_crt ca_chain;
+    TlsFixerCaIndex ca_index;
     uint8_t registry_mutex_initialized;
-    uint8_t ca_chain_initialized;
+    uint8_t ca_index_initialized;
     uint8_t crypto_initialized;
 } TlsFixerProviderGlobal;
 

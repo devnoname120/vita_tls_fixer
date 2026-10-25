@@ -257,7 +257,7 @@ add_test(NAME tls_fixer_post_start_guard COMMAND tls_fixer_post_start_guard_test
 
 add_executable(tls_fixer_post_start_tests test_post_start.c ../../../kernel/post_start.c)
 target_include_directories(tls_fixer_post_start_tests PRIVATE include ../transport/include ../../../kernel)
-target_compile_definitions(tls_fixer_post_start_tests PRIVATE TLS_FIXER_ENABLE_BOOT_TRACE=1)
+target_compile_definitions(tls_fixer_post_start_tests PRIVATE TLS_FIXER_ENABLE_BOOT_TRACE=1 TLS_FIXER_ENABLE_PSN_REDIRECT=1)
 target_compile_options(tls_fixer_post_start_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_test(NAME tls_fixer_post_start COMMAND tls_fixer_post_start_tests)
 
@@ -358,4 +358,12 @@ set_tests_properties(tls_fixer_inventory_worker_lifetime PROPERTIES TIMEOUT 10)
 foreach(scenario valid create-fail start-fail enable-fail report-fail delay-fail limit wait-fail delete-fail)
     add_test(NAME tls_fixer_trace_status_worker_${scenario} COMMAND tls_fixer_trace_status_worker_tests ${scenario})
     set_tests_properties(tls_fixer_trace_status_worker_${scenario} PROPERTIES TIMEOUT 10)
+endforeach()
+
+foreach(kind psn_redirect redirects)
+    add_executable(tls_fixer_kernel_${kind}_tests test_${kind}.c ../../../kernel/${kind}.c)
+    target_include_directories(tls_fixer_kernel_${kind}_tests PRIVATE include ../transport/include ../../../kernel ../../include)
+    target_compile_definitions(tls_fixer_kernel_${kind}_tests PRIVATE TLS_FIXER_ENABLE_PSN_REDIRECT=1)
+    target_compile_options(tls_fixer_kernel_${kind}_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+    add_test(NAME tls_fixer_kernel_${kind} COMMAND tls_fixer_kernel_${kind}_tests)
 endforeach()

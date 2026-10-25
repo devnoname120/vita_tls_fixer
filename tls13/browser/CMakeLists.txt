@@ -5,7 +5,7 @@ add_executable(tls_fixer
     backend.c
     config.c
     webkit_callback.c
-    ../provider/ca_file.c
+    ../provider/ca_index.c ../provider/ca_file.c
     ../provider/platform_shims.c
 )
 if(TLS_FIXER_ENABLE_DEBUG_LOG)

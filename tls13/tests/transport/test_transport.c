@@ -4,6 +4,10 @@
 #include "transport.h"
 #include "cert_hooks.h"
 #include <psp2/libssl.h>
+#include <psp2/net/http.h>
+#ifdef TLS_FIXER_HTTP_MEMORY_TEST
+#include "memory_tracker.h"
+#endif
 
 #include <assert.h>
 #include <arpa/inet.h>
@@ -121,7 +125,7 @@ int main(int argc, char **argv) {
     int result;
     int socket_id;
 
-    assert(argc == 5);
+    assert(argc == 5 || argc == 6);
     scenario = argv[3];
     mock_ca_file = argv[1];
     reentrant_callback = strcmp(scenario, "reentrant") == 0;
@@ -149,7 +153,13 @@ int main(int argc, char **argv) {
     tls_fixer_write_u32(sony, TLS_FIXER_CONNECTION_CALLBACK_ARG_OFFSET, (uint32_t)(uintptr_t)sony);
     g_tls_fixer_http.global_https_options_address = (uintptr_t)global_options;
     g_tls_fixer_http.cert_policy = (TlsFixerCertPolicy){policy_game, policy_system, policy_sdk, policy_parameter};
+#ifdef TLS_FIXER_HTTP_MEMORY_TEST
+    tls_fixer_memory_tracker_reset();
+#endif
     assert(tls_fixer_transport_global_init() == 0);
+#ifdef TLS_FIXER_HTTP_MEMORY_TEST
+    TlsFixerMemoryStats initialized = tls_fixer_memory_tracker_snapshot();
+#endif
     for (mock_hook_fail_index = 0; mock_hook_fail_index < 2; ++mock_hook_fail_index) {
         assert(tls_fixer_cert_hooks_install() < 0);
         assert(mock_hooks_active() == 0 && !tls_fixer_cert_hooks_active());
@@ -168,6 +178,21 @@ int main(int argc, char **argv) {
     mock_hook_fail_index = -1;
     assert(tls_fixer_cert_hooks_ensure_ssl() == 0 && mock_hooks_active() == 10);
     assert(tls_fixer_cert_hooks_ensure_ssl() == 0 && mock_hooks_active() == 10);
+    if (argc == 6) {
+        FILE *file = fopen(argv[5], "rb");
+        assert(file != NULL && fseek(file, 0, SEEK_END) == 0);
+        long bytes = ftell(file);
+        assert(bytes > 0 && fseek(file, 0, SEEK_SET) == 0);
+        unsigned char *pem = malloc((size_t)bytes);
+        assert(pem != NULL && fread(pem, 1, (size_t)bytes, file) == (size_t)bytes);
+        fclose(file);
+        SceHttpsData data = {pem, (unsigned)bytes};
+        const SceHttpsData *certificates[] = {&data};
+        typedef int (*LoadCert)(int, const SceHttpsData **, const SceHttpsData *, const SceHttpsData *);
+        LoadCert load = (LoadCert)mock_hook_by_nid(0xae8d7c33);
+        assert(load(1, certificates, NULL, NULL) == 0 && !tls_fixer_legacy_certificates_loaded());
+        free(pem); /* The application's source buffer need not survive the load. */
+    }
     g_tls_fixer_http.state = TLS_FIXER_PROVIDER_ACTIVE;
 
     socket_id = socket(AF_INET, SOCK_STREAM, 0);
@@ -279,6 +304,12 @@ cleanup:
     assert(mock_hooks_active() == 0);
     assert(tls_fixer_registry_count(&g_tls_fixer_http.registry) == 0);
     assert(tls_fixer_transport_global_destroy() == 0);
+#ifdef TLS_FIXER_HTTP_MEMORY_TEST
+    TlsFixerMemoryStats final = tls_fixer_memory_tracker_snapshot();
+    printf("HTTP heap: initialized=%zu peak=%zu remaining=%zu\n", initialized.current_bytes, final.peak_bytes, final.current_bytes);
+    assert(!final.overflow && final.current_bytes == 0 && final.live_allocations == 0);
+    assert(final.peak_bytes < 128u * 1024u);
+#endif
     munmap(arena, 4096);
     printf("real transport: %s %s PASS\n", scenario, argv[4]);
     return 0;

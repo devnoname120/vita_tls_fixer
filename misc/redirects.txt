@@ -1,0 +1,5 @@
+# tls_fixer host redirects. One source and destination hostname per line.
+# Example (remove the # and replace these names):
+# old.example.com community.example.com
+# Exact host matches only; ports, URL paths and certificate validation stay enabled.
+# Restart the application after editing. PSN sign-in has a built-in default mapping.

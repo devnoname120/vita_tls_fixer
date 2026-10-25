@@ -6,3 +6,8 @@ tls_fixer_kernel:
   main:
     start: module_start
     stop: module_stop
+  libraries:
+    tls_fixer_redirects:
+      syscall: true
+      functions:
+        - tls_fixer_redirects_read

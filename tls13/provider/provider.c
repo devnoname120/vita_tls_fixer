@@ -1,5 +1,6 @@
 #include "provider.h"
 #include "cert_hooks.h"
+#include "host_redirect.h"
 #include "diagnostics.h"
 #include "transport.h"
 #include "user_runtime.h"
@@ -398,7 +399,7 @@ int module_start(SceSize argc, const void *args) {
     g_tls_fixer_http.global_https_options_address =
         g_tls_fixer_http.data_address + TLS_FIXER_LIBHTTP_GLOBAL_HTTPS_OPTIONS_OFFSET;
     int runtime_result = tls_fixer_user_runtime_init();
-    TLS_FIXER_LOG("event=runtime.init backend=SceLibKernel rc=%08X heap_bytes=2097152",
+    TLS_FIXER_LOG("event=runtime.init backend=SceLibKernel rc=%08X heap_bytes=131072",
         runtime_result);
     if (runtime_result < 0) return SCE_KERNEL_START_FAILED;
 
@@ -446,6 +447,7 @@ int module_start(SceSize argc, const void *args) {
         g_tls_fixer_http.libhttp_modid,
         (unsigned int)g_tls_fixer_http.text_address,
         (unsigned int)g_tls_fixer_http.data_address);
+    tls_fixer_host_redirect_install();
     g_tls_fixer_http.state = TLS_FIXER_PROVIDER_ACTIVE;
     TlsFixerRuntimeStats runtime_stats = {0};
     (void)tls_fixer_user_runtime_stats(&runtime_stats);

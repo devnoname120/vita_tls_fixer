@@ -252,7 +252,10 @@ def run(args):
     builds = {str(path): linked_imports(path) for path in args.plugin_elf}
     replacements = [bundled_module(ROOT / 'misc' / path) for path in (
         'lhttp.suprx', 'lssl.suprx', 'compat.suprx')]
-    commerce = bundled_module(ROOT / 'misc/comm2.suprx')
+    # The PSN helper hooks the firmware's Store module; no replacement is needed.
+    coordinator = ROOT / 'build/kernel/tls_fixer.skprx'
+    coordinator_exports = bundled_module(coordinator).exports if builds and coordinator.exists() else {}
+
     dns_elf = ROOT / 'build/old_dns_fix/tls_fixer_dns'
     dns_imports = linked_imports(dns_elf) if builds else []
     try:
@@ -301,11 +304,12 @@ def run(args):
                     record['native_module_api_family'] = family
                     record['native_exports_verified'] = [f'{library:08x}:{function:08x}' for function in functions]
                     if builds:
-                        bundled = replacements + ([commerce] if version == '3.60' else [])
+                        bundled = replacements
                         exports = platform_exports(tree, {module.name for module in bundled})
                         # Redirected transport dependencies resolve against the VPK's paired modules.
                         for module in bundled:
                             exports.update(module.exports)
+                        exports.update(coordinator_exports)
                         record['imports_verified'] = {}
                         for label, imports in builds.items():
                             missing = [f'{library:08x}:{function:08x}' for library, function in imports
@@ -318,6 +322,13 @@ def run(args):
                                        if (library, function) not in exports]
                             assert not missing, (hardware, version, module.name, 'replacement imports', missing)
                             record['replacement_dependencies_verified'][module.name] = len(module.imports)
+                        for name, module_path in (
+                            ('SceShell', tree / 'vs0/vsh/shell/shell.elf'),
+                            ('SceNpCommerce2', tree / 'vs0/sys/external/np_commerce2.elf')):
+                            target = Firmware(module_path)
+                            assert target.name == name and (0xe8f15cde, 0xaeb3307e) in target.imports, (
+                                hardware, version, name, 'PSN redirect import')
+                        record['psn_redirect_hook_imports'] = ['SceShell', 'SceNpCommerce2']
                         if version == '3.60':
                             missing = [f'{library:08x}:{function:08x}' for library, function in dns_imports
                                        if (library, function) not in exports]
@@ -340,7 +351,7 @@ def run(args):
               'bundled_modules': {str(module.path.relative_to(ROOT)): {
                   'name': module.name, 'nid': f'{module.nid:08x}',
                   'self_sha256': hashlib.sha256(module.path.read_bytes()).hexdigest()
-              } for module in replacements + [commerce]},
+              } for module in replacements},
               'verified': records, 'unavailable': unavailable}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + '\n')

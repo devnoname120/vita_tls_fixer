@@ -11,7 +11,7 @@
 #include <limits.h>
 #include <stdint.h>
 
-#define TLS_FIXER_HTTP_HEAP_BYTES (2u * 1024u * 1024u)
+#define TLS_FIXER_HTTP_HEAP_BYTES (128u * 1024u)
 #ifndef TLS_FIXER_ENABLE_DEBUG_LOG
 #define TLS_FIXER_ENABLE_DEBUG_LOG 0
 #endif

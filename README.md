@@ -1,4 +1,4 @@
-# tls_fixer 0.1
+# tls_fixer 0.2
 
 TLS 1.2 and TLS 1.3 for the PS Vita browser and supported applications using Sony's `sceHttp` APIs. By **devnoname120**.
 
@@ -23,20 +23,39 @@ Browser and system installations include the shared kernel coordinator. Removing
 
 The release uses **persistent activation**: it stays enabled across reboots until uninstalled or disabled. Provider file/console logging, runtime UDP diagnostics and kernel trace/probe modes are disabled in the release build. The installer still displays its progress and errors on screen.
 
-The installer displays version `0.1.0`; the VPK's two-part metadata version is `00.10`. Both identify release **0.1**.
+The installer displays version `0.2.0`; the VPK's two-part metadata version is `00.20`. Both identify release **0.2**.
 
 ## Coverage
 
 - **Browser:** a dedicated provider replaces the TLS transport in the bundled `ScePsp2Compat`/libcurl backend. HTTP processing remains with libcurl; ALPN advertises HTTP/1.1.
 - **System HTTP:** a separate provider replaces the TLS transport inside the bundled `SceLibHttp` for compatible processes with private mappings. Applications continue to call the ordinary Sony `sceHttp`/`sceHttps` APIs.
 - **Certificates:** Sony roots are combined with curl/Mozilla roots while preserving the original Sony file's byte layout, which native certificate selectors require.
-- **Firmware 3.60 compatibility:** the existing NP hostname helper is included with the system component.
+- **PSN sign-in:** the system component includes a small Shell/Store hostname redirect helper. It sends `native.np.ac.playstation.net` requests to `native-vita.np.ac.playstation.net`, without requiring a separate reAuth installation.
 
-The new providers support TLS 1.2/1.3. TLS 1.0/1.1 are intentionally excluded from their configuration. This is not a universal replacement for every `SceSsl` consumer: Shell/Paf shared consumers, custom CA/client-certificate configurations, unsupported modules and other unsupported transport settings can retain Sony's native implementation. Provider initialization or validation failure also retains the original path. There is no second handshake implementation fallback after the provider has sent TLS handshake bytes.
+The new providers support TLS 1.2/1.3. TLS 1.0/1.1 are intentionally excluded from their configuration. This is not a universal replacement for every `SceSsl` consumer: Shell/Paf shared consumers, client-certificate configurations, unreadable app CA material, unsupported modules and other unsupported transport settings can retain Sony's native implementation. Provider initialization or validation failure also retains the original path. There is no second handshake implementation fallback after the provider has sent TLS handshake bytes.
 
 The coordinator validates module identities, signatures and mappings before injecting providers. Browser processes use their dedicated provider and are excluded from generic HTTP injection. Kernel code is checked for unmanaged floating-point/SIMD instructions; user providers use a small native Vita runtime and process-private transport state.
 
 Firmware profiles cover the available **3.60–3.74 retail, testkit and devkit** images. Static checks passed for 31 supplied combinations; five kit images were unavailable. Physical-device validation is on **retail 3.60**. See the [firmware evidence matrix](docs/tls13-firmware-support.md) for the exact coverage; static checks do not establish hardware execution on every model/firmware combination.
+
+## Memory and application compatibility
+
+- The HTTP provider reserves **128 KiB** of heap per injected process, down from 2 MiB.
+- Both providers keep a small index of the system CA bundle. Certificates are parsed one at a time to build that index, then released; matching roots are read and parsed during verification.
+- Applications can load PEM or DER CA certificates with `sceHttpsLoadCert` while continuing to use modern TLS. Their CAs supplement the system roots. Repeated loads add CAs; `sceHttpsUnloadCert` removes that additional trust. Client certificate/private-key authentication still uses Sony's implementation.
+- The system installer replaces the previous 3.60 hostname helper with the integrated Shell/Store redirect helper.
+
+### Host redirects
+
+Edit `ux0:data/tls_fixer/redirects.txt`, with one source and destination hostname per line:
+
+```text
+old.example.com community.example.com
+```
+
+Matching is exact and case-insensitive. `#` starts a comment. The destination replaces the hostname for connection and URL-based request creation, including the name used for certificate verification and SNI. Scheme, port, path and query are preserved. Invalid lines are ignored; up to 32 rules are loaded, with a 64 KiB read limit. Restart the application after editing. Reinstallation preserves this file, and uninstall leaves it available for later use.
+
+The kernel reads the list for sandboxed games. The Shell/Store helper also reads it and supplies the PSN sign-in mapping by default; an explicit rule for that host overrides the default. Browser URL rewriting is not part of this feature.
 
 ## Certificates
 
@@ -58,7 +77,7 @@ The separate Sony, Mozilla and combined files are included in the VPK, with prov
 
 Release qualification on retail 3.60 confirmed Browser TLS 1.3 with the Cloudflare control, certificate-verified system HTTP TLS 1.2/1.3 requests, and the BrowserLeaks detailed report. PlayStation HTTPS connectivity and normal Store sign-in have also been confirmed after the native certificate-layout repair. Store sign-in still requires the account linked to the console and a PlayStation Device Setup Password; legacy account-management operations are separate server features.
 
-The final console-output removal was verified by a native build, 357 sanitizer-enabled production tests and a packaged-import audit; the device protocol/Store checks used the preceding build. The installer, certificates, DNS helper and bundled Sony modules are byte-identical to that device-tested package.
+The 0.2 feature build has also been tested on hardware, as reported by the maintainer. Its automated checks passed 366 sanitizer-enabled C/C++ tests and 129 Python tests, alongside native builds, kernel instruction checks and import checks against the available firmware images. These checks do not establish hardware testing on every supported firmware/model combination.
 
 Host tests cover transport handshakes, certificate and hostname checks, callbacks, nonblocking retries, cancellation, module guards, hook lifetimes, certificate merging and installer options. Native builds enforce the normal kernel/provider configuration even if a diagnostic build was previously cached.
 
@@ -95,6 +114,6 @@ Diagnostic source/build options remain available for development; they are not e
 
 **Thanks to SKGleba for the initial [iTLS plugin](https://github.com/SKGleba/iTLS-Enso)!** His work updating the Vita's certificates has been very useful and is integrated into tls_fixer, together with the original installer and module-redirection foundations. Existing author notices are preserved in the source.
 
-Additional thanks to Team Molecule, the HenKaku Discord testers, Cuevavirus for the 3.60 NP hostname fix, CreepNT for the `vshIoMount` fix, and olokos for the external CA bundle.
+Additional thanks to Reiko Asakura for reAuth, Team Molecule, the HenKaku Discord testers, Cuevavirus for the 3.60 NP hostname fix, CreepNT for the `vshIoMount` fix, and olokos for the external CA bundle.
 
 See [Third-Party Notices](THIRD_PARTY_NOTICES.md) and [licenses](licenses/) for component versions, source archives and license texts. The required third-party notices and licenses are included in the VPK.

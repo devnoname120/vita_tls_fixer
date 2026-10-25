@@ -1,4 +1,5 @@
 #include "cert_hooks.h"
+#include "game_ca.h"
 
 #include "diagnostics.h"
 #include "provider.h"
@@ -79,6 +80,7 @@ static tai_hook_ref_t g_https_load_cert_hook_ref;
 static tai_hook_ref_t g_https_unload_cert_hook_ref;
 static int g_cert_hooks_active;
 static uint32_t g_legacy_certificates_loaded;
+static SceUID g_ca_load_mutex = -1;
 
 static void *next_hook_function(tai_hook_ref_t reference) {
     struct _tai_hook_user *current = (struct _tai_hook_user *)reference;
@@ -437,29 +439,40 @@ static int hook_https_load_cert(
         const SceHttpsData **,
         const SceHttpsData *,
         const SceHttpsData *);
-    int result = ((Continuation)next_hook_function(g_https_load_cert_hook_ref))(
+    int result = sceKernelLockMutex(g_ca_load_mutex, 1, NULL);
+    if (result < 0) return result;
+    result = ((Continuation)next_hook_function(g_https_load_cert_hook_ref))(
         certificate_count,
         certificates,
         client_certificate,
         private_key);
 
-    if (result >= 0 &&
-        ((certificate_count > 0 && certificates != NULL) ||
-         client_certificate != NULL || private_key != NULL)) {
-        __atomic_store_n(&g_legacy_certificates_loaded, 1, __ATOMIC_RELEASE);
-        TLS_FIXER_LOG("custom certificate material loaded; new connections use BSAFE");
+    if ((certificate_count > 0 && certificates != NULL) ||
+        client_certificate != NULL || private_key != NULL) {
+        /* Sony appends CAs, may partially mutate on error, and preserves an
+         * existing client identity when NULL is passed. Once mirroring fails,
+         * later loads cannot reconstruct the missing trust: wait for unload. */
+        int legacy = tls_fixer_legacy_certificates_loaded() || result < 0 ||
+            client_certificate != NULL || private_key != NULL;
+        if (!legacy) legacy = tls_fixer_game_ca_load(certificate_count, certificates) != 0;
+        __atomic_store_n(&g_legacy_certificates_loaded, legacy, __ATOMIC_RELEASE);
     }
+    (void)sceKernelUnlockMutex(g_ca_load_mutex, 1);
     return result;
 }
 
 static int hook_https_unload_cert(void) {
     typedef int (*Continuation)(void);
-    int result = ((Continuation)next_hook_function(g_https_unload_cert_hook_ref))();
+    int result = sceKernelLockMutex(g_ca_load_mutex, 1, NULL);
+    if (result < 0) return result;
+    result = ((Continuation)next_hook_function(g_https_unload_cert_hook_ref))();
 
     if (result >= 0) {
+        tls_fixer_game_ca_free();
         __atomic_store_n(&g_legacy_certificates_loaded, 0, __ATOMIC_RELEASE);
         TLS_FIXER_LOG("custom certificate material unloaded; provider connections enabled");
     }
+    (void)sceKernelUnlockMutex(g_ca_load_mutex, 1);
     return result;
 }
 
@@ -476,6 +489,9 @@ int tls_fixer_cert_hooks_install(void) {
     memset(&g_https_load_cert_hook_ref, 0, sizeof(g_https_load_cert_hook_ref));
     memset(&g_https_unload_cert_hook_ref, 0, sizeof(g_https_unload_cert_hook_ref));
     __atomic_store_n(&g_legacy_certificates_loaded, 0, __ATOMIC_RELEASE);
+
+    g_ca_load_mutex = sceKernelCreateMutex("tls_fixer CA load", 0, 0, NULL);
+    if (g_ca_load_mutex < 0) return g_ca_load_mutex;
 
     /* HTTPS sysmodule starts LibHttp before LibSsl. Monitor public HTTP certificate
      * loading immediately, then install SSL getters at the first HTTPS request. */
@@ -562,6 +578,7 @@ done:
 }
 
 void tls_fixer_cert_hooks_release(void) {
+    tls_fixer_game_ca_free();
     size_t index = TLS_FIXER_CERT_HOOK_COUNT;
 
     __atomic_store_n(&g_cert_hooks_active, 0, __ATOMIC_RELEASE);
@@ -583,6 +600,10 @@ void tls_fixer_cert_hooks_release(void) {
             g_cert_hook_ids[index] = -1;
             memset(&g_cert_hook_refs[index], 0, sizeof(g_cert_hook_refs[index]));
         }
+    }
+    if (g_ca_load_mutex >= 0) {
+        (void)sceKernelDeleteMutex(g_ca_load_mutex);
+        g_ca_load_mutex = -1;
     }
 }
 

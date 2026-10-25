@@ -9,6 +9,12 @@ static SceUID expected_pid = 99, expected_module = 88;
 static const char *expected_path = "wb0:/tls_fixer/tls_fixer_startdiag.suprx";
 static const char *fail_stage;
 static int injection_result;
+static unsigned psn_injections;
+int tls_fixer_psn_redirect_inject(SceUID pid) {
+    assert(!locked && pid == expected_pid);
+    ++psn_injections;
+    return 0;
+}
 
 SceUID ksceKernelGetProcessId(void) { ++pid_queries; return 99; }
 SceUID ksceKernelCreateMutex(const char *name, unsigned int attr, int count, const void *options) {
@@ -116,6 +122,22 @@ int main(void) {
     assert(tls_fixer_post_start_defer(99, 88, "") < 0);
     memset(path, 'x', sizeof(path));
     assert(tls_fixer_post_start_defer(99, 88, path) < 0);
+    injection_result = 0;
+    unsigned http_before = http_injections;
+    /* Native completion must run both actions, regardless of enqueue order. */
+    assert(tls_fixer_post_start_defer_psn(99, 88) == 0);
+    assert(tls_fixer_post_start_defer_http(99, 88) == 0);
+    assert(tls_fixer_post_start_defer_psn(99, 88) == 1);
+    assert(tls_fixer_post_start_complete(99, 88, 0) == 0);
+    assert(psn_injections == 1 && http_injections == http_before + 1);
+    assert(tls_fixer_post_start_defer_http(99, 88) == 0);
+    assert(tls_fixer_post_start_defer_psn(99, 88) == 0);
+    assert(tls_fixer_post_start_complete(99, 88, 0) == 0);
+    assert(psn_injections == 2 && http_injections == http_before + 2);
+    assert(tls_fixer_post_start_defer_psn(99, 88) == 0);
+    assert(tls_fixer_post_start_complete(99, 88, -7) == -7 && psn_injections == 2);
+    assert(tls_fixer_post_start_defer_psn(99, 88) == 0);
+    assert(tls_fixer_post_start_complete(99, 88, 0) == 0 && psn_injections == 3);
     delete_failure = 1;
     assert(tls_fixer_post_start_destroy() == -62 && mutex_live);
     delete_failure = 0;

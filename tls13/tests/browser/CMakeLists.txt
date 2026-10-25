@@ -23,7 +23,7 @@ target_compile_options(tls_fixer_browser_config_diagnostics_tests PRIVATE -Wall 
 add_test(NAME tls_fixer_browser_config_diagnostics COMMAND tls_fixer_browser_config_diagnostics_tests)
 
 add_executable(tls_fixer_browser_backend_tests test_backend.c ../../browser/backend.c
-    ../../browser/config.c ../../provider/ca_file.c ../../provider/platform_shims.c)
+    ../../browser/config.c ../../provider/ca_index.c ../../provider/ca_file.c ../../provider/platform_shims.c)
 target_include_directories(tls_fixer_browser_backend_tests PRIVATE ../../browser ../../provider)
 target_link_libraries(tls_fixer_browser_backend_tests PRIVATE tls_fixer_core mbedtls tls_fixer_vita_mock)
 target_compile_definitions(tls_fixer_browser_backend_tests PRIVATE TLS_FIXER_ENABLE_DEBUG_LOG=0)
@@ -35,7 +35,7 @@ add_test(NAME tls_fixer_browser_loopback COMMAND "${Python3_EXECUTABLE}"
 set_tests_properties(tls_fixer_browser_loopback PROPERTIES TIMEOUT 120)
 
 add_executable(tls_fixer_browser_memory_tests test_backend.c memory_tracker.c ../../browser/backend.c
-    ../../browser/config.c ../../provider/ca_file.c ../../provider/platform_shims.c)
+    ../../browser/config.c ../../provider/ca_index.c ../../provider/ca_file.c ../../provider/platform_shims.c)
 target_include_directories(tls_fixer_browser_memory_tests PRIVATE ../../browser ../../provider)
 target_link_libraries(tls_fixer_browser_memory_tests PRIVATE tls_fixer_core mbedtls tls_fixer_vita_mock)
 target_compile_definitions(tls_fixer_browser_memory_tests PRIVATE TLS_FIXER_ENABLE_DEBUG_LOG=0
@@ -48,13 +48,13 @@ add_test(NAME tls_fixer_browser_memory COMMAND "${Python3_EXECUTABLE}"
     --scenario memory-full-ca)
 set_tests_properties(tls_fixer_browser_memory PROPERTIES TIMEOUT 120)
 
-add_executable(tls_fixer_browser_lazy_ca_tests test_lazy_ca.c ../../browser/backend.c
+add_executable(tls_fixer_browser_lazy_ca_tests test_lazy_ca.c ../../provider/ca_index.c ../../browser/backend.c
     ../../browser/config.c ../../provider/platform_shims.c)
 target_include_directories(tls_fixer_browser_lazy_ca_tests PRIVATE ../../browser ../../provider)
 target_link_libraries(tls_fixer_browser_lazy_ca_tests PRIVATE tls_fixer_core mbedtls tls_fixer_vita_mock)
 target_compile_definitions(tls_fixer_browser_lazy_ca_tests PRIVATE TLS_FIXER_ENABLE_DEBUG_LOG=0)
 target_compile_options(tls_fixer_browser_lazy_ca_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG -fno-pie)
-target_link_options(tls_fixer_browser_lazy_ca_tests PRIVATE -no-pie -Wl,--wrap=tls_fixer_load_ca_file)
+target_link_options(tls_fixer_browser_lazy_ca_tests PRIVATE -no-pie -Wl,--wrap=tls_fixer_load_ca_file -Wl,--wrap=tls_fixer_ca_index_build)
 foreach(scenario IN ITEMS init legacy failure)
     add_test(NAME tls_fixer_browser_lazy_ca_${scenario} COMMAND tls_fixer_browser_lazy_ca_tests ${scenario})
 endforeach()
@@ -105,7 +105,7 @@ target_compile_options(tls_fixer_startdiag_path_tests PRIVATE -Wall -Wextra -Wer
 add_test(NAME tls_fixer_startdiag_paths COMMAND tls_fixer_startdiag_path_tests)
 
 add_executable(tls_fixer_startdiag_backend_tests test_startdiag_backend.c ../../browser/backend.c
-    ../../browser/config.c ../../provider/ca_file.c ../../provider/platform_shims.c)
+    ../../browser/config.c ../../provider/ca_index.c ../../provider/ca_file.c ../../provider/platform_shims.c)
 target_include_directories(tls_fixer_startdiag_backend_tests PRIVATE ../../browser ../../provider)
 target_link_libraries(tls_fixer_startdiag_backend_tests PRIVATE tls_fixer_core mbedtls tls_fixer_vita_mock)
 target_compile_definitions(tls_fixer_startdiag_backend_tests PRIVATE TLS_FIXER_ENABLE_DEBUG_LOG=0
@@ -166,7 +166,7 @@ endforeach()
 
 add_executable(tls_fixer_passthrough_integration_tests test_passthrough_integration.c
     ../../browser/module.c ../../browser/webkit_callback.c ../../browser/backend.c ../../browser/config.c
-    ../../provider/ca_file.c ../../provider/platform_shims.c)
+    ../../provider/ca_index.c ../../provider/ca_file.c ../../provider/platform_shims.c)
 target_include_directories(tls_fixer_passthrough_integration_tests PRIVATE ../../browser ../../provider)
 target_link_libraries(tls_fixer_passthrough_integration_tests PRIVATE tls_fixer_core mbedtls tls_fixer_vita_mock)
 target_compile_definitions(tls_fixer_passthrough_integration_tests PRIVATE TLS_FIXER_HOST_MODULE_TEST=1
@@ -240,7 +240,7 @@ target_compile_options(tls_fixer_runtime_hook_tests PRIVATE -Wall -Wextra -Werro
 add_test(NAME tls_fixer_runtime_hook_passthrough COMMAND tls_fixer_runtime_hook_tests valid)
 
 add_executable(tls_fixer_runtime_backend_tests test_runtime_backend.c ../../browser/backend.c
-    ../../browser/config.c ../../provider/ca_file.c ../../provider/platform_shims.c)
+    ../../browser/config.c ../../provider/ca_index.c ../../provider/ca_file.c ../../provider/platform_shims.c)
 target_include_directories(tls_fixer_runtime_backend_tests PRIVATE ../../browser ../../provider)
 target_link_libraries(tls_fixer_runtime_backend_tests PRIVATE tls_fixer_core mbedtls tls_fixer_vita_mock)
 target_compile_definitions(tls_fixer_runtime_backend_tests PRIVATE TLS_FIXER_ENABLE_DEBUG_LOG=0 TLS_FIXER_ENABLE_RUNTIME_UDP=1)

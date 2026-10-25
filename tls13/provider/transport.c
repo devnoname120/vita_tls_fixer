@@ -1,6 +1,7 @@
 #include "transport.h"
 
 #include "cert_hooks.h"
+#include "game_ca.h"
 #include "diagnostics.h"
 #include "provider.h"
 
@@ -220,6 +221,26 @@ static int store_handshake_wait(
     return store_outcome(connection, want_outcome, 0);
 }
 
+/* Bundle roots plus any CA certificates the game loaded with sceHttpsLoadCert */
+static int find_trusted_issuers(void *context, const mbedtls_x509_crt *child,
+    mbedtls_x509_crt **candidates) {
+    int result = tls_fixer_ca_index_find(context, child, candidates);
+    if (result != 0) return result;
+    return tls_fixer_game_ca_find(child, candidates);
+}
+
+/* Called by Mbed TLS for each certificate it checked: a self-signed server certificate that is
+ * itself in the store, or among the game's certificates, counts as trusted; its other checks
+ * (host name, dates, signature strength) still apply */
+static int trust_exact_self_signed(void *context, mbedtls_x509_crt *certificate, int depth,
+    uint32_t *flags) {
+    if (depth == 0 && (*flags & MBEDTLS_X509_BADCERT_NOT_TRUSTED) != 0 &&
+        tls_fixer_ca_trusts_exact(find_trusted_issuers, context, certificate)) {
+        *flags &= ~(uint32_t)MBEDTLS_X509_BADCERT_NOT_TRUSTED;
+    }
+    return 0;
+}
+
 static int setup_connection(TlsFixerConnection *connection, const char *hostname) {
     size_t hostname_length;
     int result;
@@ -272,10 +293,8 @@ static int setup_connection(TlsFixerConnection *connection, const char *hostname
         &connection->config,
         MBEDTLS_SSL_VERSION_TLS1_3);
     mbedtls_ssl_conf_authmode(&connection->config, MBEDTLS_SSL_VERIFY_OPTIONAL);
-    mbedtls_ssl_conf_ca_chain(
-        &connection->config,
-        &g_tls_fixer_http.ca_chain,
-        NULL);
+    mbedtls_ssl_conf_ca_cb(&connection->config, find_trusted_issuers, &g_tls_fixer_http.ca_index);
+    mbedtls_ssl_conf_verify(&connection->config, trust_exact_self_signed, &g_tls_fixer_http.ca_index);
 
     result = mbedtls_ssl_setup(&connection->ssl, &connection->config);
     TLS_FIXER_LOG("event=tls.setup rc=%08X min=TLS1.2 max=TLS1.3", result);
