@@ -1,6 +1,6 @@
 TARGET = tls_fixer
 TITLE_ID = TLSF00001
-# Vita package metadata uses ##.##; the displayed build is 0.2.1-test1.
+# Vita package metadata uses ##.##; the displayed version is 0.2.1.
 APP_VERSION = 00.21
 OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o installer/crypto_lock_vita.o installer/options.o
 CRYPTO_LOCK_FUNCTIONS = CRYPTO_THREAD_lock_new CRYPTO_THREAD_read_lock CRYPTO_THREAD_write_lock \

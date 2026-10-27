@@ -1,4 +1,4 @@
-# tls_fixer 0.2
+# tls_fixer 0.2.1
 
 TLS 1.2 and TLS 1.3 for the PS Vita browser and supported applications using Sony's `sceHttp` APIs. By **devnoname120**.
 
@@ -23,7 +23,7 @@ Browser and system installations include the shared kernel coordinator. Removing
 
 The release uses **persistent activation**: it stays enabled across reboots until uninstalled or disabled. Provider file/console logging, runtime UDP diagnostics and kernel trace/probe modes are disabled in the release build. The installer still displays its progress and errors on screen.
 
-The installer displays version `0.2.0`; the VPK's two-part metadata version is `00.20`. Both identify release **0.2**.
+The installer displays version `0.2.1`; the VPK's two-part metadata version is `00.21`. Both identify release **0.2.1**.
 
 ## Coverage
 
@@ -35,6 +35,8 @@ The installer displays version `0.2.0`; the VPK's two-part metadata version is `
 The new providers support TLS 1.2/1.3. TLS 1.0/1.1 are intentionally excluded from their configuration. This is not a universal replacement for every `SceSsl` consumer: Shell/Paf shared consumers, client-certificate configurations, unreadable app CA material, unsupported modules and other unsupported transport settings can retain Sony's native implementation. Provider initialization or validation failure also retains the original path. There is no second handshake implementation fallback after the provider has sent TLS handshake bytes.
 
 The coordinator validates module identities, signatures and mappings before injecting providers. Browser processes use their dedicated provider and are excluded from generic HTTP injection. Kernel code is checked for unmanaged floating-point/SIMD instructions; user providers use a small native Vita runtime and process-private transport state.
+
+Version 0.2.1 also recognizes HTTP and SSL library paths redirected by reAuth or older TLS plugins. This fixes applications retaining the old TLS stack and TLS Check reporting `tls_fix: not enabled` despite the kernel plugin being installed.
 
 Firmware profiles cover the available **3.60–3.74 retail, testkit and devkit** images. Static checks passed for 31 supplied combinations; five kit images were unavailable. Physical-device validation is on **retail 3.60**. See the [firmware evidence matrix](docs/tls13-firmware-support.md) for the exact coverage; static checks do not establish hardware execution on every model/firmware combination.
 
@@ -77,7 +79,7 @@ The separate Sony, Mozilla and combined files are included in the VPK, with prov
 
 Release qualification on retail 3.60 confirmed Browser TLS 1.3 with the Cloudflare control, certificate-verified system HTTP TLS 1.2/1.3 requests, and the BrowserLeaks detailed report. PlayStation HTTPS connectivity and normal Store sign-in have also been confirmed after the native certificate-layout repair. Store sign-in still requires the account linked to the console and a PlayStation Device Setup Password; legacy account-management operations are separate server features.
 
-The 0.2 feature build has also been tested on hardware, as reported by the maintainer. Its automated checks passed 366 sanitizer-enabled C/C++ tests and 129 Python tests, alongside native builds, kernel instruction checks and import checks against the available firmware images. These checks do not establish hardware testing on every supported firmware/model combination.
+The 0.2.1 loading fix was confirmed by two affected users. One supplied logs showing the provider running and certificate-verified TLS 1.2/1.3 connections. An additional isolated retail 3.60 test of the candidate kernel and HTTP provider passed the same checks through the normal library-loading path. Automated checks passed 367 sanitizer-enabled C/C++ tests and 129 Python tests, alongside native builds, kernel instruction checks and import checks against the available firmware images. These checks do not establish hardware testing on every supported firmware/model combination.
 
 Host tests cover transport handshakes, certificate and hostname checks, callbacks, nonblocking retries, cancellation, module guards, hook lifetimes, certificate merging and installer options. Native builds enforce the normal kernel/provider configuration even if a diagnostic build was previously cached.
 
