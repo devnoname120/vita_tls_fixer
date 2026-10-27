@@ -83,6 +83,42 @@ int main(void) {
     reset();
     assert(load_for_pid_patched(0, "wb0:/webcore/ScePsp2Compat.suprx", 0x8001, NULL)==88);
     assert(seen_flags==0x8001);
+    /* Regression: reAuth rewrites both library names in SceSysmodule before
+     * the kernel loader sees them. Config presence alone does not activate TLS. */
+    const char *redirected_paths[] = {
+        "ur0:data/reAuth/libhttp.suprx", "ur0:/data/reAuth/libhttp.suprx",
+        "vs0:/data/external/itls/libhttp.suprx", "vs0:data/external/itls/libhttp.suprx",
+        "ur0:data/reAuth/libssl.suprx", "ur0:/data/reAuth/libssl.suprx",
+        "vs0:/data/external/itls/libssl.suprx", "vs0:data/external/itls/libssl.suprx"
+    };
+    /* Clear any pending fixture load before checking each isolated request. */
+    (void)tls_fixer_post_start_complete(99, 88, -1);
+    for (unsigned i = 0; i < sizeof(redirected_paths) / sizeof(redirected_paths[0]); ++i) {
+        int is_http = i < 4;
+        reset();
+        assert(load_for_pid_patched(0, redirected_paths[i], 0x08008001, &options) == 88);
+        assert(strcmp(selected_path, g_replacement_modules[is_http ? 1 : 2]) == 0);
+        assert(seen_flags == (TLS_FIXER_SKIP_HTTP_START ? 0x08008001u : 0x8000u));
+        assert(injections == 0 && seen_pid == 0 && seen_options == &options);
+        current_pid = 99;
+        assert(installed_start(0, 88, 3, (void *)(uintptr_t)0x12340000, 0x8001,
+            (void *)(uintptr_t)0x56780000, &status) == 0);
+        assert(injections == (is_http && !TLS_FIXER_SKIP_HTTP_START ? 1 : 0));
+        /* Disabling the system component must leave these files alone. */
+        reset(); g_replace_iap = 0;
+        assert(load_for_pid_patched(0, redirected_paths[i], 0x08008001, NULL) == 88);
+        assert(strcmp(selected_path, redirected_paths[i]) == 0 && seen_flags == 0x08008001);
+        assert(tls_fixer_post_start_complete(99, 88, 0) == 0 && injections == 0);
+        /* A failed native load must never queue a provider. */
+        reset(); load_result = -43;
+        assert(load_for_pid_patched(0, redirected_paths[i], 0, NULL) == -43);
+        assert(tls_fixer_post_start_complete(99, 88, 0) == 0 && injections == 0);
+        reset(); http_process_allowed = 0;
+        assert(load_for_pid_patched(0, redirected_paths[i], 0x08008001, NULL) == 88);
+        assert(seen_flags == 0x08008001);
+        (void)tls_fixer_post_start_complete(99, 88, -1);
+        http_process_allowed = 1;
+    }
     assert(module_stop(0,NULL)==SCE_KERNEL_STOP_FAIL);
     puts("production post-start: browser deferral, native results and application provider retained PASS");
 }

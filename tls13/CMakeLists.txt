@@ -99,6 +99,7 @@ add_library(tls_fixer_core STATIC
     src/host_map.c
     src/redirect_list.c
     src/path.c
+    src/transport_path.c
     src/registry.c
     src/x509_names.c
 )
@@ -156,6 +157,10 @@ if(TLS_FIXER_BUILD_HOST_TESTS)
     target_link_libraries(tls_fixer_browser_path_tests PRIVATE tls_fixer_core)
     target_compile_options(tls_fixer_browser_path_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
     add_test(NAME tls_fixer_browser_paths COMMAND tls_fixer_browser_path_tests)
+    add_executable(tls_fixer_transport_path_tests tests/test_transport_paths.c)
+    target_link_libraries(tls_fixer_transport_path_tests PRIVATE tls_fixer_core)
+    target_compile_options(tls_fixer_transport_path_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+    add_test(NAME tls_fixer_transport_paths COMMAND tls_fixer_transport_path_tests)
     add_subdirectory(tests/kernel)
     add_subdirectory(tests/runtime)
     add_subdirectory(tests/redirect)

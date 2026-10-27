@@ -168,9 +168,10 @@ static SceUID load_for_pid_patched(
     SceUID result;
     tls_fixer_trace_status_note_load();
     const SceUID target_pid = pid == 0 ? ksceKernelGetProcessId() : pid;
+    const TlsFixerTransportLibrary transport_library =
+        tls_fixer_transport_library(path, TLS_FIXER_MAX_MODULE_PATH);
     const int psn_redirect = tls_fixer_psn_redirect_wanted(target_pid, path,
-        tls_fixer_path_equals(path, "vs0:sys/external/libhttp.suprx", TLS_FIXER_MAX_MODULE_PATH) ||
-        tls_fixer_path_equals(path, "vs0:/sys/external/libhttp.suprx", TLS_FIXER_MAX_MODULE_PATH));
+        transport_library == TLS_FIXER_LIBRARY_HTTP);
 
 #if defined(__arm__) && TLS_FIXER_ENABLE_BOOT_TRACE
     if (tls_fixer_path_has_suffix(path, "ScePsp2Compat.suprx", TLS_FIXER_MAX_MODULE_PATH)) {
@@ -186,15 +187,11 @@ static SceUID load_for_pid_patched(
     }
 #endif
 
-    if (g_replace_iap &&
-        (tls_fixer_path_equals(path, "vs0:sys/external/libhttp.suprx", TLS_FIXER_MAX_MODULE_PATH) ||
-         tls_fixer_path_equals(path, "vs0:/sys/external/libhttp.suprx", TLS_FIXER_MAX_MODULE_PATH))) {
+    if (g_replace_iap && transport_library == TLS_FIXER_LIBRARY_HTTP) {
         load_path = g_replacement_modules[1];
         loads_replacement_libhttp = 1;
         route_kind = 1;
-    } else if (g_replace_iap &&
-               (tls_fixer_path_equals(path, "vs0:sys/external/libssl.suprx", TLS_FIXER_MAX_MODULE_PATH) ||
-                tls_fixer_path_equals(path, "vs0:/sys/external/libssl.suprx", TLS_FIXER_MAX_MODULE_PATH))) {
+    } else if (g_replace_iap && transport_library == TLS_FIXER_LIBRARY_SSL) {
         load_path = g_replacement_modules[2];
         loads_replacement_libssl = 1;
         route_kind = 2;

@@ -1,7 +1,7 @@
 TARGET = tls_fixer
 TITLE_ID = TLSF00001
-# Vita package metadata uses ##.##; the displayed release is 0.2.0.
-APP_VERSION = 00.20
+# Vita package metadata uses ##.##; the displayed build is 0.2.1-test1.
+APP_VERSION = 00.21
 OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o installer/crypto_lock_vita.o installer/options.o
 CRYPTO_LOCK_FUNCTIONS = CRYPTO_THREAD_lock_new CRYPTO_THREAD_read_lock CRYPTO_THREAD_write_lock \
 	CRYPTO_THREAD_unlock CRYPTO_THREAD_lock_free CRYPTO_atomic_add
@@ -87,7 +87,7 @@ installer/options.o: installer/options.h
 installer/certificates.o: installer/certificates.h
 installer/network_vita.o: installer/network_vita.h
 
-$(KERNEL_MODULE): force-normal-kernel kernel/main.c kernel/self_disarm.c kernel/self_disarm.h kernel/hook_guard.c kernel/hook_guard.h kernel/native_module_api.c kernel/native_module_api.h kernel/memory_probe.c kernel/memory_probe.h kernel/allocation_probe.c kernel/allocation_probe.h kernel/tls13_loader.c kernel/tls13_loader.h kernel/post_start.c kernel/post_start.h kernel/tls_fixer.yml kernel/CMakeLists.txt Makefile tools/verify_kernel_registers.py tls13/src/path.c tls13/include/tls_fixer/path.h tls13/include/tls_fixer/sony_abi.h tls13/include/tls_fixer/browser_abi.h $(FIRMWARE_PROFILES)
+$(KERNEL_MODULE): force-normal-kernel kernel/main.c kernel/self_disarm.c kernel/self_disarm.h kernel/hook_guard.c kernel/hook_guard.h kernel/native_module_api.c kernel/native_module_api.h kernel/memory_probe.c kernel/memory_probe.h kernel/allocation_probe.c kernel/allocation_probe.h kernel/tls13_loader.c kernel/tls13_loader.h kernel/post_start.c kernel/post_start.h kernel/tls_fixer.yml kernel/CMakeLists.txt Makefile tools/verify_kernel_registers.py tls13/src/path.c tls13/src/transport_path.c tls13/include/tls_fixer/path.h tls13/include/tls_fixer/sony_abi.h tls13/include/tls_fixer/browser_abi.h $(FIRMWARE_PROFILES)
 	cmake -S kernel -B $(BUILD_DIR)/kernel $(KERNEL_CMAKE_FLAGS)
 	cmake --build $(BUILD_DIR)/kernel
 

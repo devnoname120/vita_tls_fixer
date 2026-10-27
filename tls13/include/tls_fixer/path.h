@@ -9,6 +9,14 @@ extern "C" {
 
 int tls_fixer_path_equals(const char *path, const char *expected, size_t maximum);
 int tls_fixer_path_has_suffix(const char *path, const char *suffix, size_t maximum);
+typedef enum TlsFixerTransportLibrary {
+    TLS_FIXER_LIBRARY_NONE = 0,
+    TLS_FIXER_LIBRARY_HTTP,
+    TLS_FIXER_LIBRARY_SSL
+} TlsFixerTransportLibrary;
+/* Exact input aliases used by the native loader and older TLS plugins.
+ * This selects our installed payload; it does not approve the input binary. */
+TlsFixerTransportLibrary tls_fixer_transport_library(const char *path, size_t maximum);
 int tls_fixer_browser_replacement_path(const char *path, char *output, size_t capacity);
 int tls_fixer_browser_provider_path(const char *replacement, char *output, size_t capacity);
 int tls_fixer_browser_module_path(const char *provider, char *output, size_t capacity);
