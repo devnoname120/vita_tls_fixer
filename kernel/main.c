@@ -242,6 +242,22 @@ static SceUID load_for_pid_patched(
             (void)tls_fixer_boot_trace_event("http.private.flags", target_pid,
                 (int32_t)flags, (int32_t)load_flags);
     }
+    if (g_replace_iap &&
+        !TLS_FIXER_SKIP_HTTP_START && !TLS_FIXER_REDIRECTION_ONLY && !TLS_FIXER_PREPARE_ONLY &&
+        !TLS_FIXER_BROWSER_ACTIVATION && target_pid > 0 && target_pid != KERNEL_PID &&
+        tls_fixer_np_http_client_path(path, TLS_FIXER_MAX_MODULE_PATH) &&
+        target_pid != ksceKernelSysrootGetShellPid()) {
+        int private_http = tls_fixer_native_http_is_private(target_pid);
+        (void)tls_fixer_boot_trace_event("http.client.mapping", target_pid, private_http, 0);
+        if (private_http < 0) return private_http;
+        if (private_http > 0) {
+            /* A late shared client would retain imports into the shared HTTP
+             * copy, while this process owns the private transport instance. */
+            load_flags &= ~UINT32_C(0x08000001);
+            (void)tls_fixer_boot_trace_event("http.client.private", target_pid,
+                (int32_t)flags, (int32_t)load_flags);
+        }
+    }
     result = TAI_CONTINUE(
         SceUID,
         g_loader_hook_ref,

@@ -1,4 +1,5 @@
 include("${VITASDK}/share/vita.cmake" REQUIRED)
+enable_language(ASM)
 set(TLS_FIXER_HTTP_CA_PATH "vs0:/data/external/cert/CA_LIST.cer" CACHE STRING
     "Authoritative HTTP trust bundle; diagnostics use a separately staged VPK bundle")
 
@@ -9,6 +10,8 @@ add_executable(tls_fixer_http
     game_ca.c
     cert_hooks.c
     provider.c
+    native_continuations.c
+    native_continuations.S
     platform_shims.c
     private_mapping.c
     transport.c
@@ -34,12 +37,12 @@ target_compile_definitions(tls_fixer_http PRIVATE
     TLS_FIXER_DEFAULT_CA_PATH="${TLS_FIXER_HTTP_CA_PATH}"
 )
 target_compile_options(tls_fixer_http PRIVATE
-    -std=gnu11
+    $<$<COMPILE_LANGUAGE:C>:-std=gnu11>
     -Wall
     -Wextra
     -Werror
     -Wshadow
-    -Wstrict-prototypes
+    $<$<COMPILE_LANGUAGE:C>:-Wstrict-prototypes>
     -ffunction-sections
     -fdata-sections
     -O2

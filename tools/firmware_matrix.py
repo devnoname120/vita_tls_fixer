@@ -136,6 +136,10 @@ WRAPPER = r'''
 #include <psp2/kernel/sysmem.h>
 #include "hook_guard.h"
 #include "webkit_callback.h"
+#include "tls_fixer/path.h"
+int check_np_client_path(const char *path) {
+    return tls_fixer_np_http_client_path(path, 1024);
+}
 static SceKernelModuleInfo fixture;
 static struct { uint32_t vtable; unsigned char rest[0x4e0-4]; } userdata;
 int ksceKernelGetModuleInfo(SceUID pid, SceUID id, SceKernelModuleInfo *out) {
@@ -183,13 +187,29 @@ def compiled_guard(directory, post_start):
                     '-DTLS_FIXER_BROWSER_POST_START=' + str(post_start),
                     *['-I' + str(ROOT / path) for path in include], str(source),
                     str(ROOT / 'kernel/hook_guard.c'), str(ROOT / 'tls13/browser/webkit_callback.c'),
+                    str(ROOT / 'tls13/src/path.c'), str(ROOT / 'tls13/src/transport_path.c'),
                     '-o', str(output)], check=True)
     dll = ctypes.CDLL(str(output))
     dll.check_kernel.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
     dll.webkit_offsets.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
                                   ctypes.POINTER(ctypes.c_size_t), ctypes.POINTER(ctypes.c_size_t)]
     dll.check_webkit.argtypes = [ctypes.c_void_p, *[ctypes.c_size_t] * 5]
+    dll.check_np_client_path.argtypes = [ctypes.c_char_p]
     return dll
+
+
+def np_http_clients(tree):
+    """NP HTTP/SSL users and their static function importers in this image."""
+    modules = {path.stem: Firmware(path) for path in (tree / 'vs0/sys/external').glob('*.elf')}
+    selected = {name for name, module in modules.items() if name.startswith('np_') and
+                {0xe8f15cde, 0xcaf5f2e9}.intersection(library for library, _ in module.imports)}
+    while True:
+        exports = {key for name in selected for key in modules[name].exports if key[0] != 0}
+        additional = {name for name, module in modules.items() if name not in selected and
+                      exports.intersection(module.imports)}
+        if not additional:
+            return modules, selected
+        selected.update(additional)
 
 
 def callback_import(module, callback):
@@ -269,6 +289,12 @@ def run(args):
                         unavailable.append({'hardware': hardware, 'firmware': version, 'reason': 'external image absent'})
                         continue
                     manager = kernel_module(tree / 'os0/kd', 'modulemgr')
+                    client_modules, client_paths = np_http_clients(tree)
+                    for name in client_modules:
+                        for prefix in ('vs0:sys/external/', 'vs0:/sys/external/'):
+                            path = (prefix + name + '.suprx').encode('ascii')
+                            assert guards[0].check_np_client_path(path) == int(name in client_paths), (
+                                hardware, version, name, 'NP client routing')
                     webkit = Firmware(tree / 'vs0/data/external/webcore/SceWebKitModule.elf')
                     kernel_memory = ctypes.create_string_buffer(manager.text)
                     for dll in guards:
@@ -292,6 +318,7 @@ def run(args):
                     assert not guards[0].check_webkit(memory, len(webkit.text), data_file, data_memory, callback.value, vtable.value + 4)
                     assert callback_import(webkit, callback.value) == [(0x81405f79, 0x7dab2e59)], (hardware, version, 'callback role')
                     record = {'hardware': hardware, 'firmware': version, 'device_tested': False,
+                              'np_http_client_paths_verified': len(client_paths),
                               'kernel_guard': True, 'post_start_guard': True, 'webkit_callback_guard': True,
                               'callback_import': '81405f79:7dab2e59', 'callback_offset': callback.value,
                               'vtable_offset': vtable.value, 'modules': {}}
@@ -302,6 +329,10 @@ def run(args):
                     for function in functions:
                         assert (library, function) in manager.exports, (hardware, version, 'native export binding')
                     record['native_module_api_family'] = family
+                    sysmem = kernel_module(tree / 'os0/kd', 'sysmem')
+                    type_export = ((0x63a519e5, 0x289be3ec), (0x02451f0f, 0xd44fe44b))[family]
+                    assert type_export in sysmem.exports, (hardware, version, 'memblock type export')
+                    record['native_memblock_type_export'] = ':'.join(f'{value:08x}' for value in type_export)
                     record['native_exports_verified'] = [f'{library:08x}:{function:08x}' for function in functions]
                     if builds:
                         bundled = replacements

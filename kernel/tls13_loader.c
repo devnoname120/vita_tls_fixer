@@ -718,11 +718,11 @@ int tls_fixer_kernel_http_process_allowed(SceUID pid) {
             return 0;
         }
         TlsFixerNativeHttpConsumer consumer;
-        int shared = tls_fixer_native_http_shared_consumer(pid, &consumer);
-        (void)tls_fixer_boot_trace_event("http.consumer.policy", pid, consumer.module, shared);
-        if (shared != 0)
+        int native_only = tls_fixer_native_http_requires_sony(pid, &consumer);
+        (void)tls_fixer_boot_trace_event("http.consumer.policy", pid, consumer.module, native_only);
+        if (native_only != 0)
             (void)tls_fixer_boot_trace_event("http.consumer.details", pid, consumer.step, consumer.native_result);
-        if (shared == 1) {
+        if (native_only == 1) {
             uint32_t name[7];
             memcpy(name, consumer.name, sizeof(name));
             (void)tls_fixer_boot_trace_event("http.consumer.lib", pid, consumer.library, consumer.attributes);
@@ -730,7 +730,7 @@ int tls_fixer_kernel_http_process_allowed(SceUID pid) {
             (void)tls_fixer_boot_trace_event("http.consumer.name2", pid, name[2], name[3]);
             (void)tls_fixer_boot_trace_event("http.consumer.name3", pid, name[4], name[5]);
         }
-        if (shared != 0) return shared < 0 ? shared : 0;
+        if (native_only != 0) return native_only < 0 ? native_only : 0;
     }
     return 1;
 }

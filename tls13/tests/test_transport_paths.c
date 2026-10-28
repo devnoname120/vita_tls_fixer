@@ -38,6 +38,21 @@ int main(void) {
         assert(tls_fixer_transport_library(unrelated[i], 1024) == TLS_FIXER_LIBRARY_NONE);
     char unterminated[1024]; memset(unterminated, 'x', sizeof(unterminated));
     assert(tls_fixer_transport_library(unterminated, sizeof(unterminated)) == TLS_FIXER_LIBRARY_NONE);
+    const char *clients[] = {"vs0:sys/external/np_utility.suprx",
+        "vs0:/sys/external/np_matching2.suprx", "vs0:sys/external/np_message.suprx",
+        "vs0:/sys/external/libcdlg_game_custom_data_impl.suprx"};
+    for (unsigned i = 0; i < sizeof(clients) / sizeof(clients[0]); ++i) {
+        assert(tls_fixer_np_http_client_path(clients[i], strlen(clients[i]) + 1) == 1);
+        assert(tls_fixer_np_http_client_path(clients[i], strlen(clients[i])) == 0);
+    }
+    const char *not_clients[] = {NULL, "", "np_utility.suprx",
+        "app0:/sce_module/np_utility.suprx", "ur0:sys/external/np_utility.suprx",
+        "vs0:sys/external/np_utility.suprx.bak", "vs0:sys/external/nested/np_utility.suprx",
+        "vs0:/sys/external/libpaf.suprx", "vs0:sys/external/libcdlg.suprx",
+        "vs0:/data/external/tls_fixer/libhttp.suprx"};
+    for (unsigned i = 0; i < sizeof(not_clients) / sizeof(not_clients[0]); ++i)
+        assert(tls_fixer_np_http_client_path(not_clients[i], 1024) == 0);
+    assert(tls_fixer_np_http_client_path(unterminated, sizeof(unterminated)) == 0);
     puts("transport paths: native/legacy aliases, exact matching, bounds and unrelated paths PASS");
     return 0;
 }

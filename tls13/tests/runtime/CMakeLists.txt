@@ -14,3 +14,8 @@ target_include_directories(tls_fixer_private_mapping_tests PRIVATE ../../provide
 target_compile_definitions(tls_fixer_private_mapping_tests PRIVATE TLS_FIXER_ENABLE_DEBUG_LOG=0)
 target_compile_options(tls_fixer_private_mapping_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_test(NAME tls_fixer_private_mapping COMMAND tls_fixer_private_mapping_tests)
+add_executable(tls_fixer_native_continuations_tests test_native_continuations.c
+    ../../provider/native_continuations.c)
+target_include_directories(tls_fixer_native_continuations_tests PRIVATE ../../provider ../../include)
+target_compile_options(tls_fixer_native_continuations_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+add_test(NAME tls_fixer_native_continuations COMMAND tls_fixer_native_continuations_tests)

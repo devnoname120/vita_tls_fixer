@@ -17,6 +17,8 @@ typedef enum TlsFixerTransportLibrary {
 /* Exact input aliases used by the native loader and older TLS plugins.
  * This selects our installed payload; it does not approve the input binary. */
 TlsFixerTransportLibrary tls_fixer_transport_library(const char *path, size_t maximum);
+/* Sony NP networking clients and their static importers, loaded after HTTP. */
+int tls_fixer_np_http_client_path(const char *path, size_t maximum);
 int tls_fixer_browser_replacement_path(const char *path, char *output, size_t capacity);
 int tls_fixer_browser_provider_path(const char *replacement, char *output, size_t capacity);
 int tls_fixer_browser_module_path(const char *provider, char *output, size_t capacity);

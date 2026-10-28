@@ -16,8 +16,10 @@ typedef struct TlsFixerNativeHttpConsumer {
     uint32_t step;
     int32_t native_result;
 } TlsFixerNativeHttpConsumer;
-/* 0: private exports are compatible; 1: a shared HTTP/SSL consumer; <0: unknown. */
-int tls_fixer_native_http_shared_consumer(SceUID pid, TlsFixerNativeHttpConsumer *consumer);
+/* 0: compatible; 1: shared exports or emulator startup require Sony; <0: unknown. */
+int tls_fixer_native_http_requires_sony(SceUID pid, TlsFixerNativeHttpConsumer *consumer);
+/* 1: HTTP has private RX storage; 0: absent/shared; <0: lookup failed. */
+int tls_fixer_native_http_is_private(SceUID pid);
 
 /* Host fixtures retain their native-service mocks. ARM uses resolved exports. */
 #if defined(__arm__)

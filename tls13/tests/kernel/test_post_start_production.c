@@ -83,6 +83,35 @@ int main(void) {
     reset();
     assert(load_for_pid_patched(0, "wb0:/webcore/ScePsp2Compat.suprx", 0x8001, NULL)==88);
     assert(seen_flags==0x8001);
+    /* HELLDIVERS loads NP Utility after private HTTP has started. A shared
+     * client retains imports into the shared HTTP copy, outside this process's
+     * active HTTP mapping. Route it and a transitive client consistently. */
+    const char *late_clients[] = {"vs0:sys/external/np_utility.suprx",
+        "vs0:/sys/external/np_matching2.suprx", "vs0:sys/external/np_message.suprx"};
+    for (unsigned i = 0; i < sizeof(late_clients) / sizeof(late_clients[0]); ++i) {
+        reset(); current_pid = 23; http_mapping_private = 1;
+        assert(load_for_pid_patched(0, late_clients[i], 0x08008001, &options) == 88);
+        assert(strcmp(selected_path, late_clients[i]) == 0 && seen_pid == 0 && seen_options == &options);
+        assert(seen_flags == (TLS_FIXER_SKIP_HTTP_START ? 0x08008001u : 0x8000u));
+        assert(http_mapping_queries == (TLS_FIXER_SKIP_HTTP_START ? 0 : 1));
+        assert(injections == 0 && dns_loads == 0);
+        reset(); current_pid = 23;
+        assert(load_for_pid_patched(0, late_clients[i], 0x08008001, NULL) == 88);
+        assert(seen_flags == 0x08008001);
+        reset(); current_pid = 23; http_mapping_private = 1; g_replace_iap = 0;
+        assert(load_for_pid_patched(0, late_clients[i], 0x08008001, NULL) == 88);
+        assert(seen_flags == 0x08008001 && http_mapping_queries == 0);
+        reset(); http_mapping_private = 1; /* Shell is never privatized. */
+        assert(load_for_pid_patched(0, late_clients[i], 0x08008001, NULL) == 88);
+        assert(seen_flags == 0x08008001 && http_mapping_queries == 0);
+        reset(); current_pid = 23; http_mapping_private = -77;
+        assert(load_for_pid_patched(0, late_clients[i], 0x08008001, NULL) ==
+            (TLS_FIXER_SKIP_HTTP_START ? 88 : -77));
+        if (!TLS_FIXER_SKIP_HTTP_START) assert(selected_path[0] == '\0');
+    }
+    reset(); current_pid = 23; http_mapping_private = 1;
+    assert(load_for_pid_patched(0, "app0:/sce_module/np_utility.suprx", 0x08008001, NULL) == 88);
+    assert(seen_flags == 0x08008001 && http_mapping_queries == 0);
     /* Regression: reAuth rewrites both library names in SceSysmodule before
      * the kernel loader sees them. Config presence alone does not activate TLS. */
     const char *redirected_paths[] = {

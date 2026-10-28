@@ -6,6 +6,7 @@
 #include "user_runtime.h"
 #include "mapped_signature.h"
 #include "private_mapping.h"
+#include "native_continuations.h"
 
 #include <psp2/kernel/modulemgr.h>
 #include <psp2common/kernel/modulemgr.h>
@@ -116,6 +117,12 @@ static void *next_hook_function(tai_hook_ref_t reference) {
     return next == NULL ? current->old : next->func;
 }
 
+static void *next_hook_or_native(tai_hook_ref_t reference, void *native) {
+    struct _tai_hook_user *current = (struct _tai_hook_user *)reference;
+    struct _tai_hook_user *next = (struct _tai_hook_user *)current->next;
+    return next == NULL ? native : next->func;
+}
+
 static int hook_create(void *request, int socket) {
     TLS_FIXER_LOG("event=hook.enter hook=create request=%08X socket=%d state=%d",
         (unsigned int)(uintptr_t)request, socket, g_tls_fixer_http.state);
@@ -164,8 +171,8 @@ static int hook_map_io(void *connection, int result) {
     if (handled) {
         return mapped;
     }
-    return ((TlsFixerMapIoContinuation)next_hook_function(
-        g_tls_fixer_http.hook_refs[HOOK_MAP_IO]))(connection, result);
+    return ((TlsFixerMapIoContinuation)next_hook_or_native(
+        g_tls_fixer_http.hook_refs[HOOK_MAP_IO], tls_fixer_native_map_io))(connection, result);
 }
 
 static int hook_read(void *connection, void *buffer, unsigned int length) {
@@ -203,8 +210,8 @@ static int hook_shutdown(void *connection) {
     if (handled) {
         return result;
     }
-    return ((TlsFixerShutdownContinuation)next_hook_function(
-        g_tls_fixer_http.hook_refs[HOOK_SHUTDOWN]))(connection);
+    return ((TlsFixerShutdownContinuation)next_hook_or_native(
+        g_tls_fixer_http.hook_refs[HOOK_SHUTDOWN], tls_fixer_native_shutdown))(connection);
 }
 
 typedef struct TlsFixerHookInstallDescriptor {
@@ -327,6 +334,10 @@ int tls_fixer_http_validate_module(
 
 int tls_fixer_http_install_hooks(void) {
     size_t index;
+
+    if (tls_fixer_native_continuations_bind(&g_tls_fixer_native_continuations,
+            (const void *)g_tls_fixer_http.text_address, g_tls_fixer_http.text_size) < 0)
+        return -1;
 
     for (index = 0; index < TLS_FIXER_HOOK_COUNT; ++index) {
         const TlsFixerHookInstallDescriptor *descriptor = &g_hook_install_descriptors[index];

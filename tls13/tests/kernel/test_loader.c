@@ -289,7 +289,7 @@ int timingsafe_memcmp(const void *left, const void *right, size_t size) {
 }
 SceUID ksceKernelGetProcessId(void) { return argument_current_pid; }
 SceUID ksceKernelSysrootGetShellPid(void) { return shell_pid; }
-int tls_fixer_native_http_shared_consumer(SceUID pid, TlsFixerNativeHttpConsumer *consumer) {
+int tls_fixer_native_http_requires_sony(SceUID pid, TlsFixerNativeHttpConsumer *consumer) {
     assert(pid == 99 && !locked);
     if (consumer != NULL) memset(consumer, 0, sizeof(*consumer));
     ++main_shared_queries;

@@ -21,6 +21,7 @@ static int loader_destructions;
 static int hook_validation_result, hook_validations;
 static int injection_result;
 static int http_process_allowed = 1;
+static int http_mapping_private, http_mapping_queries;
 static int dns_reenter, dns_start_status;
 static SceUID dns_load_result;
 #if TLS_FIXER_BROWSER_POST_START
@@ -153,6 +154,11 @@ int tls_fixer_kernel_loader_init(void) { startup_operation(); ++loader_initializ
 void tls_fixer_kernel_loader_destroy(void) { ++loader_destructions; }
 int tls_fixer_kernel_loader_ready(void) { return 1; }
 int tls_fixer_kernel_http_process_allowed(SceUID pid) { return pid > 0 && http_process_allowed; }
+int tls_fixer_native_http_is_private(SceUID pid) {
+    assert(pid > 0 && pid != KERNEL_PID && pid != 99);
+    ++http_mapping_queries;
+    return http_mapping_private;
+}
 int tls_fixer_kernel_browser_loader_ready(void) { return 1; }
 int tls_fixer_kernel_inject_for_pid(SceUID pid, SceUID module) {
     assert(module == 88);
@@ -214,6 +220,8 @@ int taiHookFunctionOffsetForKernel(SceUID pid, tai_hook_ref_t *reference, SceUID
     return 1;
 }
 static void reset(void) {
+    http_mapping_private = 0;
+    http_mapping_queries = 0;
 #if TLS_FIXER_BROWSER_POST_START
     native_link_finished = 0;
     simulated_detour_literal = 0;
@@ -231,6 +239,7 @@ static void reset(void) {
     dns_start_status = SCE_KERNEL_START_SUCCESS;
     dns_load_result = 88;
     provider_path[0] = '\0';
+    selected_path[0] = '\0';
 #if TLS_FIXER_ENABLE_BOOT_TRACE
     native_calls = route_prints = 0;
     route_event_count = 0;
