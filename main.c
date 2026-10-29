@@ -41,6 +41,7 @@ static const char *const new_modules[] = {
     "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx",
     "vs0:/data/external/tls_fixer/native/tls_fixer.suprx",
     "vs0:/data/external/tls_fixer/native/tls_fixer_psn.suprx",
+    "vs0:/data/external/tls_fixer/native/tls_fixer_store.suprx",
 };
 
 static const char *const install_menu[MENU_COUNT] = {
@@ -486,9 +487,11 @@ static int install_psn_redirect(int requested_state) {
     int result;
     if (requested_state == 1) {
         result = remove_if_exists(new_modules[7]);
+        if (result >= 0) result = remove_if_exists(new_modules[8]);
     } else {
         printf("Installing the PSN sign-in redirect... \n");
         result = replace_file("app0:tls_fixer_psn.suprx", new_modules[7]);
+        if (result >= 0) result = replace_file("app0:tls_fixer_store.suprx", new_modules[8]);
         if (result >= 0 && !path_exists("ux0:data/tls_fixer"))
             result = sceIoMkdir("ux0:data/tls_fixer", 0777);
         /* An upgrade or reinstall must preserve the user's host mappings. */
@@ -634,7 +637,7 @@ static int browser_payload_present(void) {
         path_exists(browser_provider_global);
 }
 static int system_payload_present(void) {
-    if (path_exists(new_modules[7])) return 1;
+    if (path_exists(new_modules[7]) || path_exists(new_modules[8])) return 1;
     for (unsigned i = 1; i <= 5; ++i)
         if (path_exists(new_modules[i])) return 1;
     return 0;

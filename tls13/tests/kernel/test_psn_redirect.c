@@ -12,9 +12,15 @@ static int shell_present, store_present, reauth_lookup = NOT_FOUND;
 static int loads, load_result = 77, on_stack;
 static SceUID loaded_pid;
 static char loaded_path[128];
+static const char *process_title = "PCSE00001";
+static int title_failure, artwork_present = 1, artwork_loaded, artwork_loads, artwork_stat_calls, browser_present = 1;
 
 int ksceIoGetstat(const char *path, SceIoStat *status) {
     (void)status;
+    if (strcmp(path, "vs0:/data/external/tls_fixer/native/tls_fixer_store.suprx") == 0) {
+        ++artwork_stat_calls;
+        return artwork_present ? 0 : -1;
+    }
     assert(strcmp(path, "vs0:/data/external/tls_fixer/native/tls_fixer_psn.suprx") == 0);
     return stat_result;
 }
@@ -32,6 +38,10 @@ int ksceKernelLockMutex(SceUID id, int count, unsigned int *timeout) {
 }
 int ksceKernelUnlockMutex(SceUID id, int count) { assert(id == 23 && count == 1 && locked); locked = 0; return 0; }
 SceUID ksceKernelSysrootGetShellPid(void) { return SHELL_PID; }
+int ksceKernelSysrootGetProcessTitleId(SceUID pid, char *out, SceSize size) {
+    assert(pid != SHELL_PID && size >= strlen(process_title) + 1);
+    strcpy(out, process_title); return title_failure ? -1 : 0;
+}
 int ksceDebugPrintf(const char *format, ...) { (void)format; return 0; }
 int ksceKernelRunWithStack(SceSize size, int (*function)(void *), void *argument) {
     /* The module load runs on its own stack, while the injection lock is held */
@@ -52,12 +62,18 @@ int taiGetModuleInfoForKernel(SceUID pid, const char *name, tai_module_info_t *i
         assert(pid != SHELL_PID);
         return store_present ? 0 : NOT_FOUND;
     }
+    if (strcmp(name, "SceStoreBrowser") == 0) return browser_present ? 0 : NOT_FOUND;
+    if (strcmp(name, "tls_fixer_store") == 0) return artwork_loaded ? 0 : NOT_FOUND;
     assert(strcmp(name, "tls_fixer_psn") == 0);
     return reauth_lookup;
 }
 SceUID ksceKernelLoadStartModuleForPid(SceUID pid, const char *path, SceSize size, const void *args,
     int flags, const void *options, int *status) {
     assert(on_stack && size == 0 && args == NULL && flags == 0 && options == NULL && status != NULL);
+    if (strcmp(path, "vs0:/data/external/tls_fixer/native/tls_fixer_store.suprx") == 0) {
+        assert(strcmp(process_title, "NPXS10002") == 0 && pid != SHELL_PID);
+        ++artwork_loads; *status = -1; return -66; /* Optional failure cannot break PSN. */
+    }
     ++loads;
     loaded_pid = pid;
     strcpy(loaded_path, path);
@@ -66,6 +82,8 @@ SceUID ksceKernelLoadStartModuleForPid(SceUID pid, const char *path, SceSize siz
 }
 
 static void reset(void) {
+    process_title = "PCSE00001"; title_failure = 0;
+    artwork_present = browser_present = 1; artwork_loaded = artwork_loads = artwork_stat_calls = 0;
     shell_present = store_present = 1;
     reauth_lookup = NOT_FOUND;
     loads = 0;
@@ -105,6 +123,20 @@ int main(void) {
     assert(strcmp(loaded_path, "vs0:/data/external/tls_fixer/native/tls_fixer_psn.suprx") == 0);
     reset();
     assert(tls_fixer_psn_redirect_inject(99) == 0 && loads == 1 && loaded_pid == 99);
+    assert(artwork_loads == 0 && artwork_stat_calls == 0);
+
+    reset(); process_title = "NPXS10002";
+    assert(tls_fixer_psn_redirect_inject(99) == 0 && loads == 1 && artwork_loads == 1);
+    reset(); process_title = "NPXS10002"; title_failure = 1;
+    assert(tls_fixer_psn_redirect_inject(99) == 0 && loads == 1 && artwork_loads == 0 && artwork_stat_calls == 0);
+    reset(); process_title = "NPXS10002"; browser_present = 0;
+    assert(tls_fixer_psn_redirect_inject(99) == 0 && artwork_loads == 0);
+    reset(); process_title = "NPXS10002"; artwork_loaded = 1;
+    assert(tls_fixer_psn_redirect_inject(99) == 0 && artwork_loads == 0);
+    reset(); process_title = "NPXS10002"; artwork_present = 0;
+    assert(tls_fixer_psn_redirect_inject(99) == 0 && artwork_loads == 0);
+    reset(); process_title = "NPXS10003";
+    assert(tls_fixer_psn_redirect_inject(99) == 0 && artwork_loads == 0 && artwork_stat_calls == 0);
 
     /* Not loaded when the hooked module is missing, or when it is already in the process */
     reset();

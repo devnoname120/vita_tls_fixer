@@ -23,6 +23,7 @@ VITA_TOOLCHAIN = $(VITASDK)/share/vita.toolchain.cmake
 KERNEL_MODULE = $(BUILD_DIR)/kernel/tls_fixer.skprx
 # A VPK always contains the normal coordinator, even after a diagnostic CMake cache.
 KERNEL_CMAKE_FLAGS = -DTLS_FIXER_HTTP_PROVIDER_PATH=vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx \
+    -DTLS_FIXER_STORE_COVER_PATH=vs0:/data/external/tls_fixer/native/tls_fixer_store.suprx \
     -DTLS_FIXER_HTTP_TEST_TITLE_ID= \
     -DTLS_FIXER_HTTP_GLOBAL_DIAGNOSTIC=OFF \
     -DTLS_FIXER_BROWSER_INVENTORY=OFF \
@@ -37,6 +38,7 @@ KERNEL_CMAKE_FLAGS = -DTLS_FIXER_HTTP_PROVIDER_PATH=vs0:/data/external/tls_fixer
 	-DTLS_FIXER_INSPECT_CONNECT_PATCH=OFF -DTLS_FIXER_BROWSER_POST_START=ON \
 	-DTLS_FIXER_DISARM_RESULT_ONLY=OFF -DTLS_FIXER_SKIP_DNS_START=OFF -DTLS_FIXER_SKIP_HTTP_START=OFF
 PSN_MODULE = $(BUILD_DIR)/psn_redirect/tls_fixer_psn.suprx
+STORE_MODULE = $(BUILD_DIR)/store_cover/tls_fixer_store.suprx
 DNS_FIX_MODULE = $(BUILD_DIR)/old_dns_fix/old_dns_fix.suprx
 TLS13_PROVIDER = $(BUILD_DIR)/tls13-vita/provider/tls_fixer_http.suprx
 BROWSER_PROVIDER = $(BUILD_DIR)/tls13-vita/browser/tls_fixer.suprx
@@ -58,7 +60,7 @@ all: $(TARGET).vpk
 force-normal-kernel:
 force-normal-providers:
 
-$(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(PSN_MODULE) $(DNS_FIX_MODULE) $(TLS13_PROVIDER) $(BROWSER_PROVIDER) \
+$(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(PSN_MODULE) $(STORE_MODULE) $(DNS_FIX_MODULE) $(TLS13_PROVIDER) $(BROWSER_PROVIDER) \
         THIRD_PARTY_NOTICES.md $(LICENSE_FILES) $(PACKAGE_ASSETS)
 	vita-mksfoex -s APP_VER=$(APP_VERSION) -s TITLE_ID=$(TITLE_ID) "tls_fixer" param.sfo
 	vita-pack-vpk -s param.sfo -b eboot.bin \
@@ -67,6 +69,7 @@ $(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(PSN_MODULE) $(DNS_FIX_MODULE) $(TLS1
 		-a sce_sys/livearea/contents/template.xml=sce_sys/livearea/contents/template.xml \
 		-a $(KERNEL_MODULE)=tls_fixer.skprx \
 		-a $(PSN_MODULE)=tls_fixer_psn.suprx \
+		-a $(STORE_MODULE)=tls_fixer_store.suprx \
 		-a $(DNS_FIX_MODULE)=dnsfix.suprx \
 		-a misc/compat.suprx=compat.suprx \
 		-a misc/lhttp.suprx=lhttp.suprx \
@@ -94,6 +97,10 @@ $(KERNEL_MODULE): force-normal-kernel kernel/main.c kernel/self_disarm.c kernel/
 $(PSN_MODULE): $(KERNEL_MODULE) psn_redirect/main.c psn_redirect/CMakeLists.txt psn_redirect/tls_fixer_psn.yml
 	cmake -S psn_redirect -B $(BUILD_DIR)/psn_redirect -DCMAKE_TOOLCHAIN_FILE=$(VITA_TOOLCHAIN)
 	cmake --build $(BUILD_DIR)/psn_redirect
+
+$(STORE_MODULE): force-normal-providers $(wildcard store_cover/*.c store_cover/*.h) store_cover/CMakeLists.txt store_cover/module.yml
+	cmake -S store_cover -B $(BUILD_DIR)/store_cover -DCMAKE_TOOLCHAIN_FILE=$(VITA_TOOLCHAIN) -DCMAKE_BUILD_TYPE=Release -DTLS_FIXER_MBEDTLS_ARCHIVE=$(MBEDTLS_ARCHIVE) -DSTORE_COVER_DIAGNOSTICS=OFF -DSTORE_COVER_HOST_TESTS=OFF
+	cmake --build $(BUILD_DIR)/store_cover
 
 $(DNS_FIX_MODULE): old_dns_fix/main.c old_dns_fix/CMakeLists.txt old_dns_fix/exports.yml
 	cmake -S old_dns_fix -B $(BUILD_DIR)/old_dns_fix -DCMAKE_TOOLCHAIN_FILE=$(VITA_TOOLCHAIN)
@@ -146,6 +153,6 @@ $(TARGET).elf: $(OBJS) $(CURL_LIBRARY) Makefile
 clean:
 	rm -rf $(TARGET).vpk $(TARGET).velf $(TARGET).elf $(OBJS) \
 		eboot.bin param.sfo $(BUILD_DIR)/kernel $(BUILD_DIR)/old_dns_fix \
-		$(BUILD_DIR)/tls13-vita $(BUILD_DIR)/curl-vita $(BUILD_DIR)/psn_redirect
+		$(BUILD_DIR)/tls13-vita $(BUILD_DIR)/curl-vita $(BUILD_DIR)/psn_redirect $(BUILD_DIR)/store_cover
 
 .PHONY: all clean

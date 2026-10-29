@@ -8,6 +8,11 @@ project(HENkaku)
 set(TLS_FIXER_HTTP_PROVIDER_PATH "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx"
     CACHE STRING "HTTP provider path; diagnostics stage their provider separately")
 set(TLS_FIXER_HTTP_TEST_TITLE_ID "" CACHE STRING "Optional single-title diagnostic HTTP activation")
+set(TLS_FIXER_STORE_COVER_PATH "vs0:/data/external/tls_fixer/native/tls_fixer_store.suprx"
+    CACHE STRING "Store-only artwork module; diagnostics use a separately staged payload")
+if(NOT TLS_FIXER_STORE_COVER_PATH MATCHES "^(vs0|ux0|ur0):/[A-Za-z0-9_./-]+$")
+    message(FATAL_ERROR "Store artwork module requires an absolute vs0, ux0 or ur0 path")
+endif()
 option(TLS_FIXER_HTTP_GLOBAL_DIAGNOSTIC "Explicit broad activation of a separately staged provider" OFF)
 if(NOT TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^(vs0|ux0|ur0):/[A-Za-z0-9_./-]+$")
     message(FATAL_ERROR "HTTP provider requires an absolute vs0, ux0 or ur0 path")
@@ -268,6 +273,7 @@ add_dependencies(tls_fixer.skprx tls_fixer_kernel_register_check)
 if(TLS_FIXER_NORMAL_ACTIVATION)
     target_sources(tls_fixer.elf PRIVATE psn_redirect.c)
     target_compile_definitions(tls_fixer.elf PRIVATE TLS_FIXER_ENABLE_PSN_REDIRECT=1)
+    target_compile_definitions(tls_fixer.elf PRIVATE TLS_FIXER_STORE_COVER_PATH="${TLS_FIXER_STORE_COVER_PATH}")
 endif()
 add_custom_target(tls_fixer_stubs ALL
     COMMAND vita-elf-export kernel tls_fixer.elf ${CMAKE_CURRENT_SOURCE_DIR}/tls_fixer.yml tls_fixer_exports.yml
