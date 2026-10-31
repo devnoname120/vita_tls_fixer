@@ -26,3 +26,11 @@ add_executable(tls_fixer_native_continuations_tests test_native_continuations.c
 target_include_directories(tls_fixer_native_continuations_tests PRIVATE ../../provider ../../include)
 target_compile_options(tls_fixer_native_continuations_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_test(NAME tls_fixer_native_continuations COMMAND tls_fixer_native_continuations_tests)
+
+add_executable(tls_fixer_dynamic_registry_tests ../test_registry_dynamic.c ../../src/registry.c)
+target_include_directories(tls_fixer_dynamic_registry_tests PRIVATE ../../include)
+target_compile_definitions(tls_fixer_dynamic_registry_tests PRIVATE TLS_FIXER_DYNAMIC_REGISTRY=1)
+target_compile_options(tls_fixer_dynamic_registry_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_dynamic_registry_tests PRIVATE Threads::Threads)
+target_link_options(tls_fixer_dynamic_registry_tests PRIVATE -Wl,--wrap=realloc)
+add_test(NAME tls_fixer_dynamic_registry COMMAND tls_fixer_dynamic_registry_tests)

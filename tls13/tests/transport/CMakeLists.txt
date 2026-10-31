@@ -95,3 +95,39 @@ foreach(symbol malloc calloc sceIoOpen sceIoRead sceIoLseek sceIoClose)
 endforeach()
 add_test(NAME tls_fixer_ca_index COMMAND tls_fixer_ca_index_tests "${CMAKE_CURRENT_SOURCE_DIR}/../../../misc/certs.cer")
 set_tests_properties(tls_fixer_ca_index PROPERTIES TIMEOUT 30)
+
+if(TLS_FIXER_SMALL_RX_BUFFER)
+    FetchContent_GetProperties(tls_fixer_mbedtls SOURCE_DIR small_rx_source)
+    add_executable(tls_fixer_small_rx_tests test_small_rx.c ${TLS_FIXER_CRYPTO_PLATFORM_SOURCE})
+    target_include_directories(tls_fixer_small_rx_tests PRIVATE ../../provider "${small_rx_source}/library"
+        $<TARGET_PROPERTY:mbedtls,INCLUDE_DIRECTORIES>)
+    target_link_libraries(tls_fixer_small_rx_tests PRIVATE mbedtls tls_fixer_vita_mock)
+    target_compile_options(tls_fixer_small_rx_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+    target_link_options(tls_fixer_small_rx_tests PRIVATE -Wl,--wrap=calloc)
+    add_test(NAME tls_fixer_small_rx COMMAND tls_fixer_small_rx_tests)
+endif()
+
+if(TLS_FIXER_SMALL_RX_BUFFER)
+    get_target_property(concurrent_sources tls_fixer_transport_tests SOURCES)
+    list(REMOVE_ITEM concurrent_sources test_transport.c)
+    add_executable(tls_fixer_concurrent_transport_tests ${concurrent_sources}
+        test_concurrent_transport.c ../../src/registry.c)
+    target_include_directories(tls_fixer_concurrent_transport_tests PRIVATE ../../provider)
+    target_compile_definitions(tls_fixer_concurrent_transport_tests PRIVATE
+        TLS_FIXER_ENABLE_DEBUG_LOG=0 TLS_FIXER_DYNAMIC_REGISTRY=1)
+    target_compile_options(tls_fixer_concurrent_transport_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG -fno-pie)
+    target_link_options(tls_fixer_concurrent_transport_tests PRIVATE -no-pie)
+    target_link_libraries(tls_fixer_concurrent_transport_tests PRIVATE tls_fixer_core mbedtls tls_fixer_vita_mock)
+    add_test(NAME tls_fixer_concurrent_transport COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/run_concurrent.py" $<TARGET_FILE:tls_fixer_concurrent_transport_tests>)
+    set_tests_properties(tls_fixer_concurrent_transport PROPERTIES TIMEOUT 100)
+endif()
+
+add_executable(tls_fixer_buffer_memory_tests test_buffer_memory.c
+    ../browser/memory_tracker.c ${TLS_FIXER_CRYPTO_PLATFORM_SOURCE})
+target_include_directories(tls_fixer_buffer_memory_tests PRIVATE ../../provider ../browser)
+target_compile_options(tls_fixer_buffer_memory_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_options(tls_fixer_buffer_memory_tests PRIVATE
+    -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free)
+target_link_libraries(tls_fixer_buffer_memory_tests PRIVATE mbedtls tls_fixer_vita_mock)
+add_test(NAME tls_fixer_buffer_memory COMMAND tls_fixer_buffer_memory_tests)

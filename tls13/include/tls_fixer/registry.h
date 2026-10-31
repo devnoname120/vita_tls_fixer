@@ -54,7 +54,12 @@ typedef struct TlsFixerRegistryHandle {
 } TlsFixerRegistryHandle;
 
 typedef struct TlsFixerRegistry {
+#if defined(TLS_FIXER_DYNAMIC_REGISTRY)
+    TlsFixerRegistrySlot *slots;
+    size_t capacity;
+#else
     TlsFixerRegistrySlot slots[TLS_FIXER_REGISTRY_CAPACITY];
+#endif
     TlsFixerRegistryOps ops;
     size_t cleanup_inflight;
     uint8_t initialized;

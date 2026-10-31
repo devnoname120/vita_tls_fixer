@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
     unsigned char *sony;
     char *hostname;
     uint32_t *global_options;
-    unsigned char response[16384];
+    unsigned char response[32786];
     size_t used = 0;
     const char query[] = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
     size_t sent = 0;
@@ -307,8 +307,17 @@ int main(int argc, char **argv) {
     } else {
         assert(result == 0);
     }
-    assert(used == 5000);
+    assert(used == (strcmp(scenario,"large-records") == 0 ? 32785u : 5000u));
     for (size_t i = 0; i < used; ++i) assert(response[i] == (unsigned char)(i % 251));
+#if defined(TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN)
+    if (strcmp(scenario,"large-records") == 0) {
+        TlsFixerRegistryHandle handle;
+        assert(tls_fixer_registry_acquire(&g_tls_fixer_http.registry, (uintptr_t)sony, &handle) == 0);
+        TlsFixerConnection *connection = handle.payload;
+        assert(connection->ssl.MBEDTLS_PRIVATE(in_buf_len) > 16384u);
+        assert(tls_fixer_registry_release(&g_tls_fixer_http.registry, &handle) == 0);
+    }
+#endif
 
 cleanup:
     assert(tls_fixer_transport_shutdown(sony, &handled) == 0 && handled);

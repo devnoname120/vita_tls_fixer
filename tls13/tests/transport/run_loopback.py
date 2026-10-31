@@ -85,7 +85,7 @@ def run_case(binary, directory, scenario, version, expect_no_sni=False):
                     if not chunk:
                         return
                     request += chunk
-                payload = bytes(i % 251 for i in range(5000))
+                payload = bytes(i % 251 for i in range(32785 if scenario == "large-records" else 5000))
                 connection.sendall(payload)
                 if scenario == "abrupt":
                     fd = connection.detach()
@@ -146,7 +146,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="tls_fixer-loopback-") as temporary:
         directory = Path(temporary)
         certificates(directory)
-        cases = [("valid", ssl.TLSVersion.TLSv1_2), ("valid", ssl.TLSVersion.TLSv1_3)]
+        cases = [(name, version) for name in ("valid", "large-records")
+                 for version in (ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3)]
         if args.include_rsa_cbc:
             cases.extend((name, ssl.TLSVersion.TLSv1_2) for name in
                          ["rsa-cbc", "rsa-cbc-256-sha256", "rsa-cbc-128-sha1", "rsa-cbc-256-sha1",

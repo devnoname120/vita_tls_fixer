@@ -2,6 +2,18 @@
 
 #include <stddef.h>
 #include <string.h>
+#if defined(TLS_FIXER_DYNAMIC_REGISTRY)
+#include <stdlib.h>
+#endif
+
+static size_t registry_capacity(const TlsFixerRegistry *registry) {
+#if defined(TLS_FIXER_DYNAMIC_REGISTRY)
+    return registry->capacity;
+#else
+    (void)registry;
+    return TLS_FIXER_REGISTRY_CAPACITY;
+#endif
+}
 
 static void registry_lock(TlsFixerRegistry *registry) {
     if (registry->ops.lock != NULL) {
@@ -56,7 +68,7 @@ int tls_fixer_registry_init(TlsFixerRegistry *registry, const TlsFixerRegistryOp
 
 int tls_fixer_registry_insert(TlsFixerRegistry *registry, uintptr_t key, void *payload) {
     size_t index;
-    size_t free_index = TLS_FIXER_REGISTRY_CAPACITY;
+    size_t free_index;
 
     if (registry == NULL || key == 0 || payload == NULL) {
         return TLS_FIXER_REGISTRY_INVALID_ARGUMENT;
@@ -71,21 +83,38 @@ int tls_fixer_registry_insert(TlsFixerRegistry *registry, uintptr_t key, void *p
         return TLS_FIXER_REGISTRY_BUSY;
     }
 
-    for (index = 0; index < TLS_FIXER_REGISTRY_CAPACITY; ++index) {
+    free_index = registry_capacity(registry);
+    for (index = 0; index < registry_capacity(registry); ++index) {
         TlsFixerRegistrySlot *slot = &registry->slots[index];
 
         if (slot->state != TLS_FIXER_SLOT_FREE && slot->key == key) {
             registry_unlock(registry);
             return TLS_FIXER_REGISTRY_DUPLICATE;
         }
-        if (slot->state == TLS_FIXER_SLOT_FREE && free_index == TLS_FIXER_REGISTRY_CAPACITY) {
+        if (slot->state == TLS_FIXER_SLOT_FREE && free_index == registry_capacity(registry)) {
             free_index = index;
         }
     }
 
-    if (free_index == TLS_FIXER_REGISTRY_CAPACITY) {
+    if (free_index == registry_capacity(registry)) {
+#if defined(TLS_FIXER_DYNAMIC_REGISTRY)
+        size_t old_capacity = registry->capacity;
+        size_t new_capacity = old_capacity ? old_capacity * 2 : 4;
+        TlsFixerRegistrySlot *slots = NULL;
+        if (new_capacity > old_capacity && new_capacity <= SIZE_MAX / sizeof(*slots)) {
+            slots = realloc(registry->slots, new_capacity * sizeof(*slots));
+        }
+        if (slots == NULL) {
+            registry_unlock(registry);
+            return TLS_FIXER_REGISTRY_FULL;
+        }
+        memset(slots + old_capacity, 0, (new_capacity - old_capacity) * sizeof(*slots));
+        registry->slots = slots;
+        registry->capacity = new_capacity;
+#else
         registry_unlock(registry);
         return TLS_FIXER_REGISTRY_FULL;
+#endif
     }
 
     registry->slots[free_index].key = key;
@@ -115,7 +144,7 @@ int tls_fixer_registry_replace(TlsFixerRegistry *registry, uintptr_t key, void *
         return TLS_FIXER_REGISTRY_BUSY;
     }
 
-    for (index = 0; index < TLS_FIXER_REGISTRY_CAPACITY; ++index) {
+    for (index = 0; index < registry_capacity(registry); ++index) {
         TlsFixerRegistrySlot *slot = &registry->slots[index];
 
         if (slot->key != key || slot->state == TLS_FIXER_SLOT_FREE) {
@@ -152,12 +181,12 @@ int tls_fixer_registry_acquire(
         return TLS_FIXER_REGISTRY_NOT_INITIALIZED;
     }
 
-    handle->index = TLS_FIXER_REGISTRY_CAPACITY;
+    handle->index = SIZE_MAX;
     handle->generation = 0;
     handle->payload = NULL;
 
     registry_lock(registry);
-    for (index = 0; index < TLS_FIXER_REGISTRY_CAPACITY; ++index) {
+    for (index = 0; index < registry_capacity(registry); ++index) {
         TlsFixerRegistrySlot *slot = &registry->slots[index];
 
         if (slot->state != TLS_FIXER_SLOT_FREE && slot->key == key) {
@@ -182,7 +211,7 @@ int tls_fixer_registry_release(TlsFixerRegistry *registry, TlsFixerRegistryHandl
     void *payload = NULL;
 
     if (registry == NULL || handle == NULL ||
-        handle->index >= TLS_FIXER_REGISTRY_CAPACITY || handle->generation == 0) {
+        handle->generation == 0) {
         return TLS_FIXER_REGISTRY_INVALID_ARGUMENT;
     }
     if (!registry->initialized) {
@@ -190,6 +219,10 @@ int tls_fixer_registry_release(TlsFixerRegistry *registry, TlsFixerRegistryHandl
     }
 
     registry_lock(registry);
+    if (handle->index >= registry_capacity(registry)) {
+        registry_unlock(registry);
+        return TLS_FIXER_REGISTRY_INVALID_ARGUMENT;
+    }
     slot = &registry->slots[handle->index];
     if (slot->generation != handle->generation || slot->references == 0 ||
         (slot->state != TLS_FIXER_SLOT_ACTIVE && slot->state != TLS_FIXER_SLOT_REMOVING)) {
@@ -205,7 +238,7 @@ int tls_fixer_registry_release(TlsFixerRegistry *registry, TlsFixerRegistryHandl
     }
     registry_unlock(registry);
 
-    handle->index = TLS_FIXER_REGISTRY_CAPACITY;
+    handle->index = SIZE_MAX;
     handle->generation = 0;
     handle->payload = NULL;
     cleanup_payload(registry, payload);
@@ -224,7 +257,7 @@ int tls_fixer_registry_remove(TlsFixerRegistry *registry, uintptr_t key) {
     }
 
     registry_lock(registry);
-    for (index = 0; index < TLS_FIXER_REGISTRY_CAPACITY; ++index) {
+    for (index = 0; index < registry_capacity(registry); ++index) {
         TlsFixerRegistrySlot *slot = &registry->slots[index];
 
         if (slot->state != TLS_FIXER_SLOT_FREE && slot->key == key) {
@@ -262,7 +295,7 @@ int tls_fixer_registry_begin_stop_if_empty(TlsFixerRegistry *registry) {
         registry_unlock(registry);
         return TLS_FIXER_REGISTRY_BUSY;
     }
-    for (index = 0; index < TLS_FIXER_REGISTRY_CAPACITY; ++index) {
+    for (index = 0; index < registry_capacity(registry); ++index) {
         if (registry->slots[index].state != TLS_FIXER_SLOT_FREE) {
             registry_unlock(registry);
             return TLS_FIXER_REGISTRY_BUSY;
@@ -273,6 +306,42 @@ int tls_fixer_registry_begin_stop_if_empty(TlsFixerRegistry *registry) {
     return TLS_FIXER_REGISTRY_OK;
 }
 
+#if defined(TLS_FIXER_DYNAMIC_REGISTRY)
+int tls_fixer_registry_destroy(TlsFixerRegistry *registry) {
+    size_t index;
+    int result = TLS_FIXER_REGISTRY_OK;
+    if (registry == NULL) return TLS_FIXER_REGISTRY_INVALID_ARGUMENT;
+    if (!registry->initialized) return TLS_FIXER_REGISTRY_NOT_INITIALIZED;
+    registry_lock(registry);
+    registry->stopping = 1;
+    for (index = 0; index < registry->capacity; ++index) {
+        TlsFixerRegistrySlot *slot = &registry->slots[index];
+        void *payload = NULL;
+        if (slot->state == TLS_FIXER_SLOT_FREE) continue;
+        slot->state = TLS_FIXER_SLOT_REMOVING;
+        if (slot->references == 0) {
+            payload = slot->payload;
+            ++registry->cleanup_inflight;
+            reset_slot(slot);
+        }
+        registry_unlock(registry);
+        cleanup_payload(registry, payload);
+        registry_lock(registry);
+    }
+    if (registry->cleanup_inflight) result = TLS_FIXER_REGISTRY_BUSY;
+    for (index = 0; index < registry->capacity; ++index) {
+        if (registry->slots[index].state != TLS_FIXER_SLOT_FREE) result = TLS_FIXER_REGISTRY_BUSY;
+    }
+    if (result == TLS_FIXER_REGISTRY_OK) {
+        free(registry->slots);
+        registry->slots = NULL;
+        registry->capacity = 0;
+        registry->initialized = 0;
+    }
+    registry_unlock(registry);
+    return result;
+}
+#else
 int tls_fixer_registry_destroy(TlsFixerRegistry *registry) {
     void *payloads[TLS_FIXER_REGISTRY_CAPACITY];
     size_t payload_count = 0;
@@ -288,7 +357,7 @@ int tls_fixer_registry_destroy(TlsFixerRegistry *registry) {
 
     registry_lock(registry);
     registry->stopping = 1;
-    for (index = 0; index < TLS_FIXER_REGISTRY_CAPACITY; ++index) {
+    for (index = 0; index < registry_capacity(registry); ++index) {
         TlsFixerRegistrySlot *slot = &registry->slots[index];
 
         if (slot->state == TLS_FIXER_SLOT_FREE) {
@@ -310,7 +379,7 @@ int tls_fixer_registry_destroy(TlsFixerRegistry *registry) {
     }
     registry_lock(registry);
     result = registry->cleanup_inflight == 0 ? TLS_FIXER_REGISTRY_OK : TLS_FIXER_REGISTRY_BUSY;
-    for (index = 0; index < TLS_FIXER_REGISTRY_CAPACITY; ++index) {
+    for (index = 0; index < registry_capacity(registry); ++index) {
         if (registry->slots[index].state != TLS_FIXER_SLOT_FREE) {
             result = TLS_FIXER_REGISTRY_BUSY;
         }
@@ -322,6 +391,8 @@ int tls_fixer_registry_destroy(TlsFixerRegistry *registry) {
     return result;
 }
 
+#endif
+
 size_t tls_fixer_registry_count(TlsFixerRegistry *registry) {
     size_t index;
     size_t count = 0;
@@ -332,7 +403,7 @@ size_t tls_fixer_registry_count(TlsFixerRegistry *registry) {
 
     registry_lock(registry);
     count = registry->cleanup_inflight;
-    for (index = 0; index < TLS_FIXER_REGISTRY_CAPACITY; ++index) {
+    for (index = 0; index < registry_capacity(registry); ++index) {
         if (registry->slots[index].state != TLS_FIXER_SLOT_FREE) {
             ++count;
         }

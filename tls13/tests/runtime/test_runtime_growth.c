@@ -9,29 +9,29 @@
 
 typedef struct Block { void *base; unsigned bytes, used, peak; int live, heap; } Block;
 typedef union MockHeader { struct { Block *owner; size_t bytes; } info; max_align_t alignment; } MockHeader;
-static Block blocks[16];
+static Block blocks[64];
 static int failure, fail_allocate, fail_free_once, mutex_live;
 static unsigned block_live, console_calls, first_reservation;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static Block *block_from_heap(SceClibMspace heap) {
-    Block *b = heap; assert(b >= blocks && b < blocks + 16 && b->live && b->heap); return b;
+    Block *b = heap; assert(b >= blocks && b < blocks + 64 && b->live && b->heap); return b;
 }
 SceUID sceKernelAllocMemBlock(const char *name, int type, SceSize size, const void *options) {
     (void)name; (void)options; assert(type == SCE_KERNEL_MEMBLOCK_TYPE_USER_RW);
     if (failure == 1) return -17;
-    for (unsigned i = 0; i < 16; ++i) if (!blocks[i].live) {
+    for (unsigned i = 0; i < 64; ++i) if (!blocks[i].live) {
         Block *b = &blocks[i]; *b = (Block){.base = malloc(size), .bytes = size, .live = 1};
         assert(b->base); if (!block_live) first_reservation = size; ++block_live; return (SceUID)i + 1;
     }
     return -20;
 }
 int sceKernelGetMemBlockBase(SceUID id, void **out) {
-    assert(id > 0 && id <= 16 && blocks[id-1].live);
+    assert(id > 0 && id <= 64 && blocks[id-1].live);
     if (failure == 2) return -18;
     *out = blocks[id-1].base; return 0;
 }
 int sceKernelFreeMemBlock(SceUID id) {
-    assert(id > 0 && id <= 16); Block *b = &blocks[id-1]; assert(b->live && !b->heap && !b->used);
+    assert(id > 0 && id <= 64); Block *b = &blocks[id-1]; assert(b->live && !b->heap && !b->used);
     if (fail_free_once) { fail_free_once = 0; return -23; }
     free(b->base); *b = (Block){0}; --block_live; return 0;
 }
@@ -46,8 +46,9 @@ int sceKernelLockMutex(SceUID id, int count, unsigned *timeout) {
 int sceKernelUnlockMutex(SceUID id, int count) { (void)count; assert(id == 99); return pthread_mutex_unlock(&lock); }
 int sceKernelDeleteMutex(SceUID id) { assert(id == 99 && mutex_live); mutex_live = 0; return 0; }
 SceClibMspace sceClibMspaceCreate(void *base, SceSize bytes) {
-    for (unsigned i = 0; i < 16; ++i) if (blocks[i].live && blocks[i].base == base) {
-        Block *b = &blocks[i]; assert(b->bytes == bytes && !b->heap);
+    assert((uintptr_t)base % 16u == 0);
+    for (unsigned i = 0; i < 64; ++i) if (blocks[i].live && (unsigned char *)base >= (unsigned char *)blocks[i].base && (unsigned char *)base < (unsigned char *)blocks[i].base + blocks[i].bytes) {
+        Block *b = &blocks[i]; assert(bytes <= b->bytes && !b->heap);
         if (failure == 4) return NULL;
         b->heap = 1; return b;
     }
@@ -130,13 +131,13 @@ int main(void) {
     __wrap_free(b); __wrap_free(c); __wrap_free(a);
     assert(stats().outstanding == 0 && stats().used == 0 && stats().capacity == 131072 && block_live == 1);
 
-    /* Refuse growth beyond the bounded process budget while preserving all
-     * existing allocations, then return every extra pool after its last free. */
-    void *pieces[16]; unsigned count = 0;
-    while (count < 16 && (pieces[count] = __wrap_malloc(60 * 1024))) {
+    /* Demand can exceed both the old 512 KiB cap and eight-pool limit.
+     * Kernel allocation failure is the limit; all extra pools are returned. */
+    void *pieces[40]; unsigned count = 0;
+    while (count < 40 && (pieces[count] = __wrap_malloc(60 * 1024))) {
         memset(pieces[count],(int)count,60 * 1024); ++count;
     }
-    assert(count > 2 && count < 16 && stats().capacity <= 524288 && stats().outstanding == count);
+    assert(count == 40 && stats().capacity > 2 * 1024 * 1024 && stats().outstanding == count);
     for (unsigned i = 0; i < count; ++i) {
         assert(((unsigned char *)pieces[i])[0] == i && ((unsigned char *)pieces[i])[60*1024-1] == i);
         __wrap_free(pieces[i]);

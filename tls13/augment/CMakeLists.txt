@@ -83,6 +83,7 @@ if(TLS_FIXER_BUILD_EMBEDDED_HTTP)
         # handshakes. Keep the standard 16 KiB incoming limit; only trim the
         # unused outgoing capacity in this backend (the Browser is separate).
         add_compile_definitions(MBEDTLS_SSL_OUT_CONTENT_LEN=2048)
+        set(TLS_FIXER_SMALL_RX_BUFFER ON CACHE BOOL "Small receive allocations" FORCE)
         add_subdirectory(../crypto crypto)
         set(TLS_FIXER_CRYPTO_PLATFORM_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../provider/platform_shims.c")
         if(TLS_FIXER_BUILD_AUGMENTED_MODULE)
@@ -103,6 +104,7 @@ if(TLS_FIXER_BUILD_EMBEDDED_HTTP)
         ../src/host_map.c ../src/redirect_list.c ../src/path.c
         ../src/registry.c ../src/x509_names.c)
     target_include_directories(tls_fixer_embedded_core PUBLIC ../include)
+    target_compile_definitions(tls_fixer_embedded_core PUBLIC TLS_FIXER_DYNAMIC_REGISTRY=1)
     target_compile_options(tls_fixer_embedded_core PRIVATE -O2 -ffunction-sections -fdata-sections)
     add_executable(tls_fixer_http_embedded
         embedded.c embedded_cert.c embedded_redirect.c embedded_profile.c hello_policy.c native_cert.c cert_facade.c

@@ -1,0 +1,161 @@
+--- a/library/ssl_tls.c
++++ b/library/ssl_tls.c
+@@ -332,6 +332,46 @@
+ 
+     return 0;
+ }
++
++#if defined(TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN)
++/* The allocation may be small; the accepted record limit remains unchanged. */
++int mbedtls_ssl_grow_input_buffer(mbedtls_ssl_context *ssl, size_t needed)
++{
++    unsigned char **fields[] = { &ssl->in_ctr, &ssl->in_hdr, &ssl->in_len,
++                                &ssl->in_iv, &ssl->in_msg, &ssl->in_offt };
++    size_t offsets[sizeof(fields) / sizeof(fields[0])];
++    unsigned char *next;
++    size_t i;
++
++    if (needed > MBEDTLS_SSL_IN_BUFFER_LEN) {
++        return MBEDTLS_ERR_SSL_BAD_INPUT_DATA;
++    }
++    if (needed <= ssl->in_buf_len) {
++        return 0;
++    }
++    for (i = 0; i < sizeof(fields) / sizeof(fields[0]); i++) {
++        offsets[i] = *fields[i] == NULL ? 0 : (size_t) (*fields[i] - ssl->in_buf);
++        if (offsets[i] > ssl->in_buf_len) {
++            return MBEDTLS_ERR_SSL_INTERNAL_ERROR;
++        }
++    }
++    next = mbedtls_calloc(1, needed);
++    if (next == NULL) {
++        return MBEDTLS_ERR_SSL_ALLOC_FAILED;
++    }
++    memcpy(next, ssl->in_buf, ssl->in_buf_len);
++    /* Rebase while the old allocation is still valid, including in_offt. */
++    for (i = 0; i < sizeof(fields) / sizeof(fields[0]); i++) {
++        if (*fields[i] != NULL) {
++            *fields[i] = next + offsets[i];
++        }
++    }
++    mbedtls_zeroize_and_free(ssl->in_buf, ssl->in_buf_len);
++    ssl->in_buf = next;
++    ssl->in_buf_len = needed;
++    return 0;
++}
++#endif
+ 
+ static void handle_buffer_resizing(mbedtls_ssl_context *ssl, int downsizing,
+                                    size_t in_buf_new_len,
+@@ -1003,7 +1043,12 @@
+ #if defined(MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH)
+     /* If the buffers are too small - reallocate */
+ 
+-    handle_buffer_resizing(ssl, 0, MBEDTLS_SSL_IN_BUFFER_LEN,
++    handle_buffer_resizing(ssl, 0,
++#if defined(TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN)
++                           ssl->in_buf_len,
++#else
++                           MBEDTLS_SSL_IN_BUFFER_LEN,
++#endif
+                            MBEDTLS_SSL_OUT_BUFFER_LEN);
+ #endif
+ 
+@@ -1180,6 +1225,11 @@
+     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+     size_t in_buf_len = MBEDTLS_SSL_IN_BUFFER_LEN;
+     size_t out_buf_len = MBEDTLS_SSL_OUT_BUFFER_LEN;
++#if defined(TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN)
++    if (in_buf_len > TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN) {
++        in_buf_len = TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN;
++    }
++#endif
+ 
+     ssl->conf = conf;
+ 
+@@ -4561,7 +4611,12 @@
+      * processes datagrams and the fact that a datagram is allowed to have
+      * several records in it, it is possible that the I/O buffers are not
+      * empty at this stage */
+-    handle_buffer_resizing(ssl, 1, mbedtls_ssl_get_input_buflen(ssl),
++    handle_buffer_resizing(ssl, 1,
++#if defined(TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN)
++                           ssl->in_buf_len,
++#else
++                           mbedtls_ssl_get_input_buflen(ssl),
++#endif
+                            mbedtls_ssl_get_output_buflen(ssl));
+ #endif
+ 
+--- a/library/ssl_misc.h
++++ b/library/ssl_misc.h
+@@ -1402,6 +1402,15 @@
+                             unsigned update_hs_digest);
+ MBEDTLS_CHECK_RETURN_CRITICAL
+ int mbedtls_ssl_fetch_input(mbedtls_ssl_context *ssl, size_t nb_want);
++#if defined(TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN)
++#if !defined(MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH) || defined(MBEDTLS_SSL_PROTO_DTLS)
++#error "Small receive allocations require variable buffers and the TLS-only backend"
++#endif
++#if TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN < 64
++#error "Initial receive allocation must hold TLS record metadata"
++#endif
++int mbedtls_ssl_grow_input_buffer(mbedtls_ssl_context *ssl, size_t needed);
++#endif
+ 
+ /*
+  * Write handshake message header
+--- a/library/ssl_msg.c
++++ b/library/ssl_msg.c
+@@ -1869,6 +1869,20 @@
+         return MBEDTLS_ERR_SSL_BAD_INPUT_DATA;
+     }
+ 
++#if defined(TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN)
++    /* Header requests are fixed-size. Body requests follow record-header
++     * parsing. Preserve the original full-buffer limit before allocating. */
++    size_t header_offset = (size_t) (ssl->in_hdr - ssl->in_buf);
++    if (header_offset > MBEDTLS_SSL_IN_BUFFER_LEN ||
++        nb_want > MBEDTLS_SSL_IN_BUFFER_LEN - header_offset) {
++        return MBEDTLS_ERR_SSL_BAD_INPUT_DATA;
++    }
++    ret = mbedtls_ssl_grow_input_buffer(ssl, header_offset + nb_want);
++    if (ret != 0) {
++        return ret;
++    }
++    in_buf_len = ssl->in_buf_len;
++#endif
+     if (nb_want > in_buf_len - (size_t) (ssl->in_hdr - ssl->in_buf)) {
+         MBEDTLS_SSL_DEBUG_MSG(1, ("requesting more data than fits"));
+         return MBEDTLS_ERR_SSL_BAD_INPUT_DATA;
+@@ -2944,6 +2958,19 @@
+ 
+         ssl->in_hslen = mbedtls_ssl_hs_hdr_len(ssl) + ssl_get_hs_total_len(ssl);
+     }
++
++#if defined(TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN)
++    /* Reassembly advances in_hdr past earlier fragments. Reserve the complete
++     * message and record overhead before forming pointers for its next record.
++     * The original full-buffer limit still applies to oversized handshakes. */
++    size_t overhead = MBEDTLS_SSL_HEADER_LEN + MBEDTLS_SSL_PAYLOAD_OVERHEAD;
++    size_t needed = ssl->in_hslen > MBEDTLS_SSL_IN_BUFFER_LEN - overhead ?
++                    MBEDTLS_SSL_IN_BUFFER_LEN : ssl->in_hslen + overhead;
++    int grow_ret = mbedtls_ssl_grow_input_buffer(ssl, needed);
++    if (grow_ret != 0) {
++        return grow_ret;
++    }
++#endif
+ 
+     MBEDTLS_SSL_DEBUG_MSG(3, ("handshake message: msglen ="
+                               " %" MBEDTLS_PRINTF_SIZET ", type = %u, hslen = %"
+@@ -4827,6 +4854,10 @@
+             return ret;
+         }
+ 
++#if defined(TLS_FIXER_SSL_IN_BUFFER_INITIAL_LEN)
++        /* fetch_input can move the allocation after parsing the header. */
++        rec.buf = ssl->in_hdr;
++#endif
+         ssl->in_left = 0;
+     }
+ 

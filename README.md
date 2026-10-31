@@ -132,7 +132,7 @@ make augmented-http-release-vpk
 
 Output: `build/augmented-release/tls_fixer-augmented-release.vpk`. This package restores Full, Browser only, System only and Certificates only. The system component installs the augmented HTTP module and paired Sony SSL under `vs0:/data/external/tls_fixer/native/`; the coordinator uses `ur0:tai/tls_fixer.skprx`. Logging, diagnostic probes and startup self-disarming are disabled. There is no backend selector. Building this package does not install or activate it on a device.
 
-The augmented HTTP backend starts with a 128 KiB TLS heap. When concurrent requests need more memory, it adds pools on demand, up to 512 KiB total, and releases empty extra pools. Its outgoing TLS buffer is 2 KiB; incoming records retain the standard 16 KiB limit. This avoids reserving the maximum in every application while allowing busy clients such as PlayStation Store to complete their handshakes.
+The augmented HTTP backend starts with a 128 KiB TLS heap and adds pools only when needed, releasing empty extra pools. Connection tracking also grows on demand; there is no separate fixed connection count or 512 KiB heap ceiling. Each receive buffer starts at 4 KiB and grows for larger records or handshake reassembly while retaining the standard 16 KiB incoming plaintext limit. Grown buffers remain allocated until their TLS context is freed. Outgoing TLS buffers are 2 KiB. Actual concurrency depends on available process memory and the underlying HTTP/socket resources.
 
 Host verification:
 
