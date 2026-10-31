@@ -44,7 +44,7 @@ Firmware profiles cover the available **3.60–3.74 retail, testkit and devkit**
 
 ## Memory and application compatibility
 
-- The HTTP provider reserves **128 KiB** of heap per injected process, down from 2 MiB.
+- The augmented HTTP provider uses the application's existing Sony SSL pool, without a second TLS heap reservation.
 - Both providers keep a small index of the system CA bundle. Certificates are parsed one at a time to build that index, then released; matching roots are read and parsed during verification.
 - Applications can load PEM or DER CA certificates with `sceHttpsLoadCert` while continuing to use modern TLS. Their CAs supplement the system roots. Repeated loads add CAs; `sceHttpsUnloadCert` removes that additional trust. Client certificate/private-key authentication still uses Sony's implementation.
 - The system installer replaces the previous 3.60 hostname helper with the integrated Shell/Store redirect helper.
@@ -132,7 +132,7 @@ make augmented-http-release-vpk
 
 Output: `build/augmented-release/tls_fixer-augmented-release.vpk`. This package restores Full, Browser only, System only and Certificates only. The system component installs the augmented HTTP module and paired Sony SSL under `vs0:/data/external/tls_fixer/native/`; the coordinator uses `ur0:tai/tls_fixer.skprx`. Logging, diagnostic probes and startup self-disarming are disabled. There is no backend selector. Building this package does not install or activate it on a device.
 
-The augmented HTTP backend starts with a 128 KiB TLS heap and adds pools only when needed, releasing empty extra pools. Connection tracking also grows on demand; there is no separate fixed connection count or 512 KiB heap ceiling. Each receive buffer starts at 4 KiB and grows for larger records or handshake reassembly while retaining the standard 16 KiB incoming plaintext limit. Grown buffers remain allocated until their TLS context is freed. Outgoing TLS buffers are 2 KiB. Actual concurrency depends on available process memory and the underlying HTTP/socket resources.
+The augmented HTTP backend shares the SSL pool reserved by the application's `sceSslInit(poolSize)` call. It does not reserve a second TLS heap or acquire extra memory blocks later. Sony retains ownership of the pool and releases it through `sceSslTerm`, after HTTP cleanup. Connection tracking and 4 KiB initial receive buffers grow within that budget; the incoming plaintext record limit remains 16 KiB and outgoing buffers are 2 KiB. Pool exhaustion returns an allocation error. SSL must remain initialized while HTTP and its requests are using it.
 
 Host verification:
 

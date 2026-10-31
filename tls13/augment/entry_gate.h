@@ -24,6 +24,10 @@ static inline uint32_t tls_fixer_gate_close(uint32_t *gate) {
 static inline uint32_t tls_fixer_gate_count(const uint32_t *gate) {
     return __atomic_load_n(gate, __ATOMIC_ACQUIRE) & TLS_FIXER_GATE_COUNT;
 }
+/* Reopen after a rejected stop without losing already-admitted references. */
+static inline void tls_fixer_gate_reopen(uint32_t *gate) {
+    __atomic_fetch_and(gate, TLS_FIXER_GATE_COUNT, __ATOMIC_RELEASE);
+}
 static inline void tls_fixer_gate_open(uint32_t *gate) {
     __atomic_store_n(gate, 0, __ATOMIC_RELEASE);
 }

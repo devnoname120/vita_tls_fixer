@@ -5,13 +5,6 @@ target_compile_options(tls_fixer_user_runtime_tests PRIVATE -Wall -Wextra -Werro
 find_package(Threads REQUIRED)
 target_link_libraries(tls_fixer_user_runtime_tests PRIVATE Threads::Threads)
 add_test(NAME tls_fixer_user_runtime COMMAND tls_fixer_user_runtime_tests)
-add_executable(tls_fixer_user_runtime_growth_tests test_runtime_growth.c
-    ../../provider/user_runtime.c ../../provider/user_runtime_growth.c)
-target_include_directories(tls_fixer_user_runtime_growth_tests PRIVATE . ../../provider)
-target_compile_definitions(tls_fixer_user_runtime_growth_tests PRIVATE TLS_FIXER_RUNTIME_HOST_TEST=1 TLS_FIXER_RUNTIME_GROWTH=1)
-target_compile_options(tls_fixer_user_runtime_growth_tests PRIVATE -Wall -Wextra -Werror -fno-builtin -UNDEBUG)
-target_link_libraries(tls_fixer_user_runtime_growth_tests PRIVATE Threads::Threads)
-add_test(NAME tls_fixer_user_runtime_growth COMMAND tls_fixer_user_runtime_growth_tests)
 add_executable(tls_fixer_http_mapped_signature_tests test_mapped_signature.c)
 target_include_directories(tls_fixer_http_mapped_signature_tests PRIVATE ../../provider)
 target_compile_options(tls_fixer_http_mapped_signature_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
@@ -34,3 +27,28 @@ target_compile_options(tls_fixer_dynamic_registry_tests PRIVATE -Wall -Wextra -W
 target_link_libraries(tls_fixer_dynamic_registry_tests PRIVATE Threads::Threads)
 target_link_options(tls_fixer_dynamic_registry_tests PRIVATE -Wl,--wrap=realloc)
 add_test(NAME tls_fixer_dynamic_registry COMMAND tls_fixer_dynamic_registry_tests)
+
+add_executable(tls_fixer_user_runtime_shared_tests test_runtime_shared.c ../../provider/user_runtime_shared.c)
+target_include_directories(tls_fixer_user_runtime_shared_tests PRIVATE . ../../provider)
+target_compile_definitions(tls_fixer_user_runtime_shared_tests PRIVATE TLS_FIXER_RUNTIME_HOST_TEST=1)
+target_compile_options(tls_fixer_user_runtime_shared_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_user_runtime_shared_tests PRIVATE Threads::Threads)
+add_test(NAME tls_fixer_user_runtime_shared COMMAND tls_fixer_user_runtime_shared_tests)
+
+add_executable(tls_fixer_sony_ssl_pool_tests ../../augment/sony_ssl_pool_tests.c ../../augment/sony_ssl_pool.c)
+target_include_directories(tls_fixer_sony_ssl_pool_tests PRIVATE ../../augment ../../provider ../transport/include)
+target_compile_options(tls_fixer_sony_ssl_pool_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME tls_fixer_sony_ssl_pool COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/tests/run_ssl_pool_binding.py" $<TARGET_FILE:tls_fixer_sony_ssl_pool_tests>)
+
+if(TLS_FIXER_BUILD_TRANSPORT_TESTS)
+    add_executable(tls_fixer_embedded_shared_tests ../../augment/embedded_shared_tests.c ../../augment/embedded.c)
+    target_include_directories(tls_fixer_embedded_shared_tests PRIVATE ../../augment ../../provider ../../include ../transport/include)
+    target_compile_definitions(tls_fixer_embedded_shared_tests PRIVATE
+        TLS_FIXER_EMBEDDED_HTTP=1 TLS_FIXER_RUNTIME_SHARED_SSL=1 TLS_FIXER_ENABLE_DEBUG_LOG=0)
+    target_compile_options(tls_fixer_embedded_shared_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG -ffunction-sections)
+    target_link_options(tls_fixer_embedded_shared_tests PRIVATE -Wl,--gc-sections)
+    target_link_libraries(tls_fixer_embedded_shared_tests PRIVATE mbedtls)
+    add_test(NAME tls_fixer_embedded_shared COMMAND tls_fixer_embedded_shared_tests)
+endif()

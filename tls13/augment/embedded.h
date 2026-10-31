@@ -33,7 +33,9 @@ typedef struct TlsFixerEmbeddedBindings {
     int (*free_allocation)(void *, void *);
 } TlsFixerEmbeddedBindings;
 
+#if UINTPTR_MAX == UINT32_MAX
 _Static_assert(sizeof(TlsFixerEmbeddedBindings) == 152, "embedded binding ABI");
+#endif
 extern TlsFixerEmbeddedBindings g_tls_fixer_embedded_bindings;
 
 int tls_fixer_embedded_enter(void);

@@ -5,7 +5,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-/* This runtime belongs to one HTTP provider process, never to the host app. */
+/* Wrappers are local to the HTTP payload, not the application's libc.
+ * The augmented backend borrows Sony's SSL pool; legacy runtimes are isolated. */
 typedef struct TlsFixerRuntimeStats {
     uint32_t capacity;
     uint32_t peak;

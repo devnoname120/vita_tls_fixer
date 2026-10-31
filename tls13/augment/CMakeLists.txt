@@ -112,9 +112,9 @@ if(TLS_FIXER_BUILD_EMBEDDED_HTTP)
         ${TLS_FIXER_CRYPTO_PLATFORM_SOURCE} ../provider/transport.c ../provider/trust_store.c
         ../provider/user_runtime.c ../provider/vita_net.c)
     if(NOT TLS_FIXER_EMBEDDED_MBEDTLS36)
-        target_sources(tls_fixer_http_embedded PRIVATE ../provider/user_runtime_growth.c)
-        target_compile_definitions(tls_fixer_http_embedded PRIVATE TLS_FIXER_RUNTIME_GROWTH=1)
-        set_source_files_properties(../provider/user_runtime_growth.c PROPERTIES COMPILE_OPTIONS "-fno-builtin")
+        target_sources(tls_fixer_http_embedded PRIVATE ../provider/user_runtime_shared.c sony_ssl_pool.c)
+        target_compile_definitions(tls_fixer_http_embedded PRIVATE TLS_FIXER_RUNTIME_SHARED_SSL=1)
+        set_source_files_properties(../provider/user_runtime_shared.c PROPERTIES COMPILE_OPTIONS "-fno-builtin")
     endif()
     target_include_directories(tls_fixer_http_embedded PRIVATE . ../provider ../include)
     target_compile_options(tls_fixer_http_embedded PRIVATE -std=gnu11 -O2
@@ -198,7 +198,7 @@ if(TLS_FIXER_BUILD_EMBEDDED_HTTP)
     endif()
     target_link_libraries(tls_fixer_http_embedded PRIVATE tls_fixer_embedded_core mbedtls mbedx509 tfpsacrypto
         ${embedded_redirect_stub} gcc SceAppMgr_stub SceSysmem_stub SceNet_stub
-        SceIofilemgr_stub SceRtc_stub SceLibKernel_stub SceKernelThreadMgr_stub)
+        SceIofilemgr_stub SceRtc_stub SceLibKernel_stub SceKernelThreadMgr_stub SceKernelModulemgr_stub)
     if(TLS_FIXER_EMBEDDED_COMPARE_HTTP)
         target_link_libraries(tls_fixer_http_embedded PRIVATE SceLibSsl_374_stub_weak)
     endif()
@@ -218,6 +218,8 @@ if(TLS_FIXER_BUILD_EMBEDDED_HTTP)
             COMMAND ${CMAKE_COMMAND} -E make_directory "${augmented_dir}"
             COMMAND ${CMAKE_COMMAND} -E remove -f "${augmented_dir}/libhttp.next.elf"
                 "${augmented_dir}/libhttp.next.json" "${augmented_dir}/libhttp.next.suprx"
+            COMMAND ${Python3_EXECUTABLE} "${augment_tools}/check_http_runtime.py"
+                "${CMAKE_CURRENT_BINARY_DIR}/tls_fixer_http_embedded.velf" --shared-ssl-payload
             COMMAND ${Python3_EXECUTABLE} "${augment_tools}/augment_libhttp.py"
                 --native "${augmented_native}"
                 --payload "${CMAKE_CURRENT_BINARY_DIR}/tls_fixer_http_embedded.velf"

@@ -2,6 +2,10 @@
 #include "provider.h"
 #include "transport.h"
 #include "user_runtime.h"
+#if TLS_FIXER_RUNTIME_SHARED_SSL
+#include "shared_ssl_pool.h"
+#include "sony_ssl_pool.h"
+#endif
 #include "entry_gate.h"
 #include "diagnostics.h"
 #include <psp2/kernel/threadmgr/mutex.h>
@@ -17,16 +21,61 @@ TlsFixerProviderGlobal g_tls_fixer_http;
 static SceUID g_lifecycle_mutex = -1;
 static uint32_t g_gate = TLS_FIXER_GATE_CLOSED;
 static _Atomic uint32_t g_http_live;
-static uint32_t g_runtime_live;
+static _Atomic uint32_t g_runtime_live;
 static _Atomic int g_last_error;
 static uint32_t g_creates, g_fallbacks;
+#if TLS_FIXER_ENABLE_DEBUG_LOG && TLS_FIXER_RUNTIME_SHARED_SSL
+#include <psp2/kernel/clib.h>
+static void trace_ssl_pool(const char *stage) {
+    TlsFixerSslPoolView view = {0};
+    int rc = tls_fixer_sony_ssl_pool_read(NULL, &view);
+    SceClibMspaceStats native = {0};
+    TlsFixerRuntimeStats ours = {0};
+    if (!rc) sceClibMspaceMallocStats(view.heap, &native);
+    (void)tls_fixer_user_runtime_stats(&ours);
+    TLS_FIXER_LOG("event=ssl.pool stage=%s rc=%08X capacity=%u used=%u peak=%u owned=%u uid=%08X",
+        stage, rc, native.capacity, native.current_in_use, native.peak_in_use,
+        ours.outstanding, view.block);
+}
+#define TRACE_SSL_POOL(stage) trace_ssl_pool(stage)
+#else
+#define TRACE_SSL_POOL(stage) ((void)0)
+#endif
 
-int tls_fixer_embedded_enter(void) { return tls_fixer_gate_enter(&g_gate); }
+
+static int initialize(void);
+static void ensure_runtime(void) {
+#if TLS_FIXER_RUNTIME_SHARED_SSL
+    /* HTTP may initialize before SSL. Retry only after Sony has a pool, without
+     * turning a successful plain-HTTP initialization into an SSL requirement. */
+    if (g_http_live && g_tls_fixer_http.state != TLS_FIXER_PROVIDER_ACTIVE &&
+        g_tls_fixer_http.state != TLS_FIXER_PROVIDER_STOPPING && g_lifecycle_mutex >= 0) {
+        if (sceKernelLockMutex(g_lifecycle_mutex, 1, NULL) < 0) return;
+        if (g_http_live && !g_runtime_live && g_tls_fixer_http.state != TLS_FIXER_PROVIDER_STOPPING)
+            (void)initialize();
+        sceKernelUnlockMutex(g_lifecycle_mutex, 1);
+    }
+#endif
+}
+int tls_fixer_embedded_enter(void) {
+    ensure_runtime();
+    if (!tls_fixer_gate_enter(&g_gate)) return 0;
+#if TLS_FIXER_RUNTIME_SHARED_SSL
+    /* Invalid caller teardown order must not turn a stale pool into a UAF.
+     * As with native HTTP, SSL must outlive HTTP and its active requests. */
+    if (g_runtime_live && !tls_fixer_user_runtime_pool_alive()) {
+        tls_fixer_gate_leave(&g_gate); return 0;
+    }
+#endif
+    return 1;
+}
 void tls_fixer_embedded_leave(void) { tls_fixer_gate_leave(&g_gate); }
 
-static int cleanup(void) {
-    if (tls_fixer_gate_close(&g_gate) != 0) return -1;
+static int cleanup_runtime(void) {
     if (g_runtime_live) {
+#if TLS_FIXER_RUNTIME_SHARED_SSL
+        if (!tls_fixer_user_runtime_pool_alive()) return -1;
+#endif
         /* Certificate/name callbacks have returned before their transport entry
          * leaves the entry gate. Retained names own Sony allocations and code only. */
         tls_fixer_embedded_cert_destroy();
@@ -40,6 +89,10 @@ static int cleanup(void) {
     }
     g_tls_fixer_http.state = TLS_FIXER_PROVIDER_STOPPED;
     return 0;
+}
+static int cleanup(void) {
+    if (tls_fixer_gate_close(&g_gate) != 0) return -1;
+    return cleanup_runtime();
 }
 
 static int initialize(void) {
@@ -57,6 +110,13 @@ static int initialize(void) {
     rc = tls_fixer_cert_policy_bind(&g_tls_fixer_http.cert_policy,
         g_tls_fixer_embedded_bindings.text, TLS_FIXER_LIBHTTP_TEXT_SIZE);
     if (rc != 0) goto failed;
+#if TLS_FIXER_RUNTIME_SHARED_SSL
+    rc = tls_fixer_sony_ssl_pool_prepare((const void *)g_tls_fixer_embedded_bindings.certificates.get_crypto_context);
+    if (rc != 0) goto failed;
+    TRACE_SSL_POOL("before-modern-init");
+    rc = tls_fixer_user_runtime_bind_ssl(tls_fixer_sony_ssl_pool_read, NULL);
+    if (rc != 0) goto failed;
+#endif
     rc = tls_fixer_user_runtime_init();
     if (rc != 0) goto failed;
     g_runtime_live = 1;
@@ -67,11 +127,14 @@ static int initialize(void) {
     if (rc != 0) goto failed;
     tls_fixer_embedded_redirect_init();
     g_tls_fixer_http.state = TLS_FIXER_PROVIDER_ACTIVE;
+    TRACE_SSL_POOL("modern-init");
     g_last_error = 0;
     return 0;
 failed:
     g_last_error = rc;
-    (void)cleanup();
+    /* No modern state has been published. Roll back privately while other
+     * already-admitted native HTTP operations may still be completing. */
+    (void)cleanup_runtime();
     return rc;
 }
 
@@ -125,15 +188,24 @@ int tls_fixer_embedded_http_init(unsigned int size) {
 }
 
 int tls_fixer_embedded_http_term(void) {
+#if TLS_FIXER_RUNTIME_SHARED_SSL
+    if (g_runtime_live && !tls_fixer_user_runtime_pool_alive()) return TLS_FIXER_SCE_HTTP_ERROR_SSL;
+#endif
     if (g_lifecycle_mutex >= 0) {
         int lock = sceKernelLockMutex(g_lifecycle_mutex, 1, NULL);
         if (lock < 0) return lock;
+    }
+    if (tls_fixer_gate_close(&g_gate) != 0) {
+        tls_fixer_gate_reopen(&g_gate);
+        if (g_lifecycle_mutex >= 0) sceKernelUnlockMutex(g_lifecycle_mutex, 1);
+        return TLS_FIXER_SCE_HTTP_ERROR_SSL;
     }
     int previous = g_tls_fixer_http.state;
     g_tls_fixer_http.state = TLS_FIXER_PROVIDER_STOPPING;
     int rc = g_tls_fixer_embedded_bindings.http_term();
     if (rc < 0) {
         g_tls_fixer_http.state = previous;
+        tls_fixer_gate_reopen(&g_gate);
         if (g_lifecycle_mutex >= 0) sceKernelUnlockMutex(g_lifecycle_mutex, 1);
         return rc;
     }
@@ -141,6 +213,7 @@ int tls_fixer_embedded_http_term(void) {
     if (g_lifecycle_mutex >= 0) {
         int destroyed = cleanup();
         if (destroyed < 0) g_last_error = destroyed;
+        TRACE_SSL_POOL("http-term");
         sceKernelUnlockMutex(g_lifecycle_mutex, 1);
     }
     return rc;
@@ -189,6 +262,7 @@ int tls_fixer_embedded_connect(void *request) {
     int handled = 0;
     int rc = tls_fixer_transport_connect(request, &handled);
     if (!handled) rc = g_tls_fixer_embedded_bindings.connect(request);
+    if (rc == 0) TRACE_SSL_POOL("connected");
 #if TLS_FIXER_EMBEDDED_COMPARE_HTTP
     if (!handled && rc == 0) tls_fixer_embedded_compare_connected(request);
 #endif
@@ -223,6 +297,7 @@ int tls_fixer_embedded_shutdown(void *connection) {
     int handled = 0;
     int rc = tls_fixer_transport_shutdown(connection, &handled);
     if (!handled) rc = g_tls_fixer_embedded_bindings.shutdown(connection);
+    TRACE_SSL_POOL("connection-closed");
     tls_fixer_embedded_leave(); return rc;
 }
 

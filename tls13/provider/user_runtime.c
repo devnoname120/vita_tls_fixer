@@ -12,14 +12,11 @@
 #include <stdint.h>
 
 #define TLS_FIXER_HTTP_HEAP_BYTES (128u * 1024u)
-#ifndef TLS_FIXER_RUNTIME_GROWTH
-#define TLS_FIXER_RUNTIME_GROWTH 0
-#endif
 #ifndef TLS_FIXER_ENABLE_DEBUG_LOG
 #define TLS_FIXER_ENABLE_DEBUG_LOG 0
 #endif
 
-#if !TLS_FIXER_RUNTIME_GROWTH
+#if !defined(TLS_FIXER_RUNTIME_SHARED_SSL)
 static SceUID g_heap_block = -1, g_heap_mutex = -1;
 static SceClibMspace g_heap;
 static uint32_t g_outstanding;

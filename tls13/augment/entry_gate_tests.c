@@ -10,6 +10,11 @@ int main(void) {
     assert(tls_fixer_gate_enter(&gate));
     assert(tls_fixer_gate_close(&gate) == 2);
     assert(!tls_fixer_gate_enter(&gate));
+    tls_fixer_gate_reopen(&gate);
+    assert(tls_fixer_gate_count(&gate) == 2);
+    assert(tls_fixer_gate_enter(&gate));
+    tls_fixer_gate_leave(&gate);
+    assert(tls_fixer_gate_close(&gate) == 2);
     tls_fixer_gate_leave(&gate);
     assert(tls_fixer_gate_close(&gate) == 1);
     tls_fixer_gate_leave(&gate);

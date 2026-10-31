@@ -9,6 +9,7 @@ extern int mock_ca_namespace_error, mock_ca_namespace_unterminated;
 typedef uint32_t SceSize;
 typedef uint16_t SceUInt16;
 typedef uint32_t SceUInt;
+typedef uint64_t SceULong64;
 typedef struct { uint64_t tick; } SceRtcTick;
 typedef struct {
     uint16_t year, month, day, hour, minute, second;
