@@ -12,8 +12,13 @@
 #include <stdint.h>
 #include <taihen.h>
 
+#ifndef TLS_FIXER_PSN_REDIRECT_PATH
 #define TLS_FIXER_PSN_REDIRECT_PATH "vs0:/data/external/tls_fixer/native/tls_fixer_psn.suprx"
+#endif
 #define TLS_FIXER_PSN_REDIRECT_NAME "tls_fixer_psn"
+#ifndef TLS_FIXER_STORE_COVER_PATH
+#define TLS_FIXER_STORE_COVER_PATH "vs0:/data/external/tls_fixer/native/tls_fixer_store.suprx"
+#endif
 #define TAI_MODULE_NOT_FOUND ((int)UINT32_C(0x90010002))
 
 static int g_ready;
@@ -68,6 +73,27 @@ static int lookup(SceUID pid, const char *name, tai_module_info_t *info)
     return taiGetModuleInfoForKernel(pid, name, info);
 }
 
+static void inject_store_cover(SceUID pid)
+{
+    char title[16] = {0};
+    tai_module_info_t info;
+    SceIoStat stat;
+    int started = 0;
+    /* Commerce also runs inside games and Shell. Artwork is strictly Store-only,
+     * before even checking its optional payload or allocating a user module. */
+    if (pid == ksceKernelSysrootGetShellPid() ||
+        ksceKernelSysrootGetProcessTitleId(pid, title, sizeof(title)) < 0 ||
+        strcmp(title, "NPXS10002") != 0)
+        return;
+    if (lookup(pid, "SceStoreBrowser", &info) != 0 ||
+        lookup(pid, "tls_fixer_store", &info) != TAI_MODULE_NOT_FOUND ||
+        ksceIoGetstat(TLS_FIXER_STORE_COVER_PATH, &stat) < 0)
+        return;
+    /* This optional image fallback must never change PSN redirect success. */
+    (void)ksceKernelLoadStartModuleForPid(pid, TLS_FIXER_STORE_COVER_PATH,
+        0, NULL, 0, NULL, &started);
+}
+
 static int inject_on_stack(void *opaque)
 {
     ReauthCall *call = opaque;
@@ -81,6 +107,7 @@ static int inject_on_stack(void *opaque)
         call->result = 0;
         return 0;
     }
+    inject_store_cover(call->pid);
     /* Once per process: hooking the same import twice is never needed */
     int found = lookup(call->pid, TLS_FIXER_PSN_REDIRECT_NAME, &info);
     if (found != TAI_MODULE_NOT_FOUND)

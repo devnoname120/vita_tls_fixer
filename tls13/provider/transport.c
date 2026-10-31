@@ -12,11 +12,20 @@
 #include <mbedtls/ssl.h>
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
+#if defined(TLS_FIXER_MBEDTLS36)
+#include <mbedtls/psa_util.h>
+#endif
 
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#if TLS_FIXER_NATIVE_HELLO_EXPERIMENT || TLS_FIXER_NATIVE_HELLO_PROFILE
+#include "../augment/native_hello_profile.h"
+#endif
+#if TLS_FIXER_EMBEDDED_HTTP
+#include "../augment/embedded.h"
+#endif
 
 #define TLS_FIXER_MAX_HOSTNAME_LENGTH ((size_t)1024)
 
@@ -224,7 +233,10 @@ static int store_handshake_wait(
 /* Bundle roots plus any CA certificates the game loaded with sceHttpsLoadCert */
 static int find_trusted_issuers(void *context, const mbedtls_x509_crt *child,
     mbedtls_x509_crt **candidates) {
-    int result = tls_fixer_ca_index_find(context, child, candidates);
+    const TlsFixerConnection *connection = context;
+    int result = (connection->https_options & TLS_FIXER_SCE_HTTPS_OPTION_PRIVATE_SONY_CA) != 0
+        ? tls_fixer_ca_index_find_sony(&g_tls_fixer_http.ca_index, child, candidates)
+        : tls_fixer_ca_index_find(&g_tls_fixer_http.ca_index, child, candidates);
     if (result != 0) return result;
     return tls_fixer_game_ca_find(child, candidates);
 }
@@ -244,11 +256,13 @@ static int trust_exact_self_signed(void *context, mbedtls_x509_crt *certificate,
 static int setup_connection(TlsFixerConnection *connection, const char *hostname) {
     size_t hostname_length;
     int result;
+    mbedtls_ssl_protocol_version maximum_version = MBEDTLS_SSL_VERSION_TLS1_3;
 
     hostname_length = bounded_string_length(hostname, TLS_FIXER_MAX_HOSTNAME_LENGTH);
-    TLS_FIXER_LOG("event=connection.setup connection=%08X socket=%d hostname_length=%u options=%08X",
+    TLS_FIXER_LOG("event=connection.setup connection=%08X socket=%d hostname_length=%u options=%08X raw_options=%08X",
         (unsigned int)(uintptr_t)connection->sony_connection, connection->socket,
-        (unsigned int)hostname_length, connection->https_options);
+        (unsigned int)hostname_length, connection->https_options,
+        tls_fixer_read_u32(connection->sony_connection, TLS_FIXER_CONNECTION_HTTPS_OPTIONS_OFFSET));
     if (hostname_length == SIZE_MAX || hostname_length == 0) {
         return -1;
     }
@@ -258,6 +272,12 @@ static int setup_connection(TlsFixerConnection *connection, const char *hostname
         return TLS_FIXER_SCE_HTTP_ERROR_OUT_OF_MEMORY;
     }
     memcpy(connection->hostname, hostname, hostname_length + 1);
+#if defined(TLS_FIXER_DIAGNOSTIC_LOWERCASE_SNI)
+    for (size_t i = 0; i < hostname_length; ++i) {
+        unsigned char c = (unsigned char)connection->hostname[i];
+        if (c >= 'A' && c <= 'Z') connection->hostname[i] = (char)(c + ('a' - 'A'));
+    }
+#endif
 
     connection->mutex = sceKernelCreateMutex("tls_fixer connection", 0, 0, NULL);
     TLS_FIXER_LOG("event=connection.mutex rc=%08X", connection->mutex);
@@ -276,6 +296,9 @@ static int setup_connection(TlsFixerConnection *connection, const char *hostname
         MBEDTLS_SSL_IS_CLIENT,
         MBEDTLS_SSL_TRANSPORT_STREAM,
         MBEDTLS_SSL_PRESET_DEFAULT);
+#if defined(TLS_FIXER_MBEDTLS36)
+    mbedtls_ssl_conf_rng(&connection->config, mbedtls_psa_get_random, MBEDTLS_PSA_RANDOM_STATE);
+#endif
     TLS_FIXER_LOG("event=tls.defaults rc=%08X", result);
     if (result != 0) {
         return result;
@@ -285,25 +308,48 @@ static int setup_connection(TlsFixerConnection *connection, const char *hostname
     /* System endpoints such as native-vita.np.ac.playstation.net require
      * SHA-1 certificate signatures. */
     connection->certificate_profile.allowed_mds |= MBEDTLS_X509_ID_FLAG(MBEDTLS_MD_SHA1);
+#if defined(TLS_FIXER_DIAGNOSTIC_AUTH_TLS12)
+    if (strcmp(hostname, "IV0001-NPXS01001-00.auth.np.ac.playstation.net") == 0)
+        maximum_version = MBEDTLS_SSL_VERSION_TLS1_2;
+#endif
+#if defined(TLS_FIXER_DIAGNOSTIC_AUTH_RSA)
+    if (strcmp(hostname, "IV0001-NPXS01001-00.auth.np.ac.playstation.net") == 0) {
+        static const int native_auth_suite[] = {MBEDTLS_TLS_RSA_WITH_AES_128_CBC_SHA256, 0};
+        mbedtls_ssl_conf_ciphersuites(&connection->config, native_auth_suite);
+    }
+#endif
     mbedtls_ssl_conf_cert_profile(&connection->config, &connection->certificate_profile);
     mbedtls_ssl_conf_min_tls_version(
         &connection->config,
         MBEDTLS_SSL_VERSION_TLS1_2);
     mbedtls_ssl_conf_max_tls_version(
         &connection->config,
-        MBEDTLS_SSL_VERSION_TLS1_3);
+        maximum_version);
+#if TLS_FIXER_NATIVE_HELLO_EXPERIMENT || TLS_FIXER_NATIVE_HELLO_PROFILE
+    if (connection->native_hello_profile
+#if TLS_FIXER_NATIVE_HELLO_EXPERIMENT
+        || strcmp(hostname, "IV0001-NPXS01001-00.auth.np.ac.playstation.net") == 0
+#endif
+    ) {
+        result = tls_fixer_native_hello_profile(&connection->config);
+        if (result != 0) return result;
+        maximum_version = MBEDTLS_SSL_VERSION_TLS1_2;
+        TLS_FIXER_LOG("event=tls.native_profile configured=1");
+    }
+#endif
     mbedtls_ssl_conf_authmode(&connection->config, MBEDTLS_SSL_VERIFY_OPTIONAL);
-    mbedtls_ssl_conf_ca_cb(&connection->config, find_trusted_issuers, &g_tls_fixer_http.ca_index);
-    mbedtls_ssl_conf_verify(&connection->config, trust_exact_self_signed, &g_tls_fixer_http.ca_index);
+    mbedtls_ssl_conf_ca_cb(&connection->config, find_trusted_issuers, connection);
+    mbedtls_ssl_conf_verify(&connection->config, trust_exact_self_signed, connection);
 
     result = mbedtls_ssl_setup(&connection->ssl, &connection->config);
-    TLS_FIXER_LOG("event=tls.setup rc=%08X min=TLS1.2 max=TLS1.3", result);
+    TLS_FIXER_LOG("event=tls.setup rc=%08X min=TLS1.2 max=%s", result,
+        maximum_version == MBEDTLS_SSL_VERSION_TLS1_2 ? "TLS1.2" : "TLS1.3");
     if (result != 0) {
         return result;
     }
     result = mbedtls_ssl_set_hostname(&connection->ssl, connection->hostname);
-    TLS_FIXER_LOG("event=tls.hostname rc=%08X hostname_length=%u", result,
-        (unsigned int)hostname_length);
+    TLS_FIXER_LOG("event=tls.hostname rc=%08X hostname_length=%u hostname=%s", result,
+        (unsigned int)hostname_length, connection->hostname);
     if (result != 0) {
         return result;
     }
@@ -466,6 +512,15 @@ int tls_fixer_transport_create(void *request, int socket, int *handled) {
     }
     hostname = tls_fixer_connection_hostname(sony_connection);
 
+    int native_profile = 0;
+#if TLS_FIXER_EMBEDDED_HTTP && TLS_FIXER_NATIVE_HELLO_PROFILE
+    native_profile = tls_fixer_embedded_profile_for_request(request);
+    if (native_profile < 0) {
+        TLS_FIXER_LOG("event=connection.skip reason=unknown_private_profile");
+        return already_owned ? TLS_FIXER_SCE_HTTP_ERROR_SSL : 0;
+    }
+#endif
+
     connection = calloc(1, sizeof(*connection));
     if (connection == NULL) {
         TLS_FIXER_LOG("event=connection.skip reason=allocation_failed bytes=%u owned=%d",
@@ -475,6 +530,7 @@ int tls_fixer_transport_create(void *request, int socket, int *handled) {
     connection->sony_connection = sony_connection;
     connection->socket = socket;
     connection->state = TLS_FIXER_CONNECTION_INITIALIZING;
+    connection->native_hello_profile = native_profile != 0;
     connection->https_options = tls_fixer_connection_effective_https_options(
         sony_connection,
         tls_fixer_read_u32(

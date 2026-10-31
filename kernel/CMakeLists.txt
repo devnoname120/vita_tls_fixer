@@ -8,6 +8,11 @@ project(HENkaku)
 set(TLS_FIXER_HTTP_PROVIDER_PATH "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx"
     CACHE STRING "HTTP provider path; diagnostics stage their provider separately")
 set(TLS_FIXER_HTTP_TEST_TITLE_ID "" CACHE STRING "Optional single-title diagnostic HTTP activation")
+set(TLS_FIXER_STORE_COVER_PATH "vs0:/data/external/tls_fixer/native/tls_fixer_store.suprx"
+    CACHE STRING "Store-only artwork module; diagnostics use a separately staged payload")
+if(NOT TLS_FIXER_STORE_COVER_PATH MATCHES "^(vs0|ux0|ur0):/[A-Za-z0-9_./-]+$")
+    message(FATAL_ERROR "Store artwork module requires an absolute vs0, ux0 or ur0 path")
+endif()
 option(TLS_FIXER_HTTP_GLOBAL_DIAGNOSTIC "Explicit broad activation of a separately staged provider" OFF)
 if(NOT TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^(vs0|ux0|ur0):/[A-Za-z0-9_./-]+$")
     message(FATAL_ERROR "HTTP provider requires an absolute vs0, ux0 or ur0 path")
@@ -26,6 +31,10 @@ elseif(TLS_FIXER_HTTP_PROVIDER_PATH MATCHES "^(ux0|ur0):" AND NOT TLS_FIXER_HTTP
 endif()
 
 option(TLS_FIXER_ENABLE_SELF_DISARM "Disable this plugin's boot entries before activation" ON)
+option(TLS_FIXER_PRIVATE_GUI_CLIENTS "Experimental private HTTP/GUI dependency routing" OFF)
+if(TLS_FIXER_PRIVATE_GUI_CLIENTS AND (NOT TLS_FIXER_ENABLE_SELF_DISARM OR TLS_FIXER_HTTP_TEST_TITLE_ID STREQUAL ""))
+    message(FATAL_ERROR "GUI experiment requires one-shot activation and an explicit test title")
+endif()
 option(TLS_FIXER_SELF_DISARM_ONLY "Build a diagnostic with no module redirection or TLS injection" OFF)
 option(TLS_FIXER_INITIALIZE_ONLY "Stop the diagnostic after loader initialization, before installing hooks" OFF)
 option(TLS_FIXER_REDIRECTION_ONLY "Install module path redirection but do not start TLS or DNS providers" OFF)
@@ -55,6 +64,54 @@ option(TLS_FIXER_INSPECT_CONNECT_PATCH "Read the connect entry around diagnostic
 option(TLS_FIXER_BROWSER_POST_START "Defer browser injection until native module start returns" ON)
 option(TLS_FIXER_SKIP_DNS_START "Exclude legacy DNS helper startup for controlled isolation" OFF)
 option(TLS_FIXER_SKIP_HTTP_START "Exclude HTTP-provider startup for controlled isolation" OFF)
+option(TLS_FIXER_INSTALLED_AUGMENTED_HTTP "Use the packaged augmented HTTP module without provider injection" OFF)
+option(TLS_FIXER_AUGMENTED_RELEASE "Build the persistent augmented-module release" OFF)
+if(TLS_FIXER_AUGMENTED_RELEASE AND NOT TLS_FIXER_INSTALLED_AUGMENTED_HTTP)
+    message(FATAL_ERROR "Augmented release requires the installed augmented HTTP backend")
+endif()
+set(TLS_FIXER_EMBEDDED_HTTP_PATH "" CACHE STRING "Experimental augmented HTTP module, staged separately")
+set(TLS_FIXER_HTTP_REPLACEMENT_PATH "vs0:/data/external/tls_fixer/libhttp.suprx")
+set(TLS_FIXER_SSL_REPLACEMENT_PATH "vs0:/data/external/tls_fixer/libssl.suprx")
+set(TLS_FIXER_PSN_REDIRECT_PATH "vs0:/data/external/tls_fixer/native/tls_fixer_psn.suprx")
+if(TLS_FIXER_INSTALLED_AUGMENTED_HTTP)
+    if(NOT TLS_FIXER_EMBEDDED_HTTP_PATH STREQUAL "" OR TLS_FIXER_PRIVATE_GUI_CLIENTS OR
+       NOT TLS_FIXER_HTTP_TEST_TITLE_ID STREQUAL "" OR TLS_FIXER_HTTP_GLOBAL_DIAGNOSTIC OR
+       TLS_FIXER_REDIRECTION_ONLY OR TLS_FIXER_PREPARE_ONLY OR TLS_FIXER_BROWSER_ACTIVATION)
+        message(FATAL_ERROR "Packaged augmented HTTP requires normal loading without diagnostic routing")
+    endif()
+    set(TLS_FIXER_SKIP_HTTP_START ON)
+    if(TLS_FIXER_AUGMENTED_RELEASE)
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+            message(FATAL_ERROR "Augmented release requires an explicit Release build")
+        endif()
+        if(TLS_FIXER_ENABLE_SELF_DISARM OR TLS_FIXER_ENABLE_BOOT_TRACE OR TLS_FIXER_TRACE_MODULE_PATHS OR
+           TLS_FIXER_BROWSER_INVENTORY OR TLS_FIXER_TRACE_ACTIVATION_ONLY OR TLS_FIXER_MEMORY_PROBE OR
+           TLS_FIXER_ALLOCATION_PROBE OR TLS_FIXER_MAPPING_PROBE OR TLS_FIXER_STACK_HEADROOM OR
+           TLS_FIXER_SELF_DISARM_ONLY OR TLS_FIXER_INITIALIZE_ONLY OR TLS_FIXER_BROWSER_START_DIAGNOSTICS OR
+           TLS_FIXER_INSPECT_CONNECT_PATCH)
+            message(FATAL_ERROR "Augmented release requires persistent activation with logging and probes disabled")
+        endif()
+        set(TLS_FIXER_HTTP_REPLACEMENT_PATH "vs0:/data/external/tls_fixer/native/libhttp.suprx")
+        set(TLS_FIXER_SSL_REPLACEMENT_PATH "vs0:/data/external/tls_fixer/native/libssl.suprx")
+    else()
+        if(NOT TLS_FIXER_ENABLE_SELF_DISARM)
+            message(FATAL_ERROR "Packaged augmented HTTP test requires self-disarm")
+        endif()
+        set(TLS_FIXER_HTTP_REPLACEMENT_PATH "ux0:/data/tls_fixer-runtime-installer/libhttp.suprx")
+        set(TLS_FIXER_SSL_REPLACEMENT_PATH "ux0:/data/tls_fixer-runtime-installer/libssl.suprx")
+        set(TLS_FIXER_STORE_COVER_PATH "ux0:/data/tls_fixer-runtime-installer/tls_fixer_store.suprx")
+        set(TLS_FIXER_PSN_REDIRECT_PATH "ux0:/data/tls_fixer-runtime-installer/tls_fixer_psn.suprx")
+    endif()
+endif()
+if(NOT TLS_FIXER_EMBEDDED_HTTP_PATH STREQUAL "")
+    if(NOT TLS_FIXER_ENABLE_SELF_DISARM OR NOT TLS_FIXER_SKIP_HTTP_START OR TLS_FIXER_PRIVATE_GUI_CLIENTS
+       OR NOT TLS_FIXER_HTTP_TEST_TITLE_ID STREQUAL "" OR TLS_FIXER_REDIRECTION_ONLY
+       OR TLS_FIXER_PREPARE_ONLY OR TLS_FIXER_BROWSER_ACTIVATION
+       OR NOT TLS_FIXER_EMBEDDED_HTTP_PATH MATCHES "^ux0:/data/tls_fixer-runtime[-/A-Za-z0-9_.]*/libhttp\\.suprx$")
+        message(FATAL_ERROR "Embedded HTTP test requires self-disarm, separate ux0 runtime, normal loading flags and no HTTP injection/title/GUI isolation")
+    endif()
+    set(TLS_FIXER_HTTP_REPLACEMENT_PATH "${TLS_FIXER_EMBEDDED_HTTP_PATH}")
+endif()
 option(TLS_FIXER_DISARM_RESULT_ONLY "Report the self-disarm result without later initialization" OFF)
 if(NOT TLS_FIXER_ENABLE_SELF_DISARM AND (TLS_FIXER_SELF_DISARM_ONLY OR TLS_FIXER_DISARM_RESULT_ONLY))
     message(FATAL_ERROR "Self-disarm diagnostics require TLS_FIXER_ENABLE_SELF_DISARM")
@@ -157,7 +214,12 @@ if(TLS_FIXER_ENABLE_SELF_DISARM)
 endif()
 
 target_compile_definitions(tls_fixer.elf PRIVATE
+    TLS_FIXER_INSTALLED_AUGMENTED_HTTP=$<BOOL:${TLS_FIXER_INSTALLED_AUGMENTED_HTTP}>
+    TLS_FIXER_SSL_REPLACEMENT_PATH="${TLS_FIXER_SSL_REPLACEMENT_PATH}"
+    TLS_FIXER_PSN_REDIRECT_PATH="${TLS_FIXER_PSN_REDIRECT_PATH}"
+    TLS_FIXER_HTTP_REPLACEMENT_PATH="${TLS_FIXER_HTTP_REPLACEMENT_PATH}"
     TLS_FIXER_HTTP_PROVIDER_PATH="${TLS_FIXER_HTTP_PROVIDER_PATH}"
+    TLS_FIXER_PRIVATE_GUI_CLIENTS=$<BOOL:${TLS_FIXER_PRIVATE_GUI_CLIENTS}>
     TLS_FIXER_HTTP_TEST_TITLE_ID="${TLS_FIXER_HTTP_TEST_TITLE_ID}"
 	TLS_FIXER_ENABLE_SELF_DISARM=$<BOOL:${TLS_FIXER_ENABLE_SELF_DISARM}>
 	TLS_FIXER_SELF_DISARM_ONLY=$<BOOL:${TLS_FIXER_SELF_DISARM_ONLY}>
@@ -268,6 +330,7 @@ add_dependencies(tls_fixer.skprx tls_fixer_kernel_register_check)
 if(TLS_FIXER_NORMAL_ACTIVATION)
     target_sources(tls_fixer.elf PRIVATE psn_redirect.c)
     target_compile_definitions(tls_fixer.elf PRIVATE TLS_FIXER_ENABLE_PSN_REDIRECT=1)
+    target_compile_definitions(tls_fixer.elf PRIVATE TLS_FIXER_STORE_COVER_PATH="${TLS_FIXER_STORE_COVER_PATH}")
 endif()
 add_custom_target(tls_fixer_stubs ALL
     COMMAND vita-elf-export kernel tls_fixer.elf ${CMAKE_CURRENT_SOURCE_DIR}/tls_fixer.yml tls_fixer_exports.yml

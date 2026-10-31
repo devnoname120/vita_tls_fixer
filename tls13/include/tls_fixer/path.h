@@ -2,6 +2,7 @@
 #define TLS_FIXER_PATH_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,6 +20,9 @@ typedef enum TlsFixerTransportLibrary {
 TlsFixerTransportLibrary tls_fixer_transport_library(const char *path, size_t maximum);
 /* Sony NP networking clients and their static importers, loaded after HTTP. */
 int tls_fixer_np_http_client_path(const char *path, size_t maximum);
+/* 1: direct HTTP/SSL user; 2: a transitive client; 0: unrelated. */
+int tls_fixer_http_client_kind(const char *path, size_t maximum);
+int tls_fixer_library_uses_http(uint32_t library);
 int tls_fixer_browser_replacement_path(const char *path, char *output, size_t capacity);
 int tls_fixer_browser_provider_path(const char *replacement, char *output, size_t capacity);
 int tls_fixer_browser_module_path(const char *provider, char *output, size_t capacity);

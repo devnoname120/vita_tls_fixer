@@ -5,6 +5,13 @@ target_compile_options(tls_fixer_user_runtime_tests PRIVATE -Wall -Wextra -Werro
 find_package(Threads REQUIRED)
 target_link_libraries(tls_fixer_user_runtime_tests PRIVATE Threads::Threads)
 add_test(NAME tls_fixer_user_runtime COMMAND tls_fixer_user_runtime_tests)
+add_executable(tls_fixer_user_runtime_growth_tests test_runtime_growth.c
+    ../../provider/user_runtime.c ../../provider/user_runtime_growth.c)
+target_include_directories(tls_fixer_user_runtime_growth_tests PRIVATE . ../../provider)
+target_compile_definitions(tls_fixer_user_runtime_growth_tests PRIVATE TLS_FIXER_RUNTIME_HOST_TEST=1 TLS_FIXER_RUNTIME_GROWTH=1)
+target_compile_options(tls_fixer_user_runtime_growth_tests PRIVATE -Wall -Wextra -Werror -fno-builtin -UNDEBUG)
+target_link_libraries(tls_fixer_user_runtime_growth_tests PRIVATE Threads::Threads)
+add_test(NAME tls_fixer_user_runtime_growth COMMAND tls_fixer_user_runtime_growth_tests)
 add_executable(tls_fixer_http_mapped_signature_tests test_mapped_signature.c)
 target_include_directories(tls_fixer_http_mapped_signature_tests PRIVATE ../../provider)
 target_compile_options(tls_fixer_http_mapped_signature_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)

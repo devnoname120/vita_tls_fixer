@@ -138,13 +138,27 @@ int main(int argc, char **argv) {
     sony = arena + 0x200;
     hostname = (char *)arena + 0x400;
     global_options = (uint32_t *)(arena + 0x800);
-    strcpy(hostname, strcmp(scenario, "wrong-host") == 0 || strcmp(scenario, "sha1-wrong-host") == 0
+    strcpy(hostname, strcmp(scenario, "wrong-host") == 0 || strcmp(scenario, "sha1-wrong-host") == 0 ||
+        strcmp(scenario, "private-chain-wrong-host") == 0 || strcmp(scenario, "rsa-cbc-wrong-host") == 0
         ? "wrong.invalid" : "localhost");
     if (strcmp(scenario, "ipv4-host") == 0) strcpy(hostname, "127.0.0.1");
     if (strcmp(scenario, "ipv6-host") == 0) strcpy(hostname, "::1");
     if (strcmp(scenario, "wrong-ip") == 0) strcpy(hostname, "127.0.0.2");
     if (allow_override) strcpy(hostname, "wrong.invalid");
     *global_options = 0x3f;
+    /* The native PSN caller uses 0x65: server/name/CA verification and private
+     * trusted-chain lookup. That bit must not select the legacy transport. */
+    if (strncmp(scenario, "private-chain-", 14) == 0) *global_options = 0x65;
+    if (strcmp(scenario, "private-chain-handle") == 0) {
+        *global_options = 0;
+        tls_fixer_write_u32(sony, TLS_FIXER_CONNECTION_HTTPS_OPTIONS_OFFSET, UINT32_C(0x80000065));
+    }
+    if (strncmp(scenario, "sony-ca-only-", 13) == 0 || strcmp(scenario, "game-ca-sony-policy") == 0)
+        *global_options = 0x165;
+    if (strcmp(scenario, "sony-ca-only-handle") == 0) {
+        *global_options = 0;
+        tls_fixer_write_u32(sony, TLS_FIXER_CONNECTION_HTTPS_OPTIONS_OFFSET, UINT32_C(0x80000165));
+    }
     tls_fixer_write_u32(request, TLS_FIXER_REQUEST_PRIMARY_CONNECTION_OFFSET, (uint32_t)(uintptr_t)sony);
     tls_fixer_write_u32(request, 0x8c, 1);
     tls_fixer_write_u32(sony, TLS_FIXER_CONNECTION_HOSTNAME_OFFSET, (uint32_t)(uintptr_t)hostname);
@@ -209,14 +223,20 @@ int main(int argc, char **argv) {
     if (strcmp(scenario, "wrong-host") == 0 || strcmp(scenario, "untrusted") == 0 ||
         strcmp(scenario, "wrong-ip") == 0 || strcmp(scenario, "callback-reject") == 0 ||
         strcmp(scenario, "sha1-wrong-host") == 0 || strcmp(scenario, "sha1-untrusted") == 0 ||
-        strcmp(scenario, "sha1-expired") == 0) {
+        strcmp(scenario, "sha1-expired") == 0 || strcmp(scenario, "private-chain-wrong-host") == 0 ||
+        strcmp(scenario, "private-chain-untrusted") == 0 || strncmp(scenario, "sony-ca-only-", 13) == 0 ||
+        strcmp(scenario, "rsa-cbc-wrong-host") == 0 || strcmp(scenario, "rsa-cbc-untrusted") == 0) {
         assert(result == TLS_FIXER_SCE_HTTP_ERROR_SSL);
         assert(tls_fixer_read_i32(sony, TLS_FIXER_CONNECTION_SSL_ERROR_OFFSET) == TLS_FIXER_SCE_HTTPS_ERROR_CERT);
         assert(callbacks == 1);
         assert((callback_detail == 0) == (callback_result < 0));
-        if (strcmp(scenario, "sha1-wrong-host") == 0)
+        if (strcmp(scenario, "sha1-wrong-host") == 0 || strcmp(scenario, "private-chain-wrong-host") == 0 ||
+            strcmp(scenario, "rsa-cbc-wrong-host") == 0)
             assert(callback_detail & TLS_FIXER_SCE_HTTPS_DETAIL_CN_CHECK);
-        if (strcmp(scenario, "sha1-untrusted") == 0)
+        if (strcmp(scenario, "sha1-untrusted") == 0 || strcmp(scenario, "private-chain-untrusted") == 0 ||
+            strncmp(scenario, "sony-ca-only-", 13) == 0)
+            assert(callback_detail & TLS_FIXER_SCE_HTTPS_DETAIL_UNKNOWN_CA);
+        if (strcmp(scenario, "rsa-cbc-untrusted") == 0)
             assert(callback_detail & TLS_FIXER_SCE_HTTPS_DETAIL_UNKNOWN_CA);
         if (strcmp(scenario, "sha1-expired") == 0)
             assert(callback_detail & TLS_FIXER_SCE_HTTPS_DETAIL_NOT_AFTER);
@@ -233,6 +253,9 @@ int main(int argc, char **argv) {
         assert(tls_fixer_registry_acquire(&g_tls_fixer_http.registry, (uintptr_t)sony, &handle) == 0);
         TlsFixerConnection *connection = handle.payload;
         assert(strcmp(mbedtls_ssl_get_version(&connection->ssl), argv[4]) == 0);
+        if (strcmp(scenario, "rsa-cbc") == 0)
+            assert(strcmp(mbedtls_ssl_get_ciphersuite(&connection->ssl), "TLS-RSA-WITH-AES-128-CBC-SHA256") == 0);
+        if (strncmp(scenario, "private-chain-", 14) == 0) assert(connection->https_options == 0x65);
         assert(tls_fixer_registry_release(&g_tls_fixer_http.registry, &handle) == 0);
     }
 

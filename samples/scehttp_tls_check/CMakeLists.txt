@@ -28,17 +28,26 @@ if(TLS_CHECK_HOST)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(NAME check_fetch_policy COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_fetch.py ${CMAKE_C_COMPILER})
+    add_test(NAME check_runtime_detection COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_detection.py ${CMAKE_C_COMPILER})
 else()
     if(NOT DEFINED VITASDK)
         set(VITASDK "$ENV{VITASDK}")
     endif()
     include("${VITASDK}/share/vita.cmake" REQUIRED)
+    execute_process(COMMAND "${VITASDK}/bin/vita-libs-gen" -c
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime_status.yml" "${CMAKE_CURRENT_BINARY_DIR}/status-stubs"
+        RESULT_VARIABLE status_stub_result)
+    if(NOT status_stub_result EQUAL 0)
+        message(FATAL_ERROR "Cannot generate optional runtime-status stub")
+    endif()
+    add_subdirectory("${CMAKE_CURRENT_BINARY_DIR}/status-stubs" "${CMAKE_CURRENT_BINARY_DIR}/status-stubs-build")
     add_executable(vita_tls_check main.c diagnostics.c model.c probe.c input.c ui.c font.c font_vita.c)
     target_compile_options(vita_tls_check PRIVATE -Wall -Wextra -Werror -O2)
     target_link_options(vita_tls_check PRIVATE -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/vita_tls_check.map)
     target_link_libraries(vita_tls_check ScePvf_stub SceHttp_stub SceSsl_stub SceNet_stub SceNetCtl_stub
         SceSysmodule_stub SceDisplay_stub SceCtrl_stub SceLibKernel_stub
-        SceKernelThreadMgr_stub SceKernelModulemgr_stub SceIofilemgr_stub)
+        SceKernelThreadMgr_stub SceKernelModulemgr_stub SceIofilemgr_stub tls_fixer_embedded_stub_weak)
     vita_create_self(vita_tls_check.self vita_tls_check)
     vita_create_vpk(vita_tls_check.vpk TLSCK0001 vita_tls_check.self
         VERSION "01.02" NAME "Vita TLS Check")

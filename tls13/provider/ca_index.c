@@ -3,9 +3,11 @@
 #include "diagnostics.h"
 
 #include <mbedtls/platform.h>
+#include <psa/crypto.h>
 #include <psp2/io/fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include "sony_dnas_roots.h"
 
 #define MAX_FILE_SIZE (4 * 1024 * 1024)
 #define LINE_CAPACITY 160u
@@ -38,6 +40,10 @@ typedef struct Reader {
     size_t position;
     size_t length;
     uint32_t base;
+    /* Parsing one root needs a sizeable descriptor. Keep it with the existing
+     * heap-backed reader: inlining it into the index loop exhausted small
+     * system-app stacks when HTTP initialization gained diagnostic frames. */
+    mbedtls_x509_crt certificate;
 } Reader;
 
 /* 1 = byte read, 0 = end of file, -1 = I/O error */
@@ -63,20 +69,19 @@ static int starts_with(const unsigned char *line, size_t length, const char *pre
     return length >= prefix_length && memcmp(line, prefix, prefix_length) == 0;
 }
 
-static int add_entry(TlsFixerCaIndex *index, unsigned char *block, size_t block_length,
+static int add_entry(TlsFixerCaIndex *index, mbedtls_x509_crt *crt, unsigned char *block, size_t block_length,
     uint32_t start, uint32_t end) {
-    mbedtls_x509_crt crt;
     if (index->count >= TLS_FIXER_CA_INDEX_MAX_ENTRIES) return MBEDTLS_ERR_X509_ALLOC_FAILED;
     block[block_length] = '\0';
-    mbedtls_x509_crt_init(&crt);
-    int result = mbedtls_x509_crt_parse(&crt, block, block_length + 1);
-    if (result == 0 && crt.raw.p != NULL) {
+    mbedtls_x509_crt_init(crt);
+    int result = mbedtls_x509_crt_parse(crt, block, block_length + 1);
+    if (result == 0 && crt->raw.p != NULL) {
         TlsFixerCaEntry *entry = &index->entries[index->count++];
-        entry->name_hash = tls_fixer_ca_name_hash(&crt.subject);
+        entry->name_hash = tls_fixer_ca_name_hash(&crt->subject);
         entry->offset = start;
         entry->length = end - start;
     }
-    mbedtls_x509_crt_free(&crt);
+    mbedtls_x509_crt_free(crt);
     return result == 0 ? 0 : MBEDTLS_ERR_X509_INVALID_FORMAT;
 }
 
@@ -141,7 +146,7 @@ int tls_fixer_ca_index_build(TlsFixerCaIndex *index, const char *path) {
                 block_length += line_length;
                 block[block_length++] = '\n';
                 if (starts_with(line, line_length, k_end, sizeof(k_end) - 1u)) {
-                    int added = add_entry(index, block, block_length, block_start, reader_offset(reader));
+                    int added = add_entry(index, &reader->certificate, block, block_length, block_start, reader_offset(reader));
                     if (added != 0) { result = added; goto cleanup; }
                     in_block = 0;
                 }
@@ -234,6 +239,37 @@ cleanup:
         return result;
     }
     *candidates = head;
+    return 0;
+}
+
+int tls_fixer_ca_index_find_sony(void *context, const mbedtls_x509_crt *child,
+    mbedtls_x509_crt **candidates) {
+    int result = tls_fixer_ca_index_find(context, child, candidates);
+    if (result != 0) return result;
+    mbedtls_x509_crt **cursor = candidates;
+    while (*cursor != NULL) {
+        mbedtls_x509_crt *candidate = *cursor;
+        unsigned char digest[32];
+        size_t length = 0;
+        if (psa_hash_compute(PSA_ALG_SHA_256, candidate->raw.p, candidate->raw.len,
+                            digest, sizeof(digest), &length) != PSA_SUCCESS || length != sizeof(digest)) {
+            mbedtls_x509_crt_free(*candidates);
+            mbedtls_free(*candidates);
+            *candidates = NULL;
+            return MBEDTLS_ERR_X509_FATAL_ERROR;
+        }
+        int keep = 0;
+        for (size_t i = 0; i < sizeof(k_sony_dnas_sha256) / sizeof(k_sony_dnas_sha256[0]); ++i)
+            if (memcmp(digest, k_sony_dnas_sha256[i], sizeof(digest)) == 0) keep = 1;
+        if (keep) {
+            cursor = &candidate->next;
+        } else {
+            *cursor = candidate->next;
+            candidate->next = NULL;
+            mbedtls_x509_crt_free(candidate);
+            mbedtls_free(candidate);
+        }
+    }
     return 0;
 }
 

@@ -22,6 +22,16 @@ static int hook_validation_result, hook_validations;
 static int injection_result;
 static int http_process_allowed = 1;
 static int http_mapping_private, http_mapping_queries;
+#if TLS_FIXER_PRIVATE_GUI_CLIENTS
+static const char *gui_title = "PCSA00027";
+static int gui_title_result, gui_title_queries;
+int ksceKernelSysrootGetProcessTitleId(SceUID pid, char *out, SceSize size) {
+    assert(pid > 0 && size >= strlen(gui_title) + 1);
+    ++gui_title_queries;
+    strcpy(out, gui_title);
+    return gui_title_result;
+}
+#endif
 static int dns_reenter, dns_start_status;
 static SceUID dns_load_result;
 #if TLS_FIXER_BROWSER_POST_START
@@ -153,12 +163,16 @@ int tls_fixer_validate_loader_hook(SceUID module) {
 int tls_fixer_kernel_loader_init(void) { startup_operation(); ++loader_initializations; return 0; }
 void tls_fixer_kernel_loader_destroy(void) { ++loader_destructions; }
 int tls_fixer_kernel_loader_ready(void) { return 1; }
-int tls_fixer_kernel_http_process_allowed(SceUID pid) { return pid > 0 && http_process_allowed; }
+int tls_fixer_kernel_http_process_allowed(SceUID pid) { return http_process_allowed < 0 ? http_process_allowed : pid > 0 && http_process_allowed; }
 int tls_fixer_native_http_is_private(SceUID pid) {
     assert(pid > 0 && pid != KERNEL_PID && pid != 99);
     ++http_mapping_queries;
     return http_mapping_private;
 }
+int tls_fixer_native_http_mapping(SceUID pid) {
+    return tls_fixer_native_http_is_private(pid);
+}
+
 int tls_fixer_kernel_browser_loader_ready(void) { return 1; }
 int tls_fixer_kernel_inject_for_pid(SceUID pid, SceUID module) {
     assert(module == 88);
@@ -220,6 +234,10 @@ int taiHookFunctionOffsetForKernel(SceUID pid, tai_hook_ref_t *reference, SceUID
     return 1;
 }
 static void reset(void) {
+#if TLS_FIXER_PRIVATE_GUI_CLIENTS
+    gui_title = "PCSA00027";
+    gui_title_result = gui_title_queries = 0;
+#endif
     http_mapping_private = 0;
     http_mapping_queries = 0;
 #if TLS_FIXER_BROWSER_POST_START

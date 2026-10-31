@@ -46,7 +46,7 @@ def certificates(directory):
             "-extfile", "server.ext", "-in", "server.csr", "-out", "sha1-expired.pem")
 
 
-def run_case(binary, directory, scenario, version):
+def run_case(binary, directory, scenario, version, expect_no_sni=False):
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     listener.listen(1)
@@ -56,6 +56,10 @@ def run_case(binary, directory, scenario, version):
     negotiated = []
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = context.maximum_version = version
+    if scenario.startswith("rsa-cbc"):
+        rsa_cipher = {"rsa-cbc-256-sha256": "AES256-SHA256", "rsa-cbc-128-sha1": "AES128-SHA",
+                      "rsa-cbc-256-sha1": "AES256-SHA"}.get(scenario, "AES128-SHA256")
+        context.set_ciphers(rsa_cipher)
     certificate = "server.pem"
     if scenario.startswith("sha1-"):
         context.set_ciphers("DEFAULT:@SECLEVEL=0")
@@ -73,6 +77,8 @@ def run_case(binary, directory, scenario, version):
                 return
             with context.wrap_socket(raw, server_side=True) as connection:
                 negotiated.append(connection.version())
+                if scenario.startswith("rsa-cbc"):
+                    assert connection.cipher()[0] == rsa_cipher
                 request = b""
                 while b"\r\n\r\n" not in request:
                     chunk = connection.recv(4096)
@@ -88,14 +94,17 @@ def run_case(binary, directory, scenario, version):
                     connection.unwrap().close()
         except (OSError, ssl.SSLError) as exc:
             if scenario not in {"wrong-host", "wrong-ip", "untrusted", "bad-record", "callback-reject", "changed-write-retry",
-                                "sha1-wrong-host", "sha1-untrusted", "sha1-expired"}:
+                                "sha1-wrong-host", "sha1-untrusted", "sha1-expired",
+                                "private-chain-wrong-host", "private-chain-untrusted",
+                                "sony-ca-only-global", "sony-ca-only-handle", "rsa-cbc-wrong-host", "rsa-cbc-untrusted"}:
                 errors.append(str(exc))
         finally:
             listener.close()
 
     worker = threading.Thread(target=serve, daemon=True)
     worker.start()
-    trust = directory / ("other.pem" if scenario in {"untrusted", "sha1-untrusted", "game-ca"}
+    trust = directory / ("other.pem" if scenario in {"untrusted", "sha1-untrusted", "game-ca", "private-chain-untrusted",
+                                                    "game-ca-sony-policy", "rsa-cbc-untrusted"}
                          else "sha1-ca.pem" if scenario.startswith("sha1-") else "ca.pem")
     if scenario == "memory-full-ca":
         trust = directory / "full.pem"
@@ -104,8 +113,8 @@ def run_case(binary, directory, scenario, version):
     expected_version = "TLSv1.3" if version == ssl.TLSVersion.TLSv1_3 else "TLSv1.2"
     try:
         command = [str(binary), str(trust), str(port), scenario, expected_version]
-        if scenario in {"game-ca", "game-ca-system"}:
-            command.append(str(directory / ("ca.pem" if scenario == "game-ca" else "other.pem")))
+        if scenario in {"game-ca", "game-ca-system", "game-ca-sony-policy"}:
+            command.append(str(directory / ("other.pem" if scenario == "game-ca-system" else "ca.pem")))
         result = subprocess.run(command,
                                 capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired as exc:
@@ -115,8 +124,11 @@ def run_case(binary, directory, scenario, version):
         raise AssertionError(f"{scenario}: exit {result.returncode}\n{result.stdout}\n{result.stderr}")
     if errors or worker.is_alive():
         raise AssertionError(f"{scenario}: server did not terminate cleanly: {errors}")
-    if scenario not in {"bad-record", "wrong-host", "wrong-ip", "ipv4-host", "ipv6-host", "override-allowed",
-                        "sha1-wrong-host"}:
+    if expect_no_sni and scenario != "bad-record":
+        assert None in negotiated, (scenario, "expected absent SNI", negotiated)
+        assert "localhost" not in negotiated, (scenario, "unexpected SNI", negotiated)
+    elif scenario not in {"bad-record", "wrong-host", "wrong-ip", "ipv4-host", "ipv6-host", "override-allowed",
+                        "sha1-wrong-host", "private-chain-wrong-host", "rsa-cbc-wrong-host"}:
         assert "localhost" in negotiated, (scenario, "SNI missing", negotiated)
     if scenario != "bad-record":
         assert expected_version in negotiated, (scenario, negotiated)
@@ -127,12 +139,23 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("binary", type=Path)
     parser.add_argument("--scenario")
+    parser.add_argument("--expect-no-sni", action="store_true")
+    parser.add_argument("--include-rsa-cbc", action="store_true")
     args = parser.parse_args()
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     with tempfile.TemporaryDirectory(prefix="tls_fixer-loopback-") as temporary:
         directory = Path(temporary)
         certificates(directory)
         cases = [("valid", ssl.TLSVersion.TLSv1_2), ("valid", ssl.TLSVersion.TLSv1_3)]
+        if args.include_rsa_cbc:
+            cases.extend((name, ssl.TLSVersion.TLSv1_2) for name in
+                         ["rsa-cbc", "rsa-cbc-256-sha256", "rsa-cbc-128-sha1", "rsa-cbc-256-sha1",
+                          "rsa-cbc-wrong-host", "rsa-cbc-untrusted"])
+        cases.extend((name, version) for name in ["private-chain-global", "private-chain-handle",
+                     "private-chain-wrong-host", "private-chain-untrusted"]
+                     for version in [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
+        cases.extend((name, version) for name in ["sony-ca-only-global", "sony-ca-only-handle", "game-ca-sony-policy"]
+                     for version in [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
         cases.extend(("memory-full-ca", version) for version in [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
         cases.extend((name, version) for name in ["game-ca", "game-ca-system"]
                      for version in [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3])
@@ -148,7 +171,7 @@ def main():
         for scenario, version in cases:
             if args.scenario is None or scenario == args.scenario:
                 try:
-                    run_case(args.binary.resolve(), directory, scenario, version)
+                    run_case(args.binary.resolve(), directory, scenario, version, args.expect_no_sni)
                 except AssertionError as exc:
                     failures.append(str(exc))
         if failures:

@@ -1,0 +1,12 @@
+version: 2
+firmware: 3.60
+modules:
+  tls_fixer_embedded:
+    nid: 0x00000000
+    libraries:
+      tls_fixer_embedded:
+        kernel: false
+        version: 1
+        nid: 0x7F10B001
+        functions:
+          tls_fixer_embedded_active: 0x7F10B004

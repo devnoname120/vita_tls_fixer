@@ -3,6 +3,13 @@ target_include_directories(tls_fixer_kernel_loader_tests PRIVATE include ../tran
 target_link_libraries(tls_fixer_kernel_loader_tests PRIVATE tls_fixer_core)
 target_compile_options(tls_fixer_kernel_loader_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_test(NAME tls_fixer_kernel_loaders COMMAND tls_fixer_kernel_loader_tests)
+
+add_executable(tls_fixer_installed_augmented_loader_tests test_installed_augmented_loader.c ../../../kernel/tls13_loader.c)
+target_include_directories(tls_fixer_installed_augmented_loader_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_installed_augmented_loader_tests PRIVATE TLS_FIXER_INSTALLED_AUGMENTED_HTTP=1)
+target_compile_options(tls_fixer_installed_augmented_loader_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_installed_augmented_loader_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_installed_augmented_loader COMMAND tls_fixer_installed_augmented_loader_tests)
 add_executable(tls_fixer_browser_inventory_tests test_browser_inventory.c ../../../kernel/browser_inventory.c)
 target_include_directories(tls_fixer_browser_inventory_tests PRIVATE include ../transport/include ../../../kernel)
 target_compile_definitions(tls_fixer_browser_inventory_tests PRIVATE TLS_FIXER_BROWSER_INVENTORY=1)
@@ -13,6 +20,23 @@ target_include_directories(tls_fixer_kernel_route_tests PRIVATE include ../trans
 target_link_libraries(tls_fixer_kernel_route_tests PRIVATE tls_fixer_core)
 target_compile_options(tls_fixer_kernel_route_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
 add_test(NAME tls_fixer_kernel_route COMMAND tls_fixer_kernel_route_tests)
+add_executable(tls_fixer_embedded_route_tests test_embedded_route.c)
+target_include_directories(tls_fixer_embedded_route_tests PRIVATE include ../transport/include ../../../kernel)
+target_link_libraries(tls_fixer_embedded_route_tests PRIVATE tls_fixer_core)
+target_compile_options(tls_fixer_embedded_route_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_compile_definitions(tls_fixer_embedded_route_tests PRIVATE TLS_FIXER_SKIP_HTTP_START=1
+    TLS_FIXER_HTTP_REPLACEMENT_PATH="ux0:/data/tls_fixer-runtime-embedded/libhttp.suprx")
+add_test(NAME tls_fixer_embedded_route COMMAND tls_fixer_embedded_route_tests)
+
+add_executable(tls_fixer_installed_augmented_route_tests test_embedded_route.c)
+target_include_directories(tls_fixer_installed_augmented_route_tests PRIVATE include ../transport/include ../../../kernel)
+target_link_libraries(tls_fixer_installed_augmented_route_tests PRIVATE tls_fixer_core)
+target_compile_options(tls_fixer_installed_augmented_route_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_compile_definitions(tls_fixer_installed_augmented_route_tests PRIVATE TLS_FIXER_SKIP_HTTP_START=1
+    TLS_FIXER_INSTALLED_AUGMENTED_HTTP=1
+    TLS_FIXER_HTTP_REPLACEMENT_PATH="ux0:/data/tls_fixer-runtime-installer/libhttp.suprx"
+    TLS_FIXER_SSL_REPLACEMENT_PATH="ux0:/data/tls_fixer-runtime-installer/libssl.suprx")
+add_test(NAME tls_fixer_installed_augmented_route COMMAND tls_fixer_installed_augmented_route_tests)
 
 add_executable(tls_fixer_module_status_tests test_module_status.c)
 target_include_directories(tls_fixer_module_status_tests PRIVATE ../transport/include)
@@ -367,3 +391,24 @@ foreach(kind psn_redirect redirects)
     target_compile_options(tls_fixer_kernel_${kind}_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
     add_test(NAME tls_fixer_kernel_${kind} COMMAND tls_fixer_kernel_${kind}_tests)
 endforeach()
+
+add_executable(tls_fixer_gui_clients_tests test_gui_clients.c)
+target_include_directories(tls_fixer_gui_clients_tests PRIVATE include ../transport/include ../../../kernel)
+target_compile_definitions(tls_fixer_gui_clients_tests PRIVATE TLS_FIXER_PRIVATE_GUI_CLIENTS=1
+    TLS_FIXER_HTTP_TEST_TITLE_ID="PCSA00027")
+target_compile_options(tls_fixer_gui_clients_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_gui_clients_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_gui_clients COMMAND tls_fixer_gui_clients_tests)
+add_executable(tls_fixer_gui_mapping_tests test_gui_mapping.c ../../../kernel/native_module_api.c)
+target_include_directories(tls_fixer_gui_mapping_tests PRIVATE include ../transport/include ../../../kernel ../../include)
+target_compile_definitions(tls_fixer_gui_mapping_tests PRIVATE TLS_FIXER_PRIVATE_GUI_CLIENTS=1)
+target_compile_options(tls_fixer_gui_mapping_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_gui_mapping_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_gui_mapping COMMAND tls_fixer_gui_mapping_tests)
+
+add_executable(tls_fixer_gui_existing_shared_tests test_gui_existing_shared.c ../../../kernel/native_module_api.c)
+target_include_directories(tls_fixer_gui_existing_shared_tests PRIVATE include ../transport/include ../../../kernel ../../include)
+target_compile_definitions(tls_fixer_gui_existing_shared_tests PRIVATE TLS_FIXER_PRIVATE_GUI_CLIENTS=1)
+target_compile_options(tls_fixer_gui_existing_shared_tests PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+target_link_libraries(tls_fixer_gui_existing_shared_tests PRIVATE tls_fixer_core)
+add_test(NAME tls_fixer_gui_existing_shared COMMAND tls_fixer_gui_existing_shared_tests)

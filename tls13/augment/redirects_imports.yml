@@ -1,0 +1,10 @@
+# Optional kernel API. Import binding uses library/function NIDs, not a kernel image hash.
+modules:
+  tls_fixer_kernel:
+    libraries:
+      tls_fixer_redirects:
+        nid: 0x0a106567
+        kernel: false
+        version: 1
+        functions:
+          tls_fixer_redirects_read: 0x9462927f

@@ -1,0 +1,36 @@
+tls_fixer_http_embedded:
+  attributes: 0
+  version:
+    major: 1
+    minor: 0
+  main:
+    start: module_start
+    stop: module_stop
+  libraries:
+    tls_fixer_embedded:
+      version: 1
+      nid: 0x7F10B001
+      functions:
+        - tls_fixer_embedded_stats: 0x7F10B002
+        - tls_fixer_embedded_active: 0x7F10B004
+        - tls_fixer_embedded_http_init: 0x214926D9
+        - tls_fixer_embedded_http_term: 0xC9076666
+        - tls_fixer_embedded_load_cert: 0xAE8D7C33
+        - tls_fixer_embedded_unload_cert: 0x8577833F
+        - tls_fixer_embedded_create_connection: 0xAEB3307E
+        - tls_fixer_embedded_create_connection_url: 0xC616C200
+        - tls_fixer_embedded_create_request_url: 0xBD5DA1D0
+        - tls_fixer_embedded_enable_private: 0x72CB0741
+        - tls_fixer_embedded_disable_private: 0x00659635
+        - tls_fixer_embedded_copy_settings: 0x7F10B016
+        - tls_fixer_embedded_destroy_settings: 0x7F10B017
+        - tls_fixer_embedded_free_failed_connection: 0x7F10B018
+        - tls_fixer_embedded_free_failed_request: 0x7F10B019
+        - tls_fixer_embedded_create: 0x7F10B010
+        - tls_fixer_embedded_connect: 0x7F10B011
+        - tls_fixer_embedded_map_io: 0x7F10B012
+        - tls_fixer_embedded_read: 0x7F10B013
+        - tls_fixer_embedded_write: 0x7F10B014
+        - tls_fixer_embedded_shutdown: 0x7F10B015
+      variables:
+        - g_tls_fixer_embedded_bindings: 0x7F10B003

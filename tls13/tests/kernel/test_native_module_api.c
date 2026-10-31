@@ -10,6 +10,11 @@ static SceSize consumer_count = 1;
 static uint16_t consumer_attributes = 0x200;
 static int consumer_sharing = 1;
 static int consumer_import_queries;
+static int consumer_private, consumer_bad_span, consumer_bad_type;
+static int consumer_missing_block, consumer_block_error, consumer_type_error, consumer_shared_queries;
+static int consumer_data_shared, consumer_no_text, consumer_extra_segment;
+static uintptr_t consumer_text_start = 0x81000000;
+static uint32_t consumer_text_size = 0x2000, consumer_text_perms = 5;
 static const char *consumer_name = "shared_http_user";
 static uint8_t import_header[0x34];
 static uintptr_t import_begin = 0x81010000, import_end = 0x81010034;
@@ -19,11 +24,29 @@ static int http_block = 77, http_type_result, http_block_queries;
 static unsigned int http_block_type = 0x0C20D050;
 
 SceUID ksceKernelFindMemBlockByAddrForPid(SceUID pid, const void *address, SceSize size) {
+    if (consumer_query) {
+        assert(pid == 21 && size == 0);
+        if (consumer_missing_block) return 0;
+        if (consumer_block_error) return consumer_block_error;
+        uintptr_t a = (uintptr_t)address;
+        uintptr_t last = consumer_text_start + consumer_text_size - 1;
+        if (consumer_bad_span && a == last) return 91;
+        if (a == consumer_text_start || a == last) return 77;
+        if (a == 0x81002000 || a == 0x81002fff) return 78;
+        assert(0);
+    }
     assert(provider_query && pid == 21 && (uintptr_t)address == http_exports && size == 0);
     ++http_block_queries;
     return http_block;
 }
 int ksceKernelGetMemBlockType(SceUID block, unsigned int *type) {
+    if (consumer_query) {
+        assert((block == 77 || block == 78) && type != NULL);
+        if (consumer_type_error) return consumer_type_error;
+        *type = !consumer_private || consumer_bad_type ? 0x0320d050 : block == 77 ? 0x0c20d050 : 0x0c20d060;
+        if (block == 78 && consumer_data_shared) *type = 0x0320d060;
+        return 0;
+    }
     assert(provider_query && block == 77 && type != NULL);
     *type = http_block_type;
     return http_type_result;
@@ -36,7 +59,18 @@ static int fake_info(SceUID pid, SceUID module, SceKernelModuleInfo *info) {
         info->modid = 22;
         info->modattr = consumer_attributes;
         strcpy(info->module_name, consumer_name);
-        info->segments[0].vaddr = (void *)(uintptr_t)0x81000000;
+        info->segments[0].vaddr = (void *)consumer_text_start;
+        {
+            info->segments[0].memsz = consumer_no_text ? 0 : consumer_text_size;
+            info->segments[0].perms = consumer_text_perms;
+            info->segments[1].vaddr=(void *)(uintptr_t)0x81002000;
+            info->segments[1].memsz=0x1000; info->segments[1].perms=6;
+            if (consumer_extra_segment) {
+                info->segments[2].vaddr = (void *)(uintptr_t)0x81004000;
+                info->segments[2].memsz = 0x1000;
+                info->segments[2].perms = 4; /* Unrecognized allocation permission. */
+            }
+        }
         return info_result;
     }
     return 31;
@@ -52,7 +86,7 @@ static int fake_unload(SceUID pid, SceUID module, int flags, const void *options
 }
 static int fake_shared(SceUID pid, void *address) {
     assert(pid == 21 && address == (void *)(uintptr_t)0x81000000);
-    if (consumer_query) return consumer_sharing;
+    if (consumer_query) { ++consumer_shared_queries; return consumer_sharing; }
     return 34;
 }
 int taiGetModuleInfoForKernel(SceUID pid, const char *name, tai_module_info_t *info) {
@@ -180,13 +214,36 @@ static void consumer_checks(void) {
     assert(tls_fixer_native_http_requires_sony(21, NULL) < 0);
     consumer_count = 0;
     assert(tls_fixer_native_http_requires_sony(21, NULL) < 0);
-    consumer_count = 1; consumer_query = 0;
+    consumer_count = 1;
+#if TLS_FIXER_PRIVATE_GUI_CLIENTS
+    /* CommonDialog has no direct HTTP import, but its shared PAF dependency
+     * blocks a later private PAF. Catch it before privatizing HTTP. */
+    library = UINT32_C(0x3d643ce8); memcpy(import_header + 16, &library, 4);
+    consumer_sharing = 1;
+    assert(tls_fixer_native_http_requires_sony(21, NULL) == 1);
+    consumer_private = 1;
+    assert(tls_fixer_native_http_requires_sony(21, NULL) == 0);
+    consumer_private = 0;
+    library = UINT32_C(0x68d6c3ff); memcpy(import_header + 16, &library, 4);
+    assert(tls_fixer_native_http_requires_sony(21, NULL) == 1);
+    library = UINT32_C(0xe8f15cde); memcpy(import_header + 16, &library, 4);
+    consumer_private = 1; consumer_sharing = 1;
+    assert(tls_fixer_native_http_requires_sony(21, NULL) == 0);
+    consumer_bad_span = 1;
+    assert(tls_fixer_native_http_requires_sony(21, NULL) == 1);
+    consumer_bad_span = 0; consumer_bad_type = 1;
+    assert(tls_fixer_native_http_requires_sony(21, NULL) == 1);
+    consumer_bad_type = 0; consumer_private = 0;
+#endif
+    consumer_query = 0;
 }
 static void provider_checks(void) {
     provider_query = 1;
     provider_lookup_result = 0; provider_uid = 22; provider_bad_name = 0;
     assert(tls_fixer_native_http_is_private(21) == 1);
+    assert(tls_fixer_native_http_mapping(21) == 1);
     http_exports = 0xE0100000; http_block_queries = 0;
+    assert(tls_fixer_native_http_mapping(21) == 2);
     assert(tls_fixer_native_http_is_private(21) == 0 && http_block_queries == 0);
     http_exports = 0;
     assert(tls_fixer_native_http_is_private(21) < 0);
@@ -205,6 +262,7 @@ static void provider_checks(void) {
     http_type_result = 0;
     assert(tls_fixer_native_http_is_private(0) < 0);
     provider_lookup_result = (int32_t)UINT32_C(0x90010002);
+    assert(tls_fixer_native_http_mapping(21) == 0);
     assert(tls_fixer_native_http_is_private(21) == 0);
     provider_lookup_result = -42;
     assert(tls_fixer_native_http_is_private(21) == -42);

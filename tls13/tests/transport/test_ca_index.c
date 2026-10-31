@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
     TlsFixerCaIndex index = {0};
     read_chunk = 7;
     assert(tls_fixer_ca_index_build(&index, argv[1]) == 0);
-    size_t count = 0;
+    size_t count = 0, sony_count = 0;
     for (mbedtls_x509_crt *root = &roots; root != NULL; root = root->next) {
         mbedtls_x509_crt *candidates = NULL;
         assert(tls_fixer_ca_index_find(&index, root, &candidates) == 0);
@@ -73,9 +73,19 @@ int main(int argc, char **argv) {
         int found = 0;
         for (mbedtls_x509_crt *c = candidates; c != NULL; c = c->next)
             if (c->raw.len == root->raw.len && memcmp(c->raw.p, root->raw.p, c->raw.len) == 0) found = 1;
-        assert(found); ++count; free_chain(candidates);
+        assert(found); free_chain(candidates);
+        candidates = NULL;
+        assert(tls_fixer_ca_index_find_sony(&index, root, &candidates) == 0);
+        found = 0;
+        for (mbedtls_x509_crt *c = candidates; c != NULL; c = c->next)
+            if (c->raw.len == root->raw.len && memcmp(c->raw.p, root->raw.p, c->raw.len) == 0) found = 1;
+        /* The authoritative bundle preserves native category 1 as its first
+         * five certificates; all later public roots must be excluded. */
+        assert(found == (count < 5));
+        sony_count += found;
+        ++count; free_chain(candidates);
     }
-    assert(count == index.count && open_count == 0);
+    assert(count == index.count && sony_count == 5 && open_count == 0);
     read_chunk = 0;
     for (int fault = 0; fault < 4; ++fault) {
         int *flag = (int *[]){&fail_open, &fail_read, &fail_seek, &fail_close}[fault];
@@ -116,9 +126,26 @@ int main(int argc, char **argv) {
     candidate = NULL;
     assert(tls_fixer_ca_index_find(&index, &roots, &candidate) < 0 && candidate == NULL);
     tls_fixer_ca_index_free(&index);
+    /* The same DNAS subject with changed DER must not inherit Sony trust.
+     * Change one base64 byte near the signature, keeping the PEM parseable. */
+    char *changed = end;
+    for (int digits = 0; digits < 8;) {
+        assert(--changed > begin);
+        if ((*changed >= 'A' && *changed <= 'Z') || (*changed >= 'a' && *changed <= 'z') ||
+            (*changed >= '0' && *changed <= '9') || *changed == '+' || *changed == '/') ++digits;
+    }
+    *changed = *changed == 'A' ? 'B' : 'A';
+    one = fopen(temporary, "wb"); assert(one != NULL);
+    assert(fwrite(begin, 1, length, one) == length && fclose(one) == 0);
+    assert(tls_fixer_ca_index_build(&index, temporary) == 0);
+    assert(tls_fixer_ca_index_find(&index, &roots, &candidate) == 0 && candidate != NULL);
+    assert(candidate->raw.len == roots.raw.len && memcmp(candidate->raw.p, roots.raw.p, roots.raw.len) != 0);
+    free_chain(candidate); candidate = NULL;
+    assert(tls_fixer_ca_index_find_sony(&index, &roots, &candidate) == 0 && candidate == NULL);
+    tls_fixer_ca_index_free(&index);
     unlink(temporary);
     mbedtls_x509_crt_free(&roots);
     mbedtls_psa_crypto_free(); tls_fixer_crypto_platform_free();
-    printf("CA index: %zu exact roots, short reads, I/O/allocation faults, malformed tails, truncation PASS\n", count);
+    printf("CA index: %zu exact roots, %zu Sony roots, changed-DER rejection, short reads, I/O/allocation faults, malformed tails, truncation PASS\n", count, sony_count);
     return 0;
 }

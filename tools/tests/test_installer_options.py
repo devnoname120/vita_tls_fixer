@@ -8,6 +8,26 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class InstallerOptionsTests(unittest.TestCase):
+    def test_config_edits_preserve_active_file_at_failure_boundaries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            exe = Path(directory) / 'config'
+            subprocess.run([os.environ.get('CC', 'cc'), '-std=c11', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-I', str(ROOT / 'installer'), '-I', str(ROOT),
+                            str(ROOT / 'installer/config.c'), str(ROOT / 'installer/tests/test_config.c'),
+                            '-o', str(exe)], check=True, capture_output=True, timeout=60)
+            result = subprocess.run([str(exe)], check=True, capture_output=True, text=True, timeout=10)
+            self.assertIn('PASS', result.stdout)
+    def test_system_backend_payloads_and_failed_activation_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            exe = Path(directory) / 'system-payloads'
+            subprocess.run([os.environ.get('CC', 'cc'), '-std=c11', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-I', str(ROOT / 'installer'),
+                            str(ROOT / 'installer/options.c'), str(ROOT / 'installer/system_payloads.c'),
+                            str(ROOT / 'installer/tests/test_system_payloads.c'), '-o', str(exe)],
+                           check=True, capture_output=True, timeout=60)
+            result = subprocess.run([str(exe)], check=True, capture_output=True, text=True, timeout=10)
+            self.assertIn('PASS', result.stdout)
+
     def test_component_operations_preserve_unselected_components(self):
         with tempfile.TemporaryDirectory() as directory:
             exe = Path(directory) / 'options'

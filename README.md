@@ -98,7 +98,41 @@ docker run --rm -v "$PWD":/src -w /src vitasdk/vitasdk:latest \
   sh -lc 'make clean && make'
 ```
 
-Output: `tls_fixer.vpk`. The archives are SHA-256 verified and cached under ignored `build/deps/`. The project builds the providers' TLS libraries from unmodified upstream sources using its configuration headers and native platform adapter. The installer uses source-built libcurl with VitaSDK OpenSSL and native lock wrappers.
+Output: `tls_fixer.vpk`. The archives are SHA-256 verified and cached under ignored `build/deps/`. The normal provider build uses unmodified upstream TLS sources with the project's configuration headers and native platform adapter. The installer uses source-built libcurl with VitaSDK OpenSSL and native lock wrappers.
+
+The experimental augmented Sony HTTP module has a separate build target:
+
+```sh
+make augmented-http
+```
+
+It produces `build/augmented-http/augmented/libhttp.suprx`, with the intermediate ELF and input report beside it. This target uses the embedded backend's compatibility profile, generates its optional kernel import, and keeps diagnostic recording disabled. Mbed TLS source filenames are normalized so different build directories produce the same module with the same toolchain. The normal VPK build remains separate; device activation uses the existing self-disarming test procedure.
+
+Before publishing the build output, the runtime import audit rejects SceLibc, additional libraries outside the native dependency set and the TLS runtime allowlist, and a redirect-reader import that is no longer optional.
+
+`make augmented-http-test` also builds `build/augmented-http-kernel/tls_fixer.skprx` for a system test. This kernel uses `ux0:/data/tls_fixer-runtime-augmented/libhttp.suprx`, keeps normal shared/private loading, and disables separate HTTP-provider injection and private GUI routing. Diagnostic recording is off. Its startup synchronizes the disabling of its own boot entries before installing hooks; a fault before that completes remains outside this safeguard. The command only builds the pair and does not install or activate it.
+
+The opt-in installer package is built with:
+
+```sh
+make augmented-http-vpk
+```
+
+Output: `build/augmented-package/tls_fixer-augmented-test.vpk`. It builds in an isolated source snapshot, preserving the normal build outputs. This experimental package offers System installation/removal and Exit. Its backend is fixed at compile time, with no backend selector. The normal installer retains its Full/Browser/System/Certificates menu during migration.
+
+The test stages HTTP, paired Sony SSL, PSN and Store modules under `ux0:/data/tls_fixer-runtime-installer/`, and the kernel at `ux0:/data/tls_fixer-one-shot/tls_fixer.skprx`. It preserves the normal plugin files and certificates. Configuration changes keep the existing file in place, disable tls_fixer entries before payload updates, and activate the prepared test with a verified one-byte edit. A missing entry is first appended as comments, then its section and path are enabled in order. The app asks for a restart instead of restarting automatically. The kernel disables its own boot entries before hooks, so activation lasts one boot; a fault before startup disarming completes remains outside that safeguard. Diagnostic recording is off.
+
+The installer executable and packaged payloads have passed native System install, refresh, one-boot TLS 1.2/1.3 and uninstall checks on the retail 3.60 device. The actual executable/assets were run through the existing diagnostic application slot; VPK container promotion was checked offline. This is a System-only test package, not the normal release installer.
+
+To build the augmented backend in release mode with persistent activation:
+
+```sh
+make augmented-http-release-vpk
+```
+
+Output: `build/augmented-release/tls_fixer-augmented-release.vpk`. This package restores Full, Browser only, System only and Certificates only. The system component installs the augmented HTTP module and paired Sony SSL under `vs0:/data/external/tls_fixer/native/`; the coordinator uses `ur0:tai/tls_fixer.skprx`. Logging, diagnostic probes and startup self-disarming are disabled. There is no backend selector. Building this package does not install or activate it on a device.
+
+The augmented HTTP backend starts with a 128 KiB TLS heap. When concurrent requests need more memory, it adds pools on demand, up to 512 KiB total, and releases empty extra pools. Its outgoing TLS buffer is 2 KiB; incoming records retain the standard 16 KiB limit. This avoids reserving the maximum in every application while allowing busy clients such as PlayStation Store to complete their handshakes.
 
 Host verification:
 
@@ -113,6 +147,19 @@ docker run --rm -v "$PWD":/src -w /src vitasdk/vitasdk:latest sh -c '
 ```
 
 Diagnostic source/build options remain available for development; they are not enabled in the normal VPK.
+
+The Linux firmware audit can check the augmented pair against a decrypted firmware corpus:
+
+```sh
+python3 tools/firmware_matrix.py --firmware-root /path/to/decrypted/external \
+  --http-module build/augmented-http/augmented/libhttp.suprx \
+  --coordinator build/augmented-http-kernel/tls_fixer.skprx \
+  --plugin-elf build/augmented-http-kernel/tls_fixer.elf \
+  --plugin-elf build/augmented-http/tls_fixer_http_embedded \
+  --output build/augmented-http-firmware.json
+```
+
+It checks function and variable imports against the firmware and paired replacement modules, together with the compiled loader/WebKit guards. Missing corpus images are reported separately. This is offline compatibility evidence, not execution on every firmware or hardware model.
 
 ## Credits and third-party software
 

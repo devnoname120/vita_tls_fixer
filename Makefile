@@ -1,8 +1,25 @@
 TARGET = tls_fixer
+INSTALLER_HTTP_BACKEND ?= hooked
+INSTALLER_AUGMENTED_RELEASE ?= 0
+ifneq ($(filter $(INSTALLER_AUGMENTED_RELEASE),0 1),$(INSTALLER_AUGMENTED_RELEASE))
+$(error INSTALLER_AUGMENTED_RELEASE must be 0 or 1)
+endif
+ifeq ($(INSTALLER_HTTP_BACKEND),augmented)
+INSTALLER_BACKEND_DEFINE = 1
+else ifeq ($(INSTALLER_HTTP_BACKEND),hooked)
+INSTALLER_BACKEND_DEFINE = 0
+else
+$(error INSTALLER_HTTP_BACKEND must be hooked or augmented)
+endif
+ifeq ($(INSTALLER_AUGMENTED_RELEASE),1)
+ifneq ($(INSTALLER_HTTP_BACKEND),augmented)
+$(error INSTALLER_AUGMENTED_RELEASE requires INSTALLER_HTTP_BACKEND=augmented)
+endif
+endif
 TITLE_ID = TLSF00001
-# Vita package metadata uses ##.##; the displayed build is 0.2.2-test3.
+# Vita package metadata uses ##.##; release builds display 0.2.2.
 APP_VERSION = 00.22
-OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o installer/crypto_lock_vita.o installer/options.o
+OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o installer/crypto_lock_vita.o installer/options.o installer/system_payloads.o installer/config.o
 CRYPTO_LOCK_FUNCTIONS = CRYPTO_THREAD_lock_new CRYPTO_THREAD_read_lock CRYPTO_THREAD_write_lock \
 	CRYPTO_THREAD_unlock CRYPTO_THREAD_lock_free CRYPTO_atomic_add
 CRYPTO_LOCK_LINK_FLAGS = $(foreach function,$(CRYPTO_LOCK_FUNCTIONS),-Wl,--wrap=$(function))
@@ -22,7 +39,12 @@ BUILD_DIR ?= build
 VITA_TOOLCHAIN = $(VITASDK)/share/vita.toolchain.cmake
 KERNEL_MODULE = $(BUILD_DIR)/kernel/tls_fixer.skprx
 # A VPK always contains the normal coordinator, even after a diagnostic CMake cache.
-KERNEL_CMAKE_FLAGS = -DTLS_FIXER_HTTP_PROVIDER_PATH=vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx \
+KERNEL_CMAKE_FLAGS = -DTLS_FIXER_PRIVATE_GUI_CLIENTS=OFF \
+    -DTLS_FIXER_INSTALLED_AUGMENTED_HTTP=OFF \
+    -DTLS_FIXER_AUGMENTED_RELEASE=OFF \
+    -DTLS_FIXER_EMBEDDED_HTTP_PATH= \
+    -DTLS_FIXER_HTTP_PROVIDER_PATH=vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx \
+    -DTLS_FIXER_STORE_COVER_PATH=vs0:/data/external/tls_fixer/native/tls_fixer_store.suprx \
     -DTLS_FIXER_HTTP_TEST_TITLE_ID= \
     -DTLS_FIXER_HTTP_GLOBAL_DIAGNOSTIC=OFF \
     -DTLS_FIXER_BROWSER_INVENTORY=OFF \
@@ -37,10 +59,26 @@ KERNEL_CMAKE_FLAGS = -DTLS_FIXER_HTTP_PROVIDER_PATH=vs0:/data/external/tls_fixer
 	-DTLS_FIXER_INSPECT_CONNECT_PATCH=OFF -DTLS_FIXER_BROWSER_POST_START=ON \
 	-DTLS_FIXER_DISARM_RESULT_ONLY=OFF -DTLS_FIXER_SKIP_DNS_START=OFF -DTLS_FIXER_SKIP_HTTP_START=OFF
 PSN_MODULE = $(BUILD_DIR)/psn_redirect/tls_fixer_psn.suprx
+STORE_MODULE = $(BUILD_DIR)/store_cover/tls_fixer_store.suprx
 DNS_FIX_MODULE = $(BUILD_DIR)/old_dns_fix/old_dns_fix.suprx
 TLS13_PROVIDER = $(BUILD_DIR)/tls13-vita/provider/tls_fixer_http.suprx
 BROWSER_PROVIDER = $(BUILD_DIR)/tls13-vita/browser/tls_fixer.suprx
 MBEDTLS_ARCHIVE ?= $(CURDIR)/build/deps/mbedtls-4.2.0.tar.bz2
+AUGMENTED_HTTP_BUILD_DIR ?= $(BUILD_DIR)/augmented-http
+AUGMENTED_KERNEL_BUILD_DIR ?= $(BUILD_DIR)/augmented-http-kernel
+AUGMENTED_PACKAGE_DIR ?= $(BUILD_DIR)/augmented-package
+AUGMENTED_RELEASE ?= 0
+ifeq ($(AUGMENTED_RELEASE),1)
+AUGMENTED_PACKAGE_RELEASE_FLAG = ON
+AUGMENTED_PACKAGE_DISARM_FLAG = OFF
+AUGMENTED_PACKAGE_ARGUMENT = --release
+else ifeq ($(AUGMENTED_RELEASE),0)
+AUGMENTED_PACKAGE_RELEASE_FLAG = OFF
+AUGMENTED_PACKAGE_DISARM_FLAG = ON
+else
+$(error AUGMENTED_RELEASE must be 0 or 1)
+endif
+AUGMENTED_HTTP_RUNTIME_PATH ?= ux0:/data/tls_fixer-runtime-augmented/libhttp.suprx
 CURL_ARCHIVE ?= $(CURDIR)/build/deps/curl-8.17.0.tar.gz
 CURL_LIBRARY = $(BUILD_DIR)/curl-vita/_deps/installer_curl-build/lib/libcurl.a
 TLS13_SOURCES = $(shell find tls13 -type f -not -path '*/build/*' -not -path '*/__pycache__/*')
@@ -54,11 +92,54 @@ PACKAGE_ASSETS = misc/compat.suprx misc/lhttp.suprx misc/lssl.suprx misc/comm2.s
 
 all: $(TARGET).vpk
 
+# Opt-in prototype artifact. The installer and its normal coordinator stay separate.
+.PHONY: augmented-http
+augmented-http: $(MBEDTLS_ARCHIVE)
+	cmake -S tls13/augment -B "$(AUGMENTED_HTTP_BUILD_DIR)" \
+		-DCMAKE_TOOLCHAIN_FILE="$(VITA_TOOLCHAIN)" -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_C_FLAGS= '-DCMAKE_C_FLAGS_RELEASE=-O3 -DNDEBUG' \
+		-DTLS_FIXER_MBEDTLS_ARCHIVE="$(MBEDTLS_ARCHIVE)" \
+		-DTLS_FIXER_AUGMENTED_NATIVE_HTTP="$(CURDIR)/misc/lhttp.suprx" \
+		-DTLS_FIXER_BUILD_EMBEDDED_HTTP=ON -DTLS_FIXER_BUILD_AUGMENTED_MODULE=ON \
+		-DTLS_FIXER_RESTORE_RSA_CLIENT=ON -DTLS_FIXER_NATIVE_HELLO_PROFILE=ON \
+		-DTLS_FIXER_EMBEDDED_KERNEL_STUB= -DTLS_FIXER_BUILD_AUGMENT_APP=OFF \
+		-DTLS_FIXER_EMBEDDED_MBEDTLS36=OFF -DTLS_FIXER_EMBEDDED_TRACE=OFF \
+		-DTLS_FIXER_EMBEDDED_COMPARE_HTTP=OFF -DTLS_FIXER_EMBEDDED_NATIVE_CONTROL=OFF \
+		-DTLS_FIXER_NATIVE_HELLO_EXPERIMENT=OFF -DTLS_FIXER_EMBEDDED_AUTH_TLS12_CONTROL=OFF \
+		-DTLS_FIXER_EMBEDDED_AUTH_RSA_CONTROL=OFF -DTLS_FIXER_EMBEDDED_NO_SNI_CONTROL=OFF \
+		-DTLS_FIXER_EMBEDDED_LOWERCASE_SNI_CONTROL=OFF \
+		-DTLS_FIXER_EMBEDDED_TRACE_HOST= -DTLS_FIXER_EMBEDDED_TRACE_NONCE=
+	cmake --build "$(AUGMENTED_HTTP_BUILD_DIR)" --target tls_fixer_augmented_http -j4
+
+# Build the separately staged test pair without changing the normal VPK.
+.PHONY: augmented-http-test
+augmented-http-test: augmented-http
+	cmake -S kernel -B "$(AUGMENTED_KERNEL_BUILD_DIR)" $(KERNEL_CMAKE_FLAGS) \
+		-DCMAKE_BUILD_TYPE=Release -DTLS_FIXER_ENABLE_SELF_DISARM=ON \
+		-DTLS_FIXER_SKIP_HTTP_START=ON \
+		-DTLS_FIXER_EMBEDDED_HTTP_PATH="$(AUGMENTED_HTTP_RUNTIME_PATH)"
+	cmake --build "$(AUGMENTED_KERNEL_BUILD_DIR)" -j4
+
+.PHONY: augmented-http-package-kernel augmented-http-vpk augmented-http-release-vpk
+augmented-http-package-kernel:
+	cmake -S kernel -B "$(AUGMENTED_PACKAGE_DIR)/kernel" $(KERNEL_CMAKE_FLAGS) \
+		-DCMAKE_BUILD_TYPE=Release -DTLS_FIXER_INSTALLED_AUGMENTED_HTTP=ON \
+		-DTLS_FIXER_AUGMENTED_RELEASE=$(AUGMENTED_PACKAGE_RELEASE_FLAG) \
+		-DTLS_FIXER_ENABLE_SELF_DISARM=$(AUGMENTED_PACKAGE_DISARM_FLAG)
+	cmake --build "$(AUGMENTED_PACKAGE_DIR)/kernel" -j4
+
+augmented-http-vpk: augmented-http augmented-http-package-kernel
+	python3 tools/build_augmented_package.py --build-dir "$(AUGMENTED_PACKAGE_DIR)" \
+		--http-module "$(AUGMENTED_HTTP_BUILD_DIR)/augmented/libhttp.suprx" $(AUGMENTED_PACKAGE_ARGUMENT)
+
+augmented-http-release-vpk:
+	$(MAKE) augmented-http-vpk AUGMENTED_RELEASE=1 AUGMENTED_PACKAGE_DIR="$(BUILD_DIR)/augmented-release"
+
 .PHONY: force-normal-kernel force-normal-providers
 force-normal-kernel:
 force-normal-providers:
 
-$(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(PSN_MODULE) $(DNS_FIX_MODULE) $(TLS13_PROVIDER) $(BROWSER_PROVIDER) \
+$(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(PSN_MODULE) $(STORE_MODULE) $(DNS_FIX_MODULE) $(TLS13_PROVIDER) $(BROWSER_PROVIDER) \
         THIRD_PARTY_NOTICES.md $(LICENSE_FILES) $(PACKAGE_ASSETS)
 	vita-mksfoex -s APP_VER=$(APP_VERSION) -s TITLE_ID=$(TITLE_ID) "tls_fixer" param.sfo
 	vita-pack-vpk -s param.sfo -b eboot.bin \
@@ -67,6 +148,7 @@ $(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(PSN_MODULE) $(DNS_FIX_MODULE) $(TLS1
 		-a sce_sys/livearea/contents/template.xml=sce_sys/livearea/contents/template.xml \
 		-a $(KERNEL_MODULE)=tls_fixer.skprx \
 		-a $(PSN_MODULE)=tls_fixer_psn.suprx \
+		-a $(STORE_MODULE)=tls_fixer_store.suprx \
 		-a $(DNS_FIX_MODULE)=dnsfix.suprx \
 		-a misc/compat.suprx=compat.suprx \
 		-a misc/lhttp.suprx=lhttp.suprx \
@@ -82,8 +164,14 @@ $(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(PSN_MODULE) $(DNS_FIX_MODULE) $(TLS1
 		-a misc/redirects.txt=redirects.txt \
 		-a misc/certs.cer=certs.cer $@
 
-main.o: installer/certificates.h installer/network_vita.h installer/options.h
+.PHONY: force-installer-profile
+force-installer-profile:
+
+main.o: main.c force-installer-profile installer/certificates.h installer/network_vita.h installer/options.h installer/system_payloads.h installer/config.h kernel/self_disarm.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DTLS_FIXER_INSTALL_AUGMENTED_HTTP=$(INSTALLER_BACKEND_DEFINE) -DTLS_FIXER_AUGMENTED_RELEASE=$(INSTALLER_AUGMENTED_RELEASE) -c main.c -o $@
 installer/options.o: installer/options.h
+installer/system_payloads.o: installer/system_payloads.h
+installer/config.o: installer/config.h kernel/self_disarm.h
 installer/certificates.o: installer/certificates.h
 installer/network_vita.o: installer/network_vita.h
 
@@ -92,11 +180,15 @@ $(KERNEL_MODULE): force-normal-kernel kernel/main.c kernel/self_disarm.c kernel/
 	cmake --build $(BUILD_DIR)/kernel
 
 $(PSN_MODULE): $(KERNEL_MODULE) psn_redirect/main.c psn_redirect/CMakeLists.txt psn_redirect/tls_fixer_psn.yml
-	cmake -S psn_redirect -B $(BUILD_DIR)/psn_redirect -DCMAKE_TOOLCHAIN_FILE=$(VITA_TOOLCHAIN)
+	cmake -S psn_redirect -B $(BUILD_DIR)/psn_redirect -DCMAKE_TOOLCHAIN_FILE=$(VITA_TOOLCHAIN) -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(BUILD_DIR)/psn_redirect
 
+$(STORE_MODULE): force-normal-providers $(wildcard store_cover/*.c store_cover/*.h) store_cover/CMakeLists.txt store_cover/module.yml
+	cmake -S store_cover -B $(BUILD_DIR)/store_cover -DCMAKE_TOOLCHAIN_FILE=$(VITA_TOOLCHAIN) -DCMAKE_BUILD_TYPE=Release -DTLS_FIXER_MBEDTLS_ARCHIVE=$(MBEDTLS_ARCHIVE) -DSTORE_COVER_DIAGNOSTICS=OFF -DSTORE_COVER_HOST_TESTS=OFF
+	cmake --build $(BUILD_DIR)/store_cover
+
 $(DNS_FIX_MODULE): old_dns_fix/main.c old_dns_fix/CMakeLists.txt old_dns_fix/exports.yml
-	cmake -S old_dns_fix -B $(BUILD_DIR)/old_dns_fix -DCMAKE_TOOLCHAIN_FILE=$(VITA_TOOLCHAIN)
+	cmake -S old_dns_fix -B $(BUILD_DIR)/old_dns_fix -DCMAKE_TOOLCHAIN_FILE=$(VITA_TOOLCHAIN) -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(BUILD_DIR)/old_dns_fix --clean-first
 
 $(MBEDTLS_ARCHIVE):
@@ -146,6 +238,6 @@ $(TARGET).elf: $(OBJS) $(CURL_LIBRARY) Makefile
 clean:
 	rm -rf $(TARGET).vpk $(TARGET).velf $(TARGET).elf $(OBJS) \
 		eboot.bin param.sfo $(BUILD_DIR)/kernel $(BUILD_DIR)/old_dns_fix \
-		$(BUILD_DIR)/tls13-vita $(BUILD_DIR)/curl-vita $(BUILD_DIR)/psn_redirect
+		$(BUILD_DIR)/tls13-vita $(BUILD_DIR)/curl-vita $(BUILD_DIR)/psn_redirect $(BUILD_DIR)/store_cover
 
 .PHONY: all clean

@@ -30,7 +30,11 @@ typedef enum TlsFixerProviderState {
 } TlsFixerProviderState;
 
 typedef struct TlsFixerProviderGlobal {
+#if TLS_FIXER_EMBEDDED_HTTP
+    _Atomic(TlsFixerProviderState) state;
+#else
     TlsFixerProviderState state;
+#endif
     int32_t libhttp_modid;
     uintptr_t text_address;
     size_t text_size;

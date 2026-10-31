@@ -27,4 +27,9 @@
 #undef MBEDTLS_X509_CSR_WRITE_C
 #undef MBEDTLS_X509_CSR_PARSE_C
 
+/* Diagnostic build only. The peer hostname is still configured and verified. */
+#if defined(TLS_FIXER_DIAGNOSTIC_NO_SNI)
+#undef MBEDTLS_SSL_SERVER_NAME_INDICATION
+#endif
+
 #endif

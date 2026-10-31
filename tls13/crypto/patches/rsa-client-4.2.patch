@@ -1,0 +1,321 @@
+diff --git a/include/mbedtls/mbedtls_config.h b/include/mbedtls/mbedtls_config.h
+index a38b61c14..05c728023 100644
+--- a/include/mbedtls/mbedtls_config.h
++++ b/include/mbedtls/mbedtls_config.h
+@@ -310,6 +310,9 @@
+  */
+ #define MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
+ 
++/* Local client-side TLS1.2 RSA restoration; server decryption is not restored. */
++#define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
++
+ /**
+  * \def MBEDTLS_SSL_ALL_ALERT_MESSAGES
+  *
+diff --git a/include/mbedtls/ssl.h b/include/mbedtls/ssl.h
+index 00e28442d..9890f954d 100644
+--- a/include/mbedtls/ssl.h
++++ b/include/mbedtls/ssl.h
+@@ -651,6 +651,9 @@
+ /* Dummy type used only for its size */
+ union mbedtls_ssl_premaster_secret {
+     unsigned char dummy; /* Make the union non-empty even with SSL disabled */
++#if defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED)
++    unsigned char _pms_rsa[48]; /* RFC 5246 8.1.1 */
++#endif
+ #if defined(MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED)    || \
+     defined(MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED)
+     unsigned char _pms_ecdh[MBEDTLS_ECP_MAX_BYTES];    /* RFC 4492 5.10 */
+diff --git a/include/mbedtls/ssl_ciphersuites.h b/include/mbedtls/ssl_ciphersuites.h
+index 9af1e5a66..0bcd6a0c9 100644
+--- a/include/mbedtls/ssl_ciphersuites.h
++++ b/include/mbedtls/ssl_ciphersuites.h
+@@ -23,6 +23,12 @@ extern "C" {
+ /*
+  * Supported ciphersuites (Official IANA names)
+  */
++#define MBEDTLS_TLS_RSA_WITH_AES_128_CBC_SHA 0x002F
++#define MBEDTLS_TLS_RSA_WITH_AES_256_CBC_SHA 0x0035
++#define MBEDTLS_TLS_RSA_WITH_AES_128_CBC_SHA256 0x003C
++#define MBEDTLS_TLS_RSA_WITH_AES_256_CBC_SHA256 0x003D
++
++
+ #define MBEDTLS_TLS_PSK_WITH_NULL_SHA                    0x2C   /**< Weak! */
+ 
+ #define MBEDTLS_TLS_PSK_WITH_AES_128_CBC_SHA             0x8C
+@@ -131,10 +137,12 @@ typedef enum {
+     MBEDTLS_KEY_EXCHANGE_PSK,
+     MBEDTLS_KEY_EXCHANGE_ECDHE_PSK,
+     MBEDTLS_KEY_EXCHANGE_ECJPAKE,
++    MBEDTLS_KEY_EXCHANGE_RSA,
+ } mbedtls_key_exchange_type_t;
+ 
+ /* Key exchanges using a certificate */
+-#if defined(MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED)     || \
++#if defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED) || \
++    defined(MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED)     || \
+     defined(MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED)
+ #define MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED
+ #endif
+diff --git a/library/ssl_ciphersuites.c b/library/ssl_ciphersuites.c
+index 2809a1424..e3dcdf158 100644
+--- a/library/ssl_ciphersuites.c
++++ b/library/ssl_ciphersuites.c
+@@ -142,12 +142,42 @@ static const int ciphersuite_preference[] =
+     MBEDTLS_TLS_PSK_WITH_NULL_SHA256,
+     MBEDTLS_TLS_PSK_WITH_NULL_SHA,
+ 
++#if defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED)
++    MBEDTLS_TLS_RSA_WITH_AES_256_CBC_SHA256,
++    MBEDTLS_TLS_RSA_WITH_AES_128_CBC_SHA256,
++    MBEDTLS_TLS_RSA_WITH_AES_256_CBC_SHA,
++    MBEDTLS_TLS_RSA_WITH_AES_128_CBC_SHA,
++#endif
++
+ #endif /* MBEDTLS_SSL_CIPHERSUITES */
+     0
+ };
+ 
+ static const mbedtls_ssl_ciphersuite_t ciphersuite_definitions[] =
+ {
++#if defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED) && defined(PSA_WANT_KEY_TYPE_AES) && defined(PSA_WANT_ALG_CBC_NO_PADDING)
++#if defined(PSA_WANT_ALG_SHA_256)
++    { MBEDTLS_TLS_RSA_WITH_AES_256_CBC_SHA256, "TLS-RSA-WITH-AES-256-CBC-SHA256",
++      MBEDTLS_CIPHER_AES_256_CBC, MBEDTLS_MD_SHA256, MBEDTLS_KEY_EXCHANGE_RSA, 0,
++      MBEDTLS_SSL_VERSION_TLS1_2, MBEDTLS_SSL_VERSION_TLS1_2 },
++#endif
++#if defined(PSA_WANT_ALG_SHA_256)
++    { MBEDTLS_TLS_RSA_WITH_AES_128_CBC_SHA256, "TLS-RSA-WITH-AES-128-CBC-SHA256",
++      MBEDTLS_CIPHER_AES_128_CBC, MBEDTLS_MD_SHA256, MBEDTLS_KEY_EXCHANGE_RSA, 0,
++      MBEDTLS_SSL_VERSION_TLS1_2, MBEDTLS_SSL_VERSION_TLS1_2 },
++#endif
++#if defined(PSA_WANT_ALG_SHA_1)
++    { MBEDTLS_TLS_RSA_WITH_AES_256_CBC_SHA, "TLS-RSA-WITH-AES-256-CBC-SHA",
++      MBEDTLS_CIPHER_AES_256_CBC, MBEDTLS_MD_SHA1, MBEDTLS_KEY_EXCHANGE_RSA, 0,
++      MBEDTLS_SSL_VERSION_TLS1_2, MBEDTLS_SSL_VERSION_TLS1_2 },
++#endif
++#if defined(PSA_WANT_ALG_SHA_1)
++    { MBEDTLS_TLS_RSA_WITH_AES_128_CBC_SHA, "TLS-RSA-WITH-AES-128-CBC-SHA",
++      MBEDTLS_CIPHER_AES_128_CBC, MBEDTLS_MD_SHA1, MBEDTLS_KEY_EXCHANGE_RSA, 0,
++      MBEDTLS_SSL_VERSION_TLS1_2, MBEDTLS_SSL_VERSION_TLS1_2 },
++#endif
++#endif
++
+ #if defined(MBEDTLS_SSL_PROTO_TLS1_3)
+ #if defined(PSA_WANT_KEY_TYPE_AES)
+ #if defined(PSA_WANT_ALG_GCM)
+@@ -905,6 +935,8 @@ size_t mbedtls_ssl_ciphersuite_get_cipher_key_bitlen(const mbedtls_ssl_ciphersui
+ mbedtls_pk_sigalg_t mbedtls_ssl_get_ciphersuite_sig_pk_alg(const mbedtls_ssl_ciphersuite_t *info)
+ {
+     switch (info->key_exchange) {
++        case MBEDTLS_KEY_EXCHANGE_RSA:
++            return MBEDTLS_PK_SIGALG_RSA_PKCS1V15;
+         case MBEDTLS_KEY_EXCHANGE_ECDHE_RSA:
+             return MBEDTLS_PK_SIGALG_RSA_PKCS1V15;
+ 
+@@ -919,6 +951,8 @@ mbedtls_pk_sigalg_t mbedtls_ssl_get_ciphersuite_sig_pk_alg(const mbedtls_ssl_cip
+ psa_algorithm_t mbedtls_ssl_get_ciphersuite_sig_pk_psa_alg(const mbedtls_ssl_ciphersuite_t *info)
+ {
+     switch (info->key_exchange) {
++        case MBEDTLS_KEY_EXCHANGE_RSA:
++            return PSA_ALG_RSA_PKCS1V15_CRYPT;
+         case MBEDTLS_KEY_EXCHANGE_ECDHE_RSA:
+             return PSA_ALG_RSA_PKCS1V15_SIGN(
+                 mbedtls_md_psa_alg_from_type((mbedtls_md_type_t) info->mac));
+@@ -934,6 +968,8 @@ psa_algorithm_t mbedtls_ssl_get_ciphersuite_sig_pk_psa_alg(const mbedtls_ssl_cip
+ psa_key_usage_t mbedtls_ssl_get_ciphersuite_sig_pk_psa_usage(const mbedtls_ssl_ciphersuite_t *info)
+ {
+     switch (info->key_exchange) {
++        case MBEDTLS_KEY_EXCHANGE_RSA:
++            return PSA_KEY_USAGE_ENCRYPT;
+         case MBEDTLS_KEY_EXCHANGE_ECDHE_RSA:
+         case MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA:
+             return PSA_KEY_USAGE_SIGN_HASH;
+diff --git a/library/ssl_ciphersuites_internal.h b/library/ssl_ciphersuites_internal.h
+index 864e6bf6b..ae3e5ed29 100644
+--- a/library/ssl_ciphersuites_internal.h
++++ b/library/ssl_ciphersuites_internal.h
+@@ -9,6 +9,9 @@
+  */
+ #ifndef MBEDTLS_SSL_CIPHERSUITES_INTERNAL_H
+ #define MBEDTLS_SSL_CIPHERSUITES_INTERNAL_H
++#if defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED) && defined(MBEDTLS_SSL_SRV_C)
++#error "Local RSA key exchange restoration is client-only"
++#endif
+ 
+ #include "mbedtls/pk.h"
+ 
+@@ -54,6 +57,7 @@ static inline int mbedtls_ssl_ciphersuite_no_pfs(const mbedtls_ssl_ciphersuite_t
+ static inline int mbedtls_ssl_ciphersuite_cert_req_allowed(const mbedtls_ssl_ciphersuite_t *info)
+ {
+     switch (info->MBEDTLS_PRIVATE(key_exchange)) {
++        case MBEDTLS_KEY_EXCHANGE_RSA:
+         case MBEDTLS_KEY_EXCHANGE_ECDHE_RSA:
+         case MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA:
+             return 1;
+@@ -66,6 +70,7 @@ static inline int mbedtls_ssl_ciphersuite_cert_req_allowed(const mbedtls_ssl_cip
+ static inline int mbedtls_ssl_ciphersuite_uses_srv_cert(const mbedtls_ssl_ciphersuite_t *info)
+ {
+     switch (info->MBEDTLS_PRIVATE(key_exchange)) {
++        case MBEDTLS_KEY_EXCHANGE_RSA:
+         case MBEDTLS_KEY_EXCHANGE_ECDHE_RSA:
+         case MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA:
+             return 1;
+diff --git a/library/ssl_client.c b/library/ssl_client.c
+index 354fe9b72..f7699597f 100644
+--- a/library/ssl_client.c
++++ b/library/ssl_client.c
+@@ -356,6 +356,16 @@ static int ssl_write_client_hello_cipher_suites(
+ 
+         ciphersuite_info = mbedtls_ssl_ciphersuite_from_id(cipher_suite);
+ 
++#if defined(TLS_FIXER_DIAGNOSTIC_LEGACY_OFFERS)
++        if (ciphersuite_info == NULL &&
++            (cipher_suite == 0x000a || cipher_suite == 0x0005 || cipher_suite == 0x0004)) {
++            MBEDTLS_SSL_CHK_BUF_PTR(p, end, 2);
++            MBEDTLS_PUT_UINT16_BE(cipher_suite, p, 0);
++            p += 2;
++            continue;
++        }
++#endif
++
+         if (mbedtls_ssl_validate_ciphersuite(ssl, ciphersuite_info,
+                                              ssl->handshake->min_tls_version,
+                                              ssl->tls_version) != 0) {
+diff --git a/library/ssl_tls.c b/library/ssl_tls.c
+index 019557621..46d5995fc 100644
+--- a/library/ssl_tls.c
++++ b/library/ssl_tls.c
+@@ -8659,6 +8659,9 @@ int mbedtls_ssl_check_cert_usage(const mbedtls_x509_crt *cert,
+         recv_endpoint == MBEDTLS_SSL_IS_CLIENT) {
+         /* TLS 1.2 server part of the key exchange */
+         switch (ciphersuite->key_exchange) {
++            case MBEDTLS_KEY_EXCHANGE_RSA:
++                usage = MBEDTLS_X509_KU_KEY_ENCIPHERMENT;
++                break;
+             case MBEDTLS_KEY_EXCHANGE_ECDHE_RSA:
+             case MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA:
+                 usage = MBEDTLS_X509_KU_DIGITAL_SIGNATURE;
+diff --git a/library/ssl_tls12_client.c b/library/ssl_tls12_client.c
+index 8799287a0..1bda96a63 100644
+--- a/library/ssl_tls12_client.c
++++ b/library/ssl_tls12_client.c
+@@ -1829,6 +1829,13 @@ static int ssl_parse_server_key_exchange(mbedtls_ssl_context *ssl)
+     unsigned char *p = NULL, *end = NULL;
+ 
+     MBEDTLS_SSL_DEBUG_MSG(2, ("=> parse server key exchange"));
++#if defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED)
++    if (ciphersuite_info->key_exchange == MBEDTLS_KEY_EXCHANGE_RSA) {
++        mbedtls_ssl_handshake_increment_state(ssl);
++        return 0;
++    }
++#endif
++
+ 
+ #if defined(MBEDTLS_SSL_ECP_RESTARTABLE_ENABLED)
+     if (ssl->handshake->ecrs_enabled &&
+@@ -2362,6 +2369,56 @@ static int ssl_parse_server_hello_done(mbedtls_ssl_context *ssl)
+     return 0;
+ }
+ 
++
++#if defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED)
++/* Client-only RSA key exchange from RFC 5246, using TF-PSA-Crypto's public API.
++ * No RSA server decryption path or asynchronous decryption ABI is restored. */
++MBEDTLS_CHECK_RETURN_CRITICAL
++static int ssl_write_encrypted_pms(mbedtls_ssl_context *ssl, size_t offset,
++                                   size_t *olen, size_t pms_offset)
++{
++    mbedtls_pk_context *peer_pk;
++    unsigned char *pms = ssl->handshake->premaster + pms_offset;
++    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
++    mbedtls_svc_key_id_t key = MBEDTLS_SVC_KEY_ID_INIT;
++    int ret;
++    psa_status_t status;
++    if (offset + 2 > MBEDTLS_SSL_OUT_CONTENT_LEN ||
++        pms_offset + 48 > sizeof(ssl->handshake->premaster))
++        return MBEDTLS_ERR_SSL_BUFFER_TOO_SMALL;
++    mbedtls_ssl_write_version(pms, ssl->conf->transport, MBEDTLS_SSL_VERSION_TLS1_2);
++    status = psa_generate_random(pms + 2, 46);
++    if (status != PSA_SUCCESS) return MBEDTLS_ERR_SSL_HW_ACCEL_FAILED;
++    ssl->handshake->pmslen = 48;
++#if defined(MBEDTLS_SSL_KEEP_PEER_CERTIFICATE)
++    if (ssl->session_negotiate->peer_cert == NULL) return MBEDTLS_ERR_SSL_INTERNAL_ERROR;
++    peer_pk = &ssl->session_negotiate->peer_cert->pk;
++#else
++    peer_pk = &ssl->handshake->peer_pubkey;
++#endif
++    if (!mbedtls_pk_can_do_psa(peer_pk, PSA_ALG_RSA_PKCS1V15_CRYPT, PSA_KEY_USAGE_ENCRYPT))
++        return MBEDTLS_ERR_SSL_PK_TYPE_MISMATCH;
++    ret = mbedtls_pk_get_psa_attributes(peer_pk, PSA_KEY_USAGE_ENCRYPT, &attributes);
++    if (ret == 0) {
++        psa_set_key_algorithm(&attributes, PSA_ALG_RSA_PKCS1V15_CRYPT);
++        ret = mbedtls_pk_import_into_psa(peer_pk, &attributes, &key);
++    }
++    psa_reset_key_attributes(&attributes);
++    if (ret != 0) return ret;
++    status = psa_asymmetric_encrypt(key, PSA_ALG_RSA_PKCS1V15_CRYPT, pms, 48, NULL, 0,
++                                    ssl->out_msg + offset + 2,
++                                    MBEDTLS_SSL_OUT_CONTENT_LEN - offset - 2, olen);
++    psa_status_t destroyed = psa_destroy_key(key);
++    if (status != PSA_SUCCESS || destroyed != PSA_SUCCESS) return MBEDTLS_ERR_SSL_HW_ACCEL_FAILED;
++    MBEDTLS_PUT_UINT16_BE(*olen, ssl->out_msg, offset);
++    *olen += 2;
++#if !defined(MBEDTLS_SSL_KEEP_PEER_CERTIFICATE)
++    mbedtls_pk_free(peer_pk);
++#endif
++    return 0;
++}
++#endif
++
+ MBEDTLS_CHECK_RETURN_CRITICAL
+ static int ssl_write_client_key_exchange(mbedtls_ssl_context *ssl)
+ {
+@@ -2622,6 +2679,15 @@ static int ssl_write_client_key_exchange(mbedtls_ssl_context *ssl)
+ 
+     } else
+ #endif /* MBEDTLS_KEY_EXCHANGE_SOME_PSK_ENABLED */
++#if defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED)
++    if (ciphersuite_info->key_exchange == MBEDTLS_KEY_EXCHANGE_RSA) {
++        header_len = 4;
++        if ((ret = ssl_write_encrypted_pms(ssl, header_len,
++                                           &content_len, 0)) != 0) {
++            return ret;
++        }
++    } else
++#endif /* MBEDTLS_KEY_EXCHANGE_RSA_ENABLED */
+ #if defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
+     if (ciphersuite_info->key_exchange == MBEDTLS_KEY_EXCHANGE_ECJPAKE) {
+         header_len = 4;
+@@ -2639,7 +2705,7 @@ static int ssl_write_client_key_exchange(mbedtls_ssl_context *ssl)
+             return ret;
+         }
+     } else
+-#endif /* MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED */
++#endif /* MBEDTLS_KEY_EXCHANGE_RSA_ENABLED */
+     {
+         ((void) ciphersuite_info);
+         MBEDTLS_SSL_DEBUG_MSG(1, ("should never happen"));
+--- a/scripts/data_files/config-options-current.txt
++++ b/scripts/data_files/config-options-current.txt
+@@ -8,6 +8,7 @@
+ MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
+ MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED
+ MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
++MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
+ MBEDTLS_NET_C
+ MBEDTLS_PKCS7_C
+ MBEDTLS_PSK_MAX_LEN
+--- a/library/mbedtls_config_check_user.h
++++ b/library/mbedtls_config_check_user.h
+@@ -761,10 +761,6 @@
+ #  error "MBEDTLS_KEY_EXCHANGE_ECDH_RSA_ENABLED was removed in Mbed TLS 4.0." //no-check-names
+ #endif
+ 
+-#if defined(MBEDTLS_KEY_EXCHANGE_RSA_ENABLED) //no-check-names
+-#  error "MBEDTLS_KEY_EXCHANGE_RSA_ENABLED was removed in Mbed TLS 4.0." //no-check-names
+-#endif
+-
+ #if defined(MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED) //no-check-names
+ #  error "MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED was removed in Mbed TLS 4.0." //no-check-names
+ #endif

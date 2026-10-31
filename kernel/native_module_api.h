@@ -3,6 +3,10 @@
 
 #include <psp2kern/kernel/modulemgr.h>
 
+#ifndef TLS_FIXER_PRIVATE_GUI_CLIENTS
+#define TLS_FIXER_PRIVATE_GUI_CLIENTS 0
+#endif
+
 int tls_fixer_native_module_api_init(void);
 int tls_fixer_native_module_info(SceUID pid, SceUID module, SceKernelModuleInfo *info);
 int tls_fixer_native_module_list(SceUID pid, int flags1, int flags2, SceUID *modules, SceSize *count);
@@ -20,6 +24,8 @@ typedef struct TlsFixerNativeHttpConsumer {
 int tls_fixer_native_http_requires_sony(SceUID pid, TlsFixerNativeHttpConsumer *consumer);
 /* 1: HTTP has private RX storage; 0: absent/shared; <0: lookup failed. */
 int tls_fixer_native_http_is_private(SceUID pid);
+/* 0: absent; 1: private; 2: shared/nonprivate; negative: lookup failure. */
+int tls_fixer_native_http_mapping(SceUID pid);
 
 /* Host fixtures retain their native-service mocks. ARM uses resolved exports. */
 #if defined(__arm__)

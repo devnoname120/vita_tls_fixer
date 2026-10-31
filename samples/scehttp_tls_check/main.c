@@ -269,6 +269,9 @@ done:
 #undef REQUIRE
 }
 static int detect_tls_fixer(void) {
+    /* Optional introspection affects only the badge. All test traffic still
+     * uses Sony's HTTP API and runs without any TLS provider installed. */
+    extern int tls_fixer_embedded_active(void);
     SceUID ids[128];
     SceSize count = sizeof(ids) / sizeof(ids[0]);
     int rc = sceKernelGetModuleList(0xff, ids, &count);
@@ -276,8 +279,25 @@ static int detect_tls_fixer(void) {
         for (unsigned i = 0; i < count && i < 128; ++i) {
             SceKernelModuleInfo info = {0};
             info.size = sizeof(info);
-            if (sceKernelGetModuleInfo(ids[i], &info) == 0 &&
-                check_provider_module_active(info.module_name, info.state)) {
+            if (sceKernelGetModuleInfo(ids[i], &info) != 0) continue;
+            if (strcmp(info.module_name, "SceLibHttp") == 0 && info.state == 6) {
+                /* User API EAEB1312 returns 28 bytes, distinct from the
+                 * 0x120-byte driver library-info structure. */
+                struct {
+                    uint32_t size;
+                    uint16_t version, attributes;
+                    uint32_t libnid, name;
+                    uint16_t functions, variables;
+                    uint32_t nids, entries;
+                } library = {.size = sizeof(library)};
+                if (sceKernelGetLibraryInfoByNID(ids[i], 0x7f10b001, (SceKernelLibraryInfo *)&library) == 0 &&
+                    library.libnid == 0x7f10b001) {
+                    int enabled = tls_fixer_embedded_active() == 1;
+                    check_diag("event=provider.detect embedded=1 enabled=%d", enabled);
+                    return enabled;
+                }
+            }
+            if (check_provider_module_active(info.module_name, info.state)) {
                 check_diag("event=provider.detect enabled=1 uid=%08X state=%u", (unsigned)ids[i],
                            (unsigned)info.state);
                 return 1;
@@ -540,7 +560,6 @@ int main(void) {
         modules[i] = 1;
     }
     check_diag_modules("main.after-network-load");
-    service.tls_fixer_enabled = detect_tls_fixer();
     net_memory = malloc(1024 * 1024);
     if (!net_memory) {
         rc = -1;
@@ -602,6 +621,7 @@ int main(void) {
         goto init_failed;
     exit_code = 0;
 init_failed:
+    service.tls_fixer_enabled = detect_tls_fixer();
     startup_note("network.init", rc);
     if (rc < 0)
         snprintf(notice, sizeof(notice), "Sony network initialization failed: 0x%08X  /  O exit",

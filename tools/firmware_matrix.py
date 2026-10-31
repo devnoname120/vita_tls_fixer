@@ -53,6 +53,7 @@ class Firmware:
             count = struct.unpack_from('<H', self.text, begin + 6)[0]
             if export and size == 0x20:
                 library, _, nids, entries = struct.unpack_from('<4I', self.text, begin + 16)
+                count += struct.unpack_from('<H', self.text, begin + 8)[0]
             elif not export and size == 0x34:
                 library = struct.unpack_from('<I', self.text, begin + 16)[0]
                 nids, entries = struct.unpack_from('<2I', self.text, begin + 28)
@@ -64,6 +65,14 @@ class Firmware:
                 nid = struct.unpack('<I', self.read(nids + i * 4, 4))[0]
                 address = struct.unpack('<I', self.read(entries + i * 4, 4))[0]
                 records[library, nid] = address
+            if not export:
+                variables = struct.unpack_from('<H', self.text, begin + 8)[0]
+                variable_nids, variable_entries = struct.unpack_from(
+                    '<2I', self.text, begin + (36 if size == 0x34 else 28))
+                for i in range(variables):
+                    nid = struct.unpack('<I', self.read(variable_nids + i * 4, 4))[0]
+                    address = struct.unpack('<I', self.read(variable_entries + i * 4, 4))[0]
+                    records[library, nid] = address
             begin += size
         if begin != end:
             raise ValueError('Library table span mismatch')
@@ -270,10 +279,12 @@ def run(args):
         raise RuntimeError('Matrix requires Linux MAP_FIXED_NOREPLACE at a free ARM32 address')
     records, unavailable = [], []
     builds = {str(path): linked_imports(path) for path in args.plugin_elf}
-    replacements = [bundled_module(ROOT / 'misc' / path) for path in (
-        'lhttp.suprx', 'lssl.suprx', 'compat.suprx')]
+    replacements = [bundled_module(args.http_module.resolve()), bundled_module(ROOT / 'misc/lssl.suprx'),
+                    bundled_module(ROOT / 'misc/compat.suprx')]
+    if replacements[0].name != 'SceLibHttp':
+        raise ValueError('HTTP replacement must be SceLibHttp: ' + str(args.http_module))
     # The PSN helper hooks the firmware's Store module; no replacement is needed.
-    coordinator = ROOT / 'build/kernel/tls_fixer.skprx'
+    coordinator = args.coordinator.resolve()
     coordinator_exports = bundled_module(coordinator).exports if builds and coordinator.exists() else {}
 
     dns_elf = ROOT / 'build/old_dns_fix/tls_fixer_dns'
@@ -379,7 +390,9 @@ def run(args):
     result = {'schema_version': 1, 'evidence': 'compiled guards plus decrypted firmware; not hardware execution',
               'linked_artifacts': {str(path): {'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
                   'firmware_imports': len(builds[str(path)])} for path in args.plugin_elf},
-              'bundled_modules': {str(module.path.relative_to(ROOT)): {
+              'coordinator': {'path': str(coordinator),
+                  'sha256': hashlib.sha256(coordinator.read_bytes()).hexdigest()} if builds and coordinator.exists() else None,
+              'bundled_modules': {str(module.path.relative_to(ROOT) if module.path.is_relative_to(ROOT) else module.path): {
                   'name': module.name, 'nid': f'{module.nid:08x}',
                   'self_sha256': hashlib.sha256(module.path.read_bytes()).hexdigest()
               } for module in replacements},
@@ -394,6 +407,10 @@ def main():
     parser.add_argument('--firmware-root', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=ROOT / 'build/firmware-support/matrix.json')
     parser.add_argument('--plugin-elf', type=Path, action='append', default=[])
+    parser.add_argument('--http-module', type=Path, default=ROOT / 'misc/lhttp.suprx',
+                        help='HTTP replacement whose imports are checked against each firmware image')
+    parser.add_argument('--coordinator', type=Path, default=ROOT / 'build/kernel/tls_fixer.skprx',
+                        help='Coordinator supplying the optional redirect-reader export')
     run(parser.parse_args())
 
 

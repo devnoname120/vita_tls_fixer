@@ -10,6 +10,9 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
+#if TLS_FIXER_EMBEDDED_COMPARE_HTTP
+#include "embedded.h"
+#endif
 
 static unsigned int net_length(size_t length) {
     if (length > UINT_MAX) {
@@ -27,6 +30,9 @@ int tls_fixer_vita_send(void *context, const unsigned char *buffer, size_t lengt
     }
 
     connection->last_net_error = 0;
+#if TLS_FIXER_EMBEDDED_COMPARE_HTTP
+    tls_fixer_embedded_capture_hello(connection->sony_connection, buffer, length, 1);
+#endif
     result = sceNetSend(connection->socket, buffer, net_length(length), 0);
     TLS_FIXER_LOG("event=socket.io direction=send connection=%08X socket=%d requested=%u rc=%08X",
         (unsigned int)(uintptr_t)connection->sony_connection, connection->socket,

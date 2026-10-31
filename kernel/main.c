@@ -76,11 +76,27 @@
 
 #define TLS_FIXER_MAX_MODULE_PATH ((size_t)0x400)
 #define TLS_FIXER_PATH_OBSERVER_NAMESPACE_FLAG UINT32_C(0x1000)
+#ifndef TLS_FIXER_HTTP_REPLACEMENT_PATH
+#define TLS_FIXER_HTTP_REPLACEMENT_PATH "vs0:/data/external/tls_fixer/libhttp.suprx"
+#endif
+#ifndef TLS_FIXER_SSL_REPLACEMENT_PATH
+#define TLS_FIXER_SSL_REPLACEMENT_PATH "vs0:/data/external/tls_fixer/libssl.suprx"
+#endif
+
+#if TLS_FIXER_PRIVATE_GUI_CLIENTS
+/* Check the diagnostic title before any new mapping/consumer queries. Failure
+ * to identify an unrelated process must not change its normal library load. */
+static int gui_diagnostic_target(SceUID pid) {
+    char title[16] = {0};
+    return ksceKernelSysrootGetProcessTitleId(pid, title, sizeof(title)) == 0 &&
+        memcmp(title, TLS_FIXER_HTTP_TEST_TITLE_ID, sizeof(TLS_FIXER_HTTP_TEST_TITLE_ID)) == 0;
+}
+#endif
 
 static const char *const g_replacement_modules[] = {
     "vs0:/data/external/tls_fixer/ScePsp2Compat.suprx",
-    "vs0:/data/external/tls_fixer/libhttp.suprx",
-    "vs0:/data/external/tls_fixer/libssl.suprx",
+    TLS_FIXER_HTTP_REPLACEMENT_PATH,
+    TLS_FIXER_SSL_REPLACEMENT_PATH,
     "vs0:/data/external/tls_fixer/old_dns_fix.suprx",
     "vs0:/data/external/tls_fixer/np_commerce2.suprx",
 };
@@ -242,6 +258,27 @@ static SceUID load_for_pid_patched(
             (void)tls_fixer_boot_trace_event("http.private.flags", target_pid,
                 (int32_t)flags, (int32_t)load_flags);
     }
+#if TLS_FIXER_PRIVATE_GUI_CLIENTS
+    if (g_replace_iap &&
+        !TLS_FIXER_SKIP_HTTP_START && !TLS_FIXER_REDIRECTION_ONLY && !TLS_FIXER_PREPARE_ONLY &&
+        !TLS_FIXER_BROWSER_ACTIVATION && target_pid > 0 && target_pid != KERNEL_PID &&
+        tls_fixer_http_client_kind(path, TLS_FIXER_MAX_MODULE_PATH) &&
+        target_pid != ksceKernelSysrootGetShellPid() && gui_diagnostic_target(target_pid)) {
+        int mapping = tls_fixer_native_http_mapping(target_pid);
+        if (mapping < 0) return mapping;
+        int kind = tls_fixer_http_client_kind(path, TLS_FIXER_MAX_MODULE_PATH);
+        int eligible = mapping == 2 ? 0 : tls_fixer_kernel_http_process_allowed(target_pid);
+        if (eligible < 0) return eligible;
+        if (eligible > 0 && (mapping == 1 || kind == 2)) {
+            /* Early indirect clients must also be private, before a later
+             * private PAF exports to them. Direct clients loaded first keep
+             * Sony's normal shared transport and remain excluded by policy. */
+            load_flags &= ~UINT32_C(0x08000001);
+            (void)tls_fixer_boot_trace_event("http.gui.private", target_pid, kind, mapping);
+        }
+    }
+    else
+#endif
     if (g_replace_iap &&
         !TLS_FIXER_SKIP_HTTP_START && !TLS_FIXER_REDIRECTION_ONLY && !TLS_FIXER_PREPARE_ONLY &&
         !TLS_FIXER_BROWSER_ACTIVATION && target_pid > 0 && target_pid != KERNEL_PID &&

@@ -12,6 +12,8 @@
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
 #include <psp2/kernel/processmgr.h>
+#include <psp2/kernel/modulemgr.h>
+#include <psp2/sysmodule.h>
 #include <psp2/power.h>
 #include <psp2/vshbridge.h>
 
@@ -19,17 +21,37 @@
 #include "installer/certificates.h"
 #include "installer/network_vita.h"
 #include "installer/options.h"
+#include "installer/system_payloads.h"
+#include "installer/config.h"
+#include "kernel/self_disarm.h"
 
 #define printf psvDebugScreenPrintf
 
-#define MENU_COUNT TLS_FIXER_OPTION_COUNT
 #define COPY_BUFFER_SIZE 0x4000
 #define CONFIG_MAX_SIZE 0x100000
+#ifndef TLS_FIXER_INSTALL_AUGMENTED_HTTP
+#define TLS_FIXER_INSTALL_AUGMENTED_HTTP 0
+#endif
+#ifndef TLS_FIXER_AUGMENTED_RELEASE
+#define TLS_FIXER_AUGMENTED_RELEASE 0
+#endif
+#define TLS_FIXER_SYSTEM_TRIAL (TLS_FIXER_INSTALL_AUGMENTED_HTTP && !TLS_FIXER_AUGMENTED_RELEASE)
+#if TLS_FIXER_SYSTEM_TRIAL
+#define INSTALLER_KERNEL_PATH TLS_FIXER_REMOVABLE_KERNEL_PATH
+static const enum TlsFixerOption menu_options[] = {TLS_FIXER_OPTION_SYSTEM, TLS_FIXER_OPTION_EXIT};
+#else
+#define INSTALLER_KERNEL_PATH "ur0:tai/tls_fixer.skprx"
+static const enum TlsFixerOption menu_options[] = {TLS_FIXER_OPTION_FULL, TLS_FIXER_OPTION_BROWSER,
+    TLS_FIXER_OPTION_SYSTEM, TLS_FIXER_OPTION_CERTIFICATES, TLS_FIXER_OPTION_EXIT};
+#endif
+#define MENU_COUNT ((int)(sizeof(menu_options) / sizeof(menu_options[0])))
 
 unsigned int _newlib_heap_size_user = 8u * 1024u * 1024u;
 
+#if !TLS_FIXER_INSTALL_AUGMENTED_HTTP
 static const char tls_fixer_config_block[] =
     "# TLS_FIXER\n*KERNEL\nur0:tai/tls_fixer.skprx\n\n";
+#endif
 static const char browser_provider_global[] = "ur0:tai/tls_fixer-native/tls_fixer.suprx";
 
 static const char *const new_modules[] = {
@@ -41,9 +63,10 @@ static const char *const new_modules[] = {
     "vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx",
     "vs0:/data/external/tls_fixer/native/tls_fixer.suprx",
     "vs0:/data/external/tls_fixer/native/tls_fixer_psn.suprx",
+    "vs0:/data/external/tls_fixer/native/tls_fixer_store.suprx",
 };
 
-static const char *const install_menu[MENU_COUNT] = {
+static const char *const install_menu[TLS_FIXER_OPTION_COUNT] = {
     " -> Install Full (browser plugin + system plugin + certs)",
     " -> Install browser plugin only",
     " -> Install system plugin only",
@@ -51,7 +74,7 @@ static const char *const install_menu[MENU_COUNT] = {
     " -> Exit",
 };
 
-static const char *const uninstall_menu[MENU_COUNT] = {
+static const char *const uninstall_menu[TLS_FIXER_OPTION_COUNT] = {
     " -> Uninstall Full (browser plugin + system plugin + certs)",
     " -> Uninstall browser plugin only",
     " -> Uninstall system plugin only",
@@ -60,7 +83,7 @@ static const char *const uninstall_menu[MENU_COUNT] = {
 };
 
 static int selected_option;
-static uint8_t installed[MENU_COUNT];
+static uint8_t installed[TLS_FIXER_OPTION_COUNT];
 
 static int path_exists(const char *path) {
     SceIoStat status;
@@ -68,7 +91,16 @@ static int path_exists(const char *path) {
     return path != NULL && sceIoGetstat(path, &status) >= 0;
 }
 
+static int allowed_test_file(const char *path) {
+    return !strncmp(path, TLS_FIXER_AUGMENTED_RUNTIME "/", strlen(TLS_FIXER_AUGMENTED_RUNTIME "/")) ||
+        (!strncmp(path, INSTALLER_KERNEL_PATH, strlen(INSTALLER_KERNEL_PATH)) &&
+         (path[strlen(INSTALLER_KERNEL_PATH)] == 0 || path[strlen(INSTALLER_KERNEL_PATH)] == '.'));
+}
+
 static int remove_if_exists(const char *path) {
+#if TLS_FIXER_SYSTEM_TRIAL
+    if (!allowed_test_file(path)) return -1;
+#endif
     if (!path_exists(path)) {
         return 0;
     }
@@ -153,6 +185,36 @@ cleanup:
     return result;
 }
 
+static int files_equal(const char *source, const char *destination) {
+    SceIoStat a, b;
+    if (sceIoGetstat(source, &a) < 0 || sceIoGetstat(destination, &b) < 0 || a.st_size != b.st_size) return 0;
+    SceUID x = sceIoOpen(source, SCE_O_RDONLY, 0);
+    if (x < 0) return 0;
+    SceUID y = sceIoOpen(destination, SCE_O_RDONLY, 0);
+    if (y < 0) { sceIoClose(x); return 0; }
+    unsigned char *buffer = malloc(COPY_BUFFER_SIZE * 2);
+    int equal = buffer != NULL;
+    SceOff left = a.st_size;
+    while (equal && left > 0) {
+        unsigned n = left > COPY_BUFFER_SIZE ? COPY_BUFFER_SIZE : (unsigned)left;
+        SceUID descriptors[] = {x, y};
+        for (unsigned file = 0; file < 2 && equal; ++file) {
+            unsigned read = 0;
+            while (read < n) {
+                int got = sceIoRead(descriptors[file], buffer + file * COPY_BUFFER_SIZE + read, n - read);
+                if (got <= 0 || (unsigned)got > n - read) { equal = 0; break; }
+                read += (unsigned)got;
+            }
+        }
+        if (equal && memcmp(buffer, buffer + COPY_BUFFER_SIZE, n)) equal = 0;
+        left -= n;
+    }
+    free(buffer);
+    if (sceIoClose(x) < 0) equal = 0;
+    if (sceIoClose(y) < 0) equal = 0;
+    return equal;
+}
+
 static int replace_file(const char *source, const char *destination) {
     char temporary[256];
     char previous[256];
@@ -160,6 +222,9 @@ static int replace_file(const char *source, const char *destination) {
     int previous_length;
     int had_previous;
     int result;
+
+    if (TLS_FIXER_SYSTEM_TRIAL && !allowed_test_file(destination)) return -1;
+    if (TLS_FIXER_INSTALL_AUGMENTED_HTTP && files_equal(source, destination)) return 0;
 
     temporary_length = snprintf(temporary, sizeof(temporary), "%s.tmp", destination);
     previous_length = snprintf(previous, sizeof(previous), "%s.tls_fixer-old", destination);
@@ -193,10 +258,33 @@ static int replace_file(const char *source, const char *destination) {
         return result;
     }
 
+    if (TLS_FIXER_INSTALL_AUGMENTED_HTTP && !files_equal(source, destination)) {
+        (void)remove_if_exists(destination);
+        if (had_previous) (void)sceIoRename(previous, destination);
+        return -1;
+    }
+
     if (had_previous) {
         result = remove_if_exists(previous);
     }
     return result;
+}
+
+static int system_file_exists(void *context, const char *path) {
+    (void)context; return path_exists(path);
+}
+static int system_file_replace(void *context, const char *source, const char *destination) {
+    (void)context; return replace_file(source, destination);
+}
+static int system_file_remove(void *context, const char *path) {
+    (void)context; return remove_if_exists(path);
+}
+static const TlsFixerSystemFiles system_files = {
+    .exists = system_file_exists, .replace = system_file_replace, .remove = system_file_remove
+};
+static TlsFixerSystemBackend packaged_system_backend(void) {
+    return TLS_FIXER_INSTALL_AUGMENTED_HTTP ? (TLS_FIXER_AUGMENTED_RELEASE ?
+        TLS_FIXER_SYSTEM_AUGMENTED_RELEASE : TLS_FIXER_SYSTEM_AUGMENTED) : TLS_FIXER_SYSTEM_HOOKED;
 }
 
 static int read_file(const char *path, char **data, SceSize *size) {
@@ -260,6 +348,7 @@ static int read_file(const char *path, char **data, SceSize *size) {
     return 0;
 }
 
+#if !TLS_FIXER_INSTALL_AUGMENTED_HTTP
 static int plugin_configured(void) {
     char *config = NULL;
     SceSize config_size = 0;
@@ -272,7 +361,75 @@ static int plugin_configured(void) {
     free(config);
     return configured;
 }
+#endif
 
+#if TLS_FIXER_INSTALL_AUGMENTED_HTTP
+typedef struct { const char *path, *mount; } ConfigFile;
+static ConfigFile config_files[] = {{"ur0:tai/config.txt", "ur0:"}, {"ux0:tai/config.txt", "ux0:"}};
+static int config_read(void *context, char **data, size_t *size) {
+    ConfigFile *f = context; SceSize length = 0;
+    int rc = read_file(f->path, data, &length); *size = length; return rc;
+}
+static int config_append(void *context, const char *data, size_t size) {
+    ConfigFile *f = context; SceUID fd = sceIoOpen(f->path, SCE_O_WRONLY | SCE_O_APPEND, 0);
+    if (fd < 0) return fd;
+    int rc = write_all(fd, data, (SceSize)size), closed = sceIoClose(fd);
+    return rc < 0 ? rc : closed;
+}
+static int config_patch(void *context, size_t at, char expected, char value) {
+    ConfigFile *f = context; SceUID fd = sceIoOpen(f->path, SCE_O_RDWR, 0);
+    if (fd < 0) return fd;
+    char actual = 0; int rc = -1;
+    if (sceIoLseek(fd, (SceOff)at, SCE_SEEK_SET) == (SceOff)at && sceIoRead(fd, &actual, 1) == 1 && actual == expected &&
+        sceIoLseek(fd, (SceOff)at, SCE_SEEK_SET) == (SceOff)at && sceIoWrite(fd, &value, 1) == 1) rc = 0;
+    if (sceIoClose(fd) < 0) rc = -1;
+    return rc;
+}
+static int config_sync(void *context) { return sceIoSync(((ConfigFile *)context)->mount, 0); }
+static TlsFixerConfigIo config_io(unsigned index) {
+    TlsFixerConfigIo io = {config_read, config_append, config_patch, config_sync, &config_files[index]}; return io;
+}
+static int alternate_config(void) {
+    SceIoStat info; int rc = sceIoGetstat(config_files[1].path, &info);
+    return rc >= 0 ? 1 : (uint32_t)rc == UINT32_C(0x80010002) ? 0 : -1;
+}
+static int disarm_installer_entries(void) {
+    int alternate = alternate_config();
+    if (alternate < 0) return -1;
+    for (unsigned i = 0; i <= (unsigned)alternate; ++i) {
+        TlsFixerConfigIo io = config_io(i); if (tls_fixer_config_check(&io) < 0) return -1;
+    }
+    for (unsigned i = 0; i <= (unsigned)alternate; ++i) {
+        TlsFixerConfigIo io = config_io(i); if (tls_fixer_config_disable(&io) < 0) return -1;
+    }
+    return 0;
+}
+static int enable_installer_entry(void) {
+    if (disarm_installer_entries() < 0) return -1;
+    int alternate = alternate_config(); if (alternate < 0) return -1;
+    TlsFixerConfigIo io = config_io((unsigned)alternate);
+    return tls_fixer_config_enable(&io, INSTALLER_KERNEL_PATH);
+}
+static int installer_entry_enabled(void) {
+    int alternate = alternate_config(); if (alternate < 0) return 0;
+    TlsFixerConfigIo io = config_io((unsigned)alternate);
+    return tls_fixer_config_enabled(&io, INSTALLER_KERNEL_PATH);
+}
+static int test_payloads_active(void) {
+    if (sceSysmoduleIsLoaded(SCE_SYSMODULE_HTTP) < 0 && sceSysmoduleLoadModule(SCE_SYSMODULE_HTTP) < 0) return -1;
+    SceUID modules[128]; SceSize count = sizeof(modules) / sizeof(modules[0]);
+    if (sceKernelGetModuleList(0xff, modules, &count) < 0 || count >= sizeof(modules) / sizeof(modules[0])) return -1;
+    for (SceSize i = 0; i < count; ++i) {
+        SceKernelModuleInfo info = {0}; info.size = sizeof(info);
+        if (sceKernelGetModuleInfo(modules[i], &info) < 0) return -1;
+        if (!strcmp(info.module_name, "SceLibHttp") &&
+            !strncmp(info.path, TLS_FIXER_AUGMENTED_RUNTIME "/", strlen(TLS_FIXER_AUGMENTED_RUNTIME "/"))) return 1;
+    }
+    return 0;
+}
+#endif
+
+#if !TLS_FIXER_INSTALL_AUGMENTED_HTTP
 static int install_plugin_config(void) {
     static const char config_path[] = "ur0:tai/config.txt";
     static const char backup_path[] = "ur0:tai/config_pretls_fixer.txt";
@@ -403,6 +560,8 @@ static int uninstall_plugin_config(void) {
     return remove_if_exists(rollback_path);
 }
 
+#endif
+
 static void show_menu(void) {
     int index;
 
@@ -411,6 +570,8 @@ static void show_menu(void) {
     printf("                       tls_fixer " TLS_FIXER_VERSION "\n");
     printf("                       By devnoname120\n");
     printf("        Thanks to SKGleba for the initial iTLS plugin!\n\n");
+    if (packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED)
+        printf("Experimental System plugin test: enabled for one boot.\n");
     psvDebugScreenSetFgColor(COLOR_WHITE);
     printf("Modern, secure Mbed TLS (2026) brings TLS 1.3 to PS Vita.\n");
     printf("Replaces legacy RSA BSAFE Micro Edition Suite 3.2.1 (2014)\n");
@@ -420,7 +581,8 @@ static void show_menu(void) {
         if (selected_option == index) {
             psvDebugScreenSetFgColor(COLOR_GREEN);
         }
-        printf("%s\n", installed[index] == 0 ? install_menu[index] : uninstall_menu[index]);
+        unsigned option = menu_options[index];
+        printf("%s\n", installed[option] == 0 ? install_menu[option] : uninstall_menu[option]);
         psvDebugScreenSetFgColor(COLOR_RED);
     }
     psvDebugScreenSetFgColor(COLOR_GREEN);
@@ -429,27 +591,41 @@ static void show_menu(void) {
 
 static int install_plugin(int requested_state) {
     int result;
-    int had_previous = path_exists("ur0:tai/tls_fixer.skprx");
+    int had_previous = path_exists(INSTALLER_KERNEL_PATH);
     int removing = requested_state == 1;
 
     if (removing) {
         printf("Removing the tls_fixer plugin... \n");
+#if TLS_FIXER_INSTALL_AUGMENTED_HTTP
+        result = disarm_installer_entries();
+#else
         result = uninstall_plugin_config();
+#endif
         if (result < 0) {
             return result;
         }
-        return remove_if_exists("ur0:tai/tls_fixer.skprx");
+        result = remove_if_exists(INSTALLER_KERNEL_PATH);
+        if (result >= 0 && TLS_FIXER_INSTALL_AUGMENTED_HTTP)
+            result = sceIoSync(TLS_FIXER_SYSTEM_TRIAL ? "ux0:" : "ur0:", 0);
+        return result;
     }
 
     printf("Installing the tls_fixer plugin... \n");
-    result = replace_file("app0:tls_fixer.skprx", "ur0:tai/tls_fixer.skprx");
+    result = replace_file("app0:tls_fixer.skprx", INSTALLER_KERNEL_PATH);
     if (result < 0) {
         return result;
     }
+#if TLS_FIXER_INSTALL_AUGMENTED_HTTP
+    result = sceIoSync("ux0:", 0);
+    if (result >= 0 && TLS_FIXER_AUGMENTED_RELEASE) result = sceIoSync("vs0:", 0);
+    if (result >= 0 && TLS_FIXER_AUGMENTED_RELEASE) result = sceIoSync("ur0:", 0);
+    if (result >= 0) result = enable_installer_entry();
+#else
     (void)remove_if_exists("ux0:tai/config_pretls_fixer.txt");
     result = install_plugin_config();
+#endif
     if (result < 0 && !had_previous) {
-        (void)remove_if_exists("ur0:tai/tls_fixer.skprx");
+        (void)remove_if_exists(INSTALLER_KERNEL_PATH);
     }
     return result;
 }
@@ -484,17 +660,23 @@ static int install_compat(int requested_state) {
 
 static int install_psn_redirect(int requested_state) {
     int result;
+    const char *psn = packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED ? TLS_FIXER_AUGMENTED_PSN_MODULE_PATH : new_modules[7];
+    const char *store = packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED ? TLS_FIXER_AUGMENTED_STORE_MODULE_PATH : new_modules[8];
     if (requested_state == 1) {
-        result = remove_if_exists(new_modules[7]);
+        result = remove_if_exists(psn);
+        if (result >= 0) result = remove_if_exists(store);
     } else {
         printf("Installing the PSN sign-in redirect... \n");
-        result = replace_file("app0:tls_fixer_psn.suprx", new_modules[7]);
+        result = replace_file("app0:tls_fixer_psn.suprx", psn);
+        if (result >= 0) result = replace_file("app0:tls_fixer_store.suprx", store);
+        if (packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED) return result;
         if (result >= 0 && !path_exists("ux0:data/tls_fixer"))
             result = sceIoMkdir("ux0:data/tls_fixer", 0777);
         /* An upgrade or reinstall must preserve the user's host mappings. */
         if (result >= 0 && !path_exists("ux0:data/tls_fixer/redirects.txt"))
             result = replace_file("app0:redirects.txt", "ux0:data/tls_fixer/redirects.txt");
     }
+    if (packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED) return result;
     /* Superseded Shell helper and prepatched Store library from older packages. */
     if (result >= 0) result = remove_if_exists(new_modules[3]);
     if (result >= 0) result = remove_if_exists(new_modules[4]);
@@ -506,7 +688,7 @@ static int install_http_modules(int requested_state) {
     int result;
     int removing = requested_state == 1;
 
-    result = remove_if_exists("vs0:sys/external/libhttp.supr0");
+    result = packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED ? 0 : remove_if_exists("vs0:sys/external/libhttp.supr0");
     if (result < 0) {
         return result;
     }
@@ -518,26 +700,14 @@ static int install_http_modules(int requested_state) {
     }
     if (removing) {
         printf("Removing the tls_fixer HTTP, SSL, and TLS 1.3 modules... \n");
-        result = remove_if_exists(new_modules[5]);
-        if (result >= 0) {
-            result = remove_if_exists(new_modules[1]);
-        }
-        if (result >= 0) {
-            result = remove_if_exists(new_modules[2]);
-        }
+        result = tls_fixer_update_system_payloads(packaged_system_backend(), 1, &system_files);
     } else {
         printf("Installing the tls_fixer HTTP, SSL, and TLS 1.3 modules... \n");
-        if (!path_exists("vs0:/data/external/tls_fixer/native")) {
+        if (packaged_system_backend() != TLS_FIXER_SYSTEM_AUGMENTED && !path_exists("vs0:/data/external/tls_fixer/native")) {
             result = sceIoMkdir("vs0:/data/external/tls_fixer/native", 0777);
             if (result < 0) return result;
         }
-        result = replace_file("app0:tls_fixer_http.suprx", new_modules[5]);
-        if (result >= 0) {
-            result = replace_file("app0:lhttp.suprx", new_modules[1]);
-        }
-        if (result >= 0) {
-            result = replace_file("app0:lssl.suprx", new_modules[2]);
-        }
+        result = tls_fixer_update_system_payloads(packaged_system_backend(), 0, &system_files);
     }
 
     if (result >= 0) result = install_psn_redirect(requested_state);
@@ -634,13 +804,12 @@ static int browser_payload_present(void) {
         path_exists(browser_provider_global);
 }
 static int system_payload_present(void) {
-    if (path_exists(new_modules[7])) return 1;
-    for (unsigned i = 1; i <= 5; ++i)
-        if (path_exists(new_modules[i])) return 1;
-    return 0;
+    return tls_fixer_system_payloads_present(packaged_system_backend(), &system_files);
 }
 static int apply_component(void *context, unsigned component, int removing) {
     (void)context;
+    if (packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED &&
+        component != TLS_FIXER_COMPONENT_SYSTEM && component != TLS_FIXER_COMPONENT_COORDINATOR) return -1;
     switch (component) {
     case TLS_FIXER_COMPONENT_COORDINATOR: return install_plugin(removing);
     case TLS_FIXER_COMPONENT_BROWSER: return install_compat(removing);
@@ -654,11 +823,31 @@ static int perform_selected_operation(int refresh_selected) {
     uint8_t mount_data[0x100] = {0};
     int result;
 
-    if (selected_option == TLS_FIXER_OPTION_EXIT) {
+    enum TlsFixerOption option = menu_options[selected_option];
+    int removing = !refresh_selected && installed[option];
+    if (option == TLS_FIXER_OPTION_EXIT) {
         sceKernelExitProcess(0);
         return 0;
     }
 
+    if (packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED) {
+#if TLS_FIXER_INSTALL_AUGMENTED_HTTP
+        int active = test_payloads_active();
+        if (active != 0) {
+            printf(active > 0 ? "Restart your Vita before changing this test installation.\n" :
+                "Could not verify that the test is inactive.\n");
+            result = -1; goto failed;
+        }
+        result = disarm_installer_entries();
+        if (result < 0) goto failed;
+#endif
+        const char *const directories[] = {TLS_FIXER_AUGMENTED_RUNTIME, "ux0:/data/tls_fixer-one-shot"};
+        for (unsigned i = 0; i < sizeof(directories) / sizeof(directories[0]); ++i) {
+            if (!path_exists(directories[i])) {
+                result = sceIoMkdir(directories[i], 0777); if (result < 0) goto failed;
+            }
+        }
+    } else {
     (void)vshIoUmount(0x300, 0, 0, 0);
     (void)vshIoUmount(0x300, 1, 0, 0);
     result = _vshIoMount(0x300, 0, 2, mount_data);
@@ -671,11 +860,17 @@ static int perform_selected_operation(int refresh_selected) {
             goto failed;
         }
     }
+    }
 
     TlsFixerInstallPlan plan;
-    int removing = !refresh_selected && installed[selected_option];
-    result = tls_fixer_plan_option((enum TlsFixerOption)selected_option, removing,
-        browser_payload_present(), system_payload_present(), &plan);
+    result = tls_fixer_plan_option(option, removing,
+        packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED ? 0 : browser_payload_present(), system_payload_present(), &plan);
+#if TLS_FIXER_AUGMENTED_RELEASE
+    /* Disable the old entry before replacing any files needed by the new
+     * coordinator. Activation is the last successful installation step. */
+    if (result >= 0 && (plan.components & TLS_FIXER_COMPONENT_COORDINATOR))
+        result = disarm_installer_entries();
+#endif
     if (result >= 0) {
         printf("Working...\n");
         result = tls_fixer_execute_plan(&plan, apply_component, NULL);
@@ -683,6 +878,10 @@ static int perform_selected_operation(int refresh_selected) {
 
     if (result < 0) {
         goto failed;
+    }
+    if (packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED) {
+        printf("Done. Restart your Vita to apply this one-boot test.\n");
+        sceKernelDelayThread(3 * 1000 * 1000); sceKernelExitProcess(0); return 0;
     }
     printf("Done, rebooting in 3 seconds\n");
     sceKernelDelayThread(3 * 1000 * 1000);
@@ -699,19 +898,21 @@ failed:
 }
 
 static void refresh_installed_state(uint32_t firmware_version) {
+    (void)firmware_version;
     memset(installed, 0, sizeof(installed));
     if (!path_exists("vs0:sys/external/libhttp.supr0") &&
         !path_exists("vs0:/data/external/webcore/ScePsp2Compat.supr0")) {
-        int coordinator = path_exists("ur0:tai/tls_fixer.skprx") && plugin_configured();
+        int coordinator = path_exists(INSTALLER_KERNEL_PATH) &&
+#if TLS_FIXER_INSTALL_AUGMENTED_HTTP
+            (TLS_FIXER_SYSTEM_TRIAL || installer_entry_enabled());
+#else
+            plugin_configured();
+#endif
         installed[TLS_FIXER_OPTION_BROWSER] = (uint8_t)(coordinator &&
             path_exists(new_modules[0]) && path_exists(new_modules[6]) &&
             path_exists(browser_provider_global));
         installed[TLS_FIXER_OPTION_SYSTEM] = (uint8_t)(coordinator &&
-            path_exists(new_modules[1]) &&
-            path_exists(new_modules[2]) &&
-            path_exists(new_modules[5]) &&
-            ((firmware_version & UINT32_C(0xffff0000)) != UINT32_C(0x03600000) ||
-             (path_exists(new_modules[3]) && path_exists(new_modules[4]))));
+            tls_fixer_system_payloads_complete(packaged_system_backend(), &system_files));
         installed[TLS_FIXER_OPTION_CERTIFICATES] = (uint8_t)path_exists("vs0:/data/external/cert/CA_LIST.cer_old");
         installed[TLS_FIXER_OPTION_FULL] = installed[TLS_FIXER_OPTION_BROWSER] &&
             installed[TLS_FIXER_OPTION_SYSTEM] && installed[TLS_FIXER_OPTION_CERTIFICATES];

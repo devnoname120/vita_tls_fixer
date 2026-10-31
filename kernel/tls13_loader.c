@@ -1,4 +1,8 @@
 #include "tls13_loader.h"
+
+#ifndef TLS_FIXER_INSTALLED_AUGMENTED_HTTP
+#define TLS_FIXER_INSTALLED_AUGMENTED_HTTP 0
+#endif
 #include "native_module_api.h"
 #include "memory_probe.h"
 #include "mapping_probe.h"
@@ -338,10 +342,11 @@ int tls_fixer_kernel_loader_init(void) {
     memset(ready, 0, sizeof(ready));
     memset(in_flight, 0, sizeof(in_flight));
     for (size_t i = 0; i < sizeof(targets)/sizeof(targets[0]); ++i) {
-        ready[i] = (uint8_t)(!(TLS_FIXER_BROWSER_ACTIVATION && i == 0) &&
+        ready[i] = (uint8_t)(!(TLS_FIXER_INSTALLED_AUGMENTED_HTTP && i == 0) &&
+            !(TLS_FIXER_BROWSER_ACTIVATION && i == 0) &&
             target_matches(&targets[i], 0, 0, 0, 0));
     }
-    if (!ready[0] && !ready[1]) return -1;
+    if (!ready[0] && !ready[1]) return TLS_FIXER_INSTALLED_AUGMENTED_HTTP ? 0 : -1;
     g_injection_mutex = ksceKernelCreateMutex("tls_fixer inject", 0, 0, NULL);
     if (g_injection_mutex < 0) {
         memset(ready, 0, sizeof(ready));

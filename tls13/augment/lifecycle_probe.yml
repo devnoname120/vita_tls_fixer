@@ -1,0 +1,16 @@
+tls_fixer_http_aug_probe:
+  attributes: 0
+  version:
+    major: 1
+    minor: 0
+  main:
+    start: module_start
+    stop: module_stop
+  libraries:
+    tls_fixer_aug_probe:
+      version: 1
+      nid: 0x7F10A001
+      functions:
+        - tls_fixer_augment_probe_snapshot: 0x7F10A002
+      variables:
+        - g_tls_fixer_augment_probe: 0x7F10A003

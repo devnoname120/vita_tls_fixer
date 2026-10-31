@@ -1,3 +1,4 @@
+option(TLS_FIXER_RESTORE_RSA_CLIENT "Build the pinned client-only TLS1.2 RSA restoration" OFF)
 set(TLS_FIXER_MBEDTLS_ARCHIVE
     "${CMAKE_CURRENT_LIST_DIR}/../../build/deps/mbedtls-4.2.0.tar.bz2"
     CACHE FILEPATH "Checksum-pinned official Mbed TLS release archive")
@@ -19,14 +20,24 @@ set(TF_PSA_CRYPTO_USER_CONFIG_FILE "${CMAKE_CURRENT_LIST_DIR}/psa_user_config.h"
 
 include(FetchContent)
 include_directories(BEFORE "${CMAKE_CURRENT_LIST_DIR}")
+set(rsa_patch)
+if(TLS_FIXER_RESTORE_RSA_CLIENT)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(rsa_patch PATCH_COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_LIST_DIR}/apply_rsa_client.py" <SOURCE_DIR>)
+endif()
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
 endif()
 FetchContent_Declare(tls_fixer_mbedtls
     URL "${TLS_FIXER_MBEDTLS_ARCHIVE}"
     URL_HASH SHA256=2bed9d713b4668f76553b097e72b8aa30bc8f112a940d7ae228d524bbde6ffea
+    ${rsa_patch}
 )
 FetchContent_MakeAvailable(tls_fixer_mbedtls)
+if(TLS_FIXER_RESTORE_RSA_CLIENT AND (TLS_FIXER_NATIVE_HELLO_EXPERIMENT OR TLS_FIXER_NATIVE_HELLO_PROFILE))
+    target_compile_definitions(mbedtls PRIVATE TLS_FIXER_DIAGNOSTIC_LEGACY_OFFERS=1)
+endif()
 # The Vita headers declare inet_pton without a compatible linked implementation.
 # Upstream also uses this selector on platforms requiring its internal IP parser.
 target_compile_definitions(mbedx509 PRIVATE MBEDTLS_TEST_SW_INET_PTON)

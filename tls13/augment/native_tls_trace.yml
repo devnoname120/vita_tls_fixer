@@ -1,0 +1,13 @@
+version: 2
+firmware: 3.74
+modules:
+  SceLibSsl:
+    nid: 0x00000000
+    libraries:
+      tls_fixer_native_tls_trace:
+        kernel: false
+        version: 1
+        nid: 0x68D6C3FF
+        functions:
+          tls_fixer_native_ssl_version: 0x3EF42454
+          tls_fixer_native_ssl_cipher: 0x0C693D36

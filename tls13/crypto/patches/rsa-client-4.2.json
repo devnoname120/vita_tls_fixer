@@ -1,0 +1,42 @@
+{
+  "include/mbedtls/mbedtls_config.h": {
+    "before": "20cb4275e9c2746faad28a6267e3db1b254a033d87820148700580d18bc08b78",
+    "after": "eb7714a50c92ad38948647bc53e39e0a41552e79eb19a4f3b984cfe325d61f90"
+  },
+  "include/mbedtls/ssl.h": {
+    "before": "daffb37b840f01aea2e46ef858e29e226c01d380d06addcfa5c37e3b819e4262",
+    "after": "16884a7d1be4e5c63cba8068012db2444e0084f1909c01c379b5ceb4374aa161"
+  },
+  "include/mbedtls/ssl_ciphersuites.h": {
+    "before": "693a6310f14df0393cf7dd44c46bc15a5b8010f387d02debec2e84c28b0290bb",
+    "after": "a08b01d2ccd4e70cca521310d50718c51d0e0d793e7c366bf9c813b7cea8544e"
+  },
+  "library/ssl_ciphersuites.c": {
+    "before": "b013b5f67cc4f3d1cbc1b937200243dc7de5590ebf3a0cfe353b0349e91a5f0d",
+    "after": "30f90ed177c609f5a7d1b4a0d8f71033785dedeb49a67182af9ef06b3cac05af"
+  },
+  "library/ssl_ciphersuites_internal.h": {
+    "before": "62b85eee65518be85489a7e944dc2983454193581a1ddeef0019e3490c90f050",
+    "after": "daac7a418057745f3f46d26517fc1b50f088816bea9d5fffe131d1a905a6e84b"
+  },
+  "library/ssl_client.c": {
+    "before": "1f892d6810fe77448dc040bb7606e4553a6a1d26848b28c26d367a3d4fd99892",
+    "after": "d72c99e8be1ca358dc430d0a4616577078382f625c3f40c9197ad5e811bff7b3"
+  },
+  "library/ssl_tls.c": {
+    "before": "6d069ec1efb17f355c189acaa79a1ffc38b9ac48878a075a61bad759c33b3cd9",
+    "after": "07a21b6b7c3c71975205fb64e1076bffac4ba803b91ae8116cbb494133c9e0b2"
+  },
+  "library/ssl_tls12_client.c": {
+    "before": "f0635ed1a0e79bbe7982e1cd4a109094a9b9c4123bd4ea59e8499b9b8ca46570",
+    "after": "6cd465c1d6ce67e9755495bdb8c40248f18f923f99b265072579506be10c50c0"
+  },
+  "scripts/data_files/config-options-current.txt": {
+    "before": "de80551cd80bb22de26013b9a57cd1188c539e073a49cf88cbd965c9f877b558",
+    "after": "597d32ed30432b75e29b493becbd104dd40c59ea164809f16aea5bb88844cdfa"
+  },
+  "library/mbedtls_config_check_user.h": {
+    "before": "b2db1d4631b8cdafef387c5d7abf7f68816f0be930e3229d5fe9ca44097fd321",
+    "after": "2837d8d0e3a52c93850eb86b996aaa141e6acd45136f9705f26340b48aef2a48"
+  }
+}

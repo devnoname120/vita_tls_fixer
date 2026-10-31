@@ -37,6 +37,11 @@ void tls_fixer_ca_index_free(TlsFixerCaIndex *index);
 int tls_fixer_ca_index_find(void *context, const mbedtls_x509_crt *child,
     mbedtls_x509_crt **candidates);
 
+/* Native HTTPS option 0x100 restricts the system source to CA category 1:
+ * Sony's five DNAS roots. Application-loaded trust is handled separately. */
+int tls_fixer_ca_index_find_sony(void *context, const mbedtls_x509_crt *child,
+    mbedtls_x509_crt **candidates);
+
 /* 1 when certificate is self-signed and its exact copy is among the trusted certificates find
  * returns: such a server certificate is trusted as itself, even when it is not a CA
  * Mbed TLS applies this rule to a fixed trusted list but not when trust comes from a callback, so

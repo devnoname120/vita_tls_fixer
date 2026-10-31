@@ -1,5 +1,6 @@
 #include "native_module_api.h"
 #include "tls_fixer/firmware_profiles.h"
+#include "tls_fixer/path.h"
 #include <psp2kern/kernel/sysclib.h>
 #include <psp2kern/kernel/sysmem.h>
 #include <psp2kern/kernel/threadmgr/misc.h>
@@ -74,6 +75,28 @@ typedef struct ConsumerQuery {
     TlsFixerNativeHttpConsumer *consumer;
 } ConsumerQuery;
 
+#if TLS_FIXER_PRIVATE_GUI_CLIENTS
+static int importer_has_private_allocations(SceUID pid, const SceKernelModuleInfo *info) {
+    unsigned populated = 0;
+    for (size_t i = 0; i < sizeof(info->segments) / sizeof(info->segments[0]); ++i) {
+        const SceKernelSegmentInfo *s = &info->segments[i];
+        if (s->memsz == 0) continue;
+        uintptr_t begin = (uintptr_t)s->vaddr;
+        if (begin < 0x80000000u || begin >= 0xE0000000u ||
+            s->memsz > 0xE0000000u - begin) return 0;
+        unsigned expected = s->perms == 5 ? 0x0C20D050u : s->perms == 6 ? 0x0C20D060u : 0;
+        if (expected == 0) return 0;
+        SceUID first = ksceKernelFindMemBlockByAddrForPid(pid, (void *)begin, 0);
+        SceUID last = ksceKernelFindMemBlockByAddrForPid(pid, (void *)(begin + s->memsz - 1), 0);
+        unsigned type = 0;
+        if (first <= 0 || first != last || get_memblock_type(first, &type) != 0 || type != expected)
+            return 0;
+        ++populated;
+    }
+    return populated != 0 && info->segments[0].memsz != 0;
+}
+#endif
+
 static int query_native_http_consumers(void *argument) {
     ConsumerQuery *query = argument;
     SceUID modules[256];
@@ -138,13 +161,28 @@ static int query_native_http_consumers(void *argument) {
             memcpy(&size, header, sizeof(size));
             if ((size != 0x24 && size != 0x34) || size > imports.imports_end - cursor) return 0;
             memcpy(&library, header + (size == 0x34 ? 16 : 12), sizeof(library));
+#if TLS_FIXER_PRIVATE_GUI_CLIENTS
+            /* A shared indirect GUI caller is also incompatible with private
+             * HTTP: a later private PAF would be unable to export to it. */
+            if (tls_fixer_library_uses_http(library)) {
+#else
             if (library == UINT32_C(0xe8f15cde) || library == UINT32_C(0xcaf5f2e9)) {
+#endif
                 if (query->consumer != NULL) query->consumer->step = 5;
                 if (info.segments[0].vaddr == NULL) return 0;
+#if TLS_FIXER_PRIVATE_GUI_CLIENTS
+                /* The SDK-named sharing query tests loader flag 0x1000,
+                 * not the 0x700 flags used by Sony's shared-export guard.
+                 * Only actual complete private allocations establish safety. */
+                if (importer_has_private_allocations(query->pid, &info)) {
+                    cursor += size; continue;
+                }
+#else
                 result = is_shared(query->pid, info.segments[0].vaddr);
                 if (query->consumer != NULL) query->consumer->native_result = result;
                 if (result != 0 && result != 1) return 0;
                 if (result == 0) { cursor += size; continue; }
+#endif
                 if (query->consumer != NULL) {
                     query->consumer->module = info.modid;
                     query->consumer->attributes = info.modattr;
@@ -198,7 +236,7 @@ static int query_http_mapping(void *argument) {
     if (info.modid <= 0 || info.exports_start == 0 ||
         memcmp(info.name, "SceLibHttp", sizeof("SceLibHttp")) != 0) return 0;
     if (info.exports_start < UINT32_C(0x80000000) || info.exports_start >= UINT32_C(0xE0000000)) {
-        query->result = 0;
+        query->result = 2;
         return 0;
     }
     SceUID block = ksceKernelFindMemBlockByAddrForPid(query->pid, (void *)info.exports_start, 0);
@@ -208,11 +246,11 @@ static int query_http_mapping(void *argument) {
     if (result != 0) { query->result = result < 0 ? result : -1; return 0; }
     /* Same allocator-confirmed RX type used by the user provider's gate.
      * This also preserves bindings if provider startup fell back to Sony. */
-    query->result = type == UINT32_C(0x0C20D050);
+    query->result = type == UINT32_C(0x0C20D050) ? 1 : 2;
     return 0;
 }
 
-int tls_fixer_native_http_is_private(SceUID pid) {
+int tls_fixer_native_http_mapping(SceUID pid) {
     if (!__atomic_load_n(&ready, __ATOMIC_ACQUIRE) || pid <= 0) return -1;
     HttpMappingQuery query = {pid, 0, -1};
 #if defined(__arm__)
@@ -222,4 +260,9 @@ int tls_fixer_native_http_is_private(SceUID pid) {
     (void)query_http_mapping(&query);
 #endif
     return query.called ? query.result : -1;
+}
+
+int tls_fixer_native_http_is_private(SceUID pid) {
+    int mapping = tls_fixer_native_http_mapping(pid);
+    return mapping < 0 ? mapping : mapping == 1;
 }

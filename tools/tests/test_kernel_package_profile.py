@@ -73,6 +73,8 @@ class KernelPackageProfileTests(unittest.TestCase):
             os.utime(kernel, (1_000_000_010, 1_000_000_010))
             (kernel.parent / "CMakeCache.txt").write_text(
                 "TLS_FIXER_REDIRECTION_ONLY:BOOL=ON\nTLS_FIXER_ALLOCATION_PROBE:BOOL=ON\n"
+                "TLS_FIXER_INSTALLED_AUGMENTED_HTTP:BOOL=ON\n"
+                "TLS_FIXER_AUGMENTED_RELEASE:BOOL=ON\n"
             )
             result = subprocess.run(
                 ["make", "-n", "build/kernel/tls_fixer.skprx"], cwd=root,
@@ -83,6 +85,8 @@ class KernelPackageProfileTests(unittest.TestCase):
             self.assertIn("-DTLS_FIXER_HTTP_PROVIDER_PATH=vs0:/data/external/tls_fixer/native/tls_fixer_http.suprx", result.stdout)
             self.assertIn("-DTLS_FIXER_HTTP_TEST_TITLE_ID=", result.stdout)
             self.assertIn("-DTLS_FIXER_ENABLE_SELF_DISARM=OFF", result.stdout)
+            self.assertIn("-DTLS_FIXER_INSTALLED_AUGMENTED_HTTP=OFF", result.stdout)
+            self.assertIn("-DTLS_FIXER_AUGMENTED_RELEASE=OFF", result.stdout)
             for option in ("REDIRECTION_ONLY", "BROWSER_ACTIVATION", "ENABLE_BOOT_TRACE",
                            "MEMORY_PROBE", "ALLOCATION_PROBE", "SKIP_HTTP_START", "SKIP_DNS_START"):
                 self.assertIn(f"-DTLS_FIXER_{option}=OFF", result.stdout)

@@ -13,7 +13,11 @@
 #include "tls_fixer/registry.h"
 #include "tls_fixer/sony_abi.h"
 
-#if MBEDTLS_VERSION_NUMBER != 0x04020000
+#if defined(TLS_FIXER_MBEDTLS36)
+#if MBEDTLS_VERSION_NUMBER != 0x03060700
+#error "The experimental compatibility backend requires pinned Mbed TLS 3.6.7"
+#endif
+#elif MBEDTLS_VERSION_NUMBER != 0x04020000
 #error "tls_fixer requires the pinned Mbed TLS 4.2.0 source build"
 #endif
 
@@ -51,6 +55,7 @@ typedef struct TlsFixerConnection {
     uint8_t mutex_initialized;
     uint8_t ssl_initialized;
     uint8_t config_initialized;
+    uint8_t native_hello_profile;
 } TlsFixerConnection;
 
 int tls_fixer_transport_global_init(void);
