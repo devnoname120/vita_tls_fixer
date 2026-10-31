@@ -50,5 +50,5 @@ else()
         SceKernelThreadMgr_stub SceKernelModulemgr_stub SceIofilemgr_stub tls_fixer_embedded_stub_weak)
     vita_create_self(vita_tls_check.self vita_tls_check)
     vita_create_vpk(vita_tls_check.vpk TLSCK0001 vita_tls_check.self
-        VERSION "01.02" NAME "Vita TLS Check")
+        VERSION "01.03" NAME "Vita TLS Check")
 endif()

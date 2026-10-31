@@ -1,4 +1,4 @@
-# Vita TLS Check
+# Vita TLS Check 1.3
 
 A standalone 960 x 544 homebrew application that exercises the Vita's public `sceHttp` / `sceHttps` APIs. It does not link curl, OpenSSL, Mbed TLS, a plugin SDK, or another HTTP/TLS implementation. The same VPK can be run with the stock networking stack or with a system plugin: it observes whichever implementation serves the ordinary Sony calls.
 

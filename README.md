@@ -1,4 +1,4 @@
-# tls_fixer 0.2.1
+# tls_fixer 0.2.2
 
 TLS 1.2 and TLS 1.3 for the PS Vita browser and supported applications using Sony's `sceHttp` APIs. By **devnoname120**.
 
@@ -23,22 +23,22 @@ Browser and system installations include the shared kernel coordinator. Removing
 
 The release uses **persistent activation**: it stays enabled across reboots until uninstalled or disabled. Provider file/console logging, runtime UDP diagnostics and kernel trace/probe modes are disabled in the release build. The installer still displays its progress and errors on screen.
 
-The installer displays version `0.2.1`; the VPK's two-part metadata version is `00.21`. Both identify release **0.2.1**.
+The installer displays version `0.2.2`; the VPK's two-part metadata version is `00.22`. Both identify release **0.2.2**.
 
 ## Coverage
 
 - **Browser:** a dedicated provider replaces the TLS transport in the bundled `ScePsp2Compat`/libcurl backend. HTTP processing remains with libcurl; ALPN advertises HTTP/1.1.
-- **System HTTP:** a separate provider replaces the TLS transport inside the bundled `SceLibHttp` for compatible processes with private mappings. Applications continue to call the ordinary Sony `sceHttp`/`sceHttps` APIs.
+- **System HTTP:** Mbed TLS is embedded in a replacement copy of Sony's `SceLibHttp`. Applications continue to call the ordinary Sony `sceHttp`/`sceHttps` APIs, with Sony handling HTTP processing and the normal module lifecycle.
 - **Certificates:** Sony roots are combined with curl/Mozilla roots while preserving the original Sony file's byte layout, which native certificate selectors require.
 - **PSN sign-in:** the system component includes a small Shell/Store hostname redirect helper. It sends `native.np.ac.playstation.net` requests to `native-vita.np.ac.playstation.net`, without requiring a separate reAuth installation.
 
-The new providers support TLS 1.2/1.3. TLS 1.0/1.1 are intentionally excluded from their configuration. This is not a universal replacement for every `SceSsl` consumer: Shell/Paf shared consumers, the native PSP emulator, client-certificate configurations, unreadable app CA material, unsupported modules and other unsupported transport settings can retain Sony's native implementation. The PSP emulator keeps Sony's HTTP transport to preserve Adrenaline startup compatibility; its separate firmware downloader remains eligible for the modern provider. Provider initialization or validation failure also retains the original path. There is no second handshake implementation fallback after the provider has sent TLS handshake bytes.
+The modern providers support TLS 1.2/1.3. TLS 1.0/1.1 are intentionally excluded from their configuration. This is not a universal replacement for every `SceSsl` consumer. Unsupported transport settings, client-certificate authentication, unsupported modules and provider initialization or validation failures can retain Sony's native transport. There is no second handshake fallback after Mbed TLS has sent handshake bytes.
 
-The coordinator validates module identities, signatures and mappings before injecting providers. Browser processes use their dedicated provider and are excluded from generic HTTP injection. Kernel code is checked for unmanaged floating-point/SIMD instructions; user providers use a small native Vita runtime and process-private transport state.
+The coordinator redirects module loads to separately installed copies, leaving the stock system-module `.suprx` files intact. The system HTTP backend loads with Sony's normal sharing flags and contains its TLS implementation in the same module, rather than injecting a second HTTP provider afterward. Browser, PSN and Store helpers remain separate. Kernel code is checked for unmanaged floating-point/SIMD instructions; the HTTP runtime uses native Vita allocation and synchronization APIs without importing SceLibc.
 
-Sony PSN networking libraries that load later are kept with the application's HTTP instance, including their static callers. This avoids mixing shared PSN imports with a private HTTP transport. Processes using Sony's shared HTTP instance retain their normal loading mode.
+The system component recognizes HTTP and SSL paths redirected by reAuth or older TLS plugins. Sony's SSL module continues to supply its native certificate APIs and fallback transport. Mbed TLS and native SSL share the fixed memory pool reserved by the application's `sceSslInit(poolSize)` call.
 
-Version 0.2.1 also recognizes HTTP and SSL library paths redirected by reAuth or older TLS plugins. This fixes applications retaining the old TLS stack and TLS Check reporting `tls_fix: not enabled` despite the kernel plugin being installed.
+The Store helper fills missing cover URLs using Sony's catalog artwork. It applies only to PlayStation Store and preserves existing cover URLs.
 
 Firmware profiles cover the available **3.60–3.74 retail, testkit and devkit** images. Static checks passed for 31 supplied combinations; five kit images were unavailable. Physical-device validation is on **retail 3.60**. See the [firmware evidence matrix](docs/tls13-firmware-support.md) for the exact coverage; static checks do not establish hardware execution on every model/firmware combination.
 
@@ -81,7 +81,9 @@ The separate Sony, Mozilla and combined files are included in the VPK, with prov
 
 Release qualification on retail 3.60 confirmed Browser TLS 1.3 with the Cloudflare control, certificate-verified system HTTP TLS 1.2/1.3 requests, and the BrowserLeaks detailed report. PlayStation HTTPS connectivity and normal Store sign-in have also been confirmed after the native certificate-layout repair. Store sign-in still requires the account linked to the console and a PlayStation Device Setup Password; legacy account-management operations are separate server features.
 
-The 0.2.1 loading fix was confirmed by two affected users. One supplied logs showing the provider running and certificate-verified TLS 1.2/1.3 connections. An additional isolated retail 3.60 test of the candidate kernel and HTTP provider passed the same checks through the normal library-loading path. Automated checks passed 367 sanitizer-enabled C/C++ tests and 129 Python tests, alongside native builds, kernel instruction checks and import checks against the available firmware images. These checks do not establish hardware testing on every supported firmware/model combination.
+Version 0.2.2 was checked on retail firmware 3.60 with Browser's refreshed Cloudflare TLS 1.3 page, verified TLS 1.2/1.3 requests and the BrowserLeaks report, PlayStation HTTPS connectivity, and Store artwork for 10 Second Ninja X, Blind Men and Brotherhood United. Earlier compatibility tests reached the PSP menu in Adrenaline 7 and game/dialog checks in HELLDIVERS, MotorStorm RC and Need for Speed Most Wanted. These observations do not establish compatibility with every game, Adrenaline version or endpoint.
+
+The shared-pool implementation passed 385 AddressSanitizer/UndefinedBehaviorSanitizer host tests, native builds and import checks, and static compatibility checks against 31 available firmware/hardware combinations. The modern HTTP payload is checked to reject memory-block allocation/free and heap creation/destruction imports. Pool tests cover exhaustion, failed-reallocation data preservation, concurrent users, initialization order, cleanup and reuse. Five kit firmware images were unavailable; physical validation remains retail 3.60.
 
 Host tests cover transport handshakes, certificate and hostname checks, callbacks, nonblocking retries, cancellation, module guards, hook lifetimes, certificate merging and installer options. Native builds enforce the normal kernel/provider configuration even if a diagnostic build was previously cached.
 
@@ -89,50 +91,24 @@ The independent [Vita TLS Check sample](samples/scehttp_tls_check/README.md) use
 
 ## Building
 
-Use a compatible hard-float VitaSDK toolchain. Fetch the pinned source archives on the host, then build:
+Use a compatible hard-float VitaSDK toolchain. Fetch the pinned source archives on the host, then build the release package:
 
 ```sh
 python3 tools/fetch_mbedtls.py
 python3 tools/fetch_curl.py
 docker run --rm -v "$PWD":/src -w /src vitasdk/vitasdk:latest \
-  sh -lc 'make clean && make'
+  sh -lc 'make augmented-http-release-vpk'
 ```
 
-Output: `tls_fixer.vpk`. The archives are SHA-256 verified and cached under ignored `build/deps/`. The normal provider build uses unmodified upstream TLS sources with the project's configuration headers and native platform adapter. The installer uses source-built libcurl with VitaSDK OpenSSL and native lock wrappers.
+Output: `build/augmented-release/tls_fixer-augmented-release.vpk`. It contains the Full/Browser/System/Certificates installer, the embedded HTTP backend and persistent coordinator. Runtime logging, diagnostic probes and startup self-disarming are disabled. Building it does not install or activate anything on a device.
 
-The experimental augmented Sony HTTP module has a separate build target:
+Source archives are checksum-verified and cached under ignored `build/deps/`. The embedded HTTP backend uses pinned Mbed TLS 4.2.0 with the client compatibility and receive-buffer patches under `tls13/crypto/patches/`, configuration headers and a native Vita platform adapter. The installer uses source-built libcurl with VitaSDK OpenSSL and native lock wrappers. See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for dependencies and licenses.
 
-```sh
-make augmented-http
-```
+The system component installs replacement copies under `vs0:/data/external/tls_fixer/native/` and its coordinator at `ur0:tai/tls_fixer.skprx`. Individual receive buffers start at 4 KiB and grow within Sony's reserved SSL pool; incoming plaintext records retain the 16 KiB limit and outgoing buffers are 2 KiB. Connection tracking also grows within that budget, without a separate fixed connection count. Pool exhaustion returns an allocation failure. Sony retains ownership of the pool through `sceSslInit` and `sceSslTerm`.
 
-It produces `build/augmented-http/augmented/libhttp.suprx`, with the intermediate ELF and input report beside it. This target uses the embedded backend's compatibility profile, generates its optional kernel import, and keeps diagnostic recording disabled. Mbed TLS source filenames are normalized so different build directories produce the same module with the same toolchain. The normal VPK build remains separate; device activation uses the existing self-disarming test procedure.
+`make augmented-http` builds only the replacement HTTP module at `build/augmented-http/augmented/libhttp.suprx`. Legacy provider targets and the separate self-disarming diagnostic package remain available for development. The ordinary `make` target builds that older provider architecture; use the explicit release target above for the current release.
 
-Before publishing the build output, the runtime import audit rejects SceLibc, additional libraries outside the native dependency set and the TLS runtime allowlist, and a redirect-reader import that is no longer optional.
-
-`make augmented-http-test` also builds `build/augmented-http-kernel/tls_fixer.skprx` for a system test. This kernel uses `ux0:/data/tls_fixer-runtime-augmented/libhttp.suprx`, keeps normal shared/private loading, and disables separate HTTP-provider injection and private GUI routing. Diagnostic recording is off. Its startup synchronizes the disabling of its own boot entries before installing hooks; a fault before that completes remains outside this safeguard. The command only builds the pair and does not install or activate it.
-
-The opt-in installer package is built with:
-
-```sh
-make augmented-http-vpk
-```
-
-Output: `build/augmented-package/tls_fixer-augmented-test.vpk`. It builds in an isolated source snapshot, preserving the normal build outputs. This experimental package offers System installation/removal and Exit. Its backend is fixed at compile time, with no backend selector. The normal installer retains its Full/Browser/System/Certificates menu during migration.
-
-The test stages HTTP, paired Sony SSL, PSN and Store modules under `ux0:/data/tls_fixer-runtime-installer/`, and the kernel at `ux0:/data/tls_fixer-one-shot/tls_fixer.skprx`. It preserves the normal plugin files and certificates. Configuration changes keep the existing file in place, disable tls_fixer entries before payload updates, and activate the prepared test with a verified one-byte edit. A missing entry is first appended as comments, then its section and path are enabled in order. The app asks for a restart instead of restarting automatically. The kernel disables its own boot entries before hooks, so activation lasts one boot; a fault before startup disarming completes remains outside that safeguard. Diagnostic recording is off.
-
-The installer executable and packaged payloads have passed native System install, refresh, one-boot TLS 1.2/1.3 and uninstall checks on the retail 3.60 device. The actual executable/assets were run through the existing diagnostic application slot; VPK container promotion was checked offline. This is a System-only test package, not the normal release installer.
-
-To build the augmented backend in release mode with persistent activation:
-
-```sh
-make augmented-http-release-vpk
-```
-
-Output: `build/augmented-release/tls_fixer-augmented-release.vpk`. This package restores Full, Browser only, System only and Certificates only. The system component installs the augmented HTTP module and paired Sony SSL under `vs0:/data/external/tls_fixer/native/`; the coordinator uses `ur0:tai/tls_fixer.skprx`. Logging, diagnostic probes and startup self-disarming are disabled. There is no backend selector. Building this package does not install or activate it on a device.
-
-The augmented HTTP backend shares the SSL pool reserved by the application's `sceSslInit(poolSize)` call. It does not reserve a second TLS heap or acquire extra memory blocks later. Sony retains ownership of the pool and releases it through `sceSslTerm`, after HTTP cleanup. Connection tracking and 4 KiB initial receive buffers grow within that budget; the incoming plaintext record limit remains 16 KiB and outgoing buffers are 2 KiB. Pool exhaustion returns an allocation error. SSL must remain initialized while HTTP and its requests are using it.
+The independent tester can be built using the [Vita TLS Check instructions](samples/scehttp_tls_check/README.md).
 
 Host verification:
 
@@ -141,25 +117,22 @@ python3 -m unittest discover -s tools/tests
 docker run --rm -v "$PWD":/src -w /src vitasdk/vitasdk:latest sh -c '
   cmake -S tls13 -B build/tls13-transport-san \
     -DTLS_FIXER_BUILD_HOST_TESTS=ON -DTLS_FIXER_BUILD_TRANSPORT_TESTS=ON \
+    -DTLS_FIXER_RESTORE_RSA_CLIENT=ON -DTLS_FIXER_SMALL_RX_BUFFER=ON \
     -DTLS_FIXER_ENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug &&
   cmake --build build/tls13-transport-san -j4 &&
   ASAN_OPTIONS=detect_leaks=1 ctest --test-dir build/tls13-transport-san --output-on-failure'
 ```
 
-Diagnostic source/build options remain available for development; they are not enabled in the normal VPK.
-
-The Linux firmware audit can check the augmented pair against a decrypted firmware corpus:
+The Linux firmware audit checks function and variable imports together with compiled loader/WebKit guards. Missing corpus images are reported separately:
 
 ```sh
 python3 tools/firmware_matrix.py --firmware-root /path/to/decrypted/external \
   --http-module build/augmented-http/augmented/libhttp.suprx \
-  --coordinator build/augmented-http-kernel/tls_fixer.skprx \
-  --plugin-elf build/augmented-http-kernel/tls_fixer.elf \
-  --plugin-elf build/augmented-http/tls_fixer_http_embedded \
+  --coordinator build/augmented-release/kernel/tls_fixer.skprx \
   --output build/augmented-http-firmware.json
 ```
 
-It checks function and variable imports against the firmware and paired replacement modules, together with the compiled loader/WebKit guards. Missing corpus images are reported separately. This is offline compatibility evidence, not execution on every firmware or hardware model.
+This is static compatibility evidence, not execution on every firmware or hardware model. Diagnostic builds must use the existing separately staged, self-disarming test procedure; they are not the persistent release package.
 
 ## Credits and third-party software
 
