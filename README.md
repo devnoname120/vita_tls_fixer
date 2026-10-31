@@ -1,4 +1,4 @@
-# tls_fixer 0.2.2
+# tls_fixer 0.2.3
 
 TLS 1.2 and TLS 1.3 for the PS Vita browser and supported applications using Sony's `sceHttp` APIs. By **devnoname120**.
 
@@ -9,6 +9,8 @@ tls_fixer provides modern TLS transport using Mbed TLS 4.2.0 and TF-PSA-Crypto 1
 ## Installation
 
 A hacked PS Vita with working taiHEN is required.
+
+**iTLS and vitals are incompatible with tls_fixer.** Installing or refreshing any option, including Browser-only, System-only and Certificates-only, automatically removes their taiHEN entries, kernel plugins, redirected modules and vitals settings. Entries are removed from both `ur0:tai/config.txt` and `ux0:tai/config.txt`, including relocated plugins with their standard filenames. The original Sony certificate backup is preserved; certificate updates follow the selected option. Installer application bubbles are not runtime plugins and may remain installed.
 
 1. Install `tls_fixer.vpk` through VitaShell, then open **tls_fixer**.
 2. Select the components to install:
@@ -23,7 +25,7 @@ Browser and system installations include the shared kernel coordinator. Removing
 
 The release uses **persistent activation**: it stays enabled across reboots until uninstalled or disabled. Provider file/console logging, runtime UDP diagnostics and kernel trace/probe modes are disabled in the release build. The installer still displays its progress and errors on screen.
 
-The installer displays version `0.2.2`; the VPK's two-part metadata version is `00.22`. Both identify release **0.2.2**.
+The installer displays version `0.2.3`; the VPK's two-part metadata version is `00.23`. Both identify release **0.2.3**.
 
 ## Coverage
 
@@ -82,6 +84,8 @@ The separate Sony, Mozilla and combined files are included in the VPK, with prov
 Release qualification on retail 3.60 confirmed Browser TLS 1.3 with the Cloudflare control, certificate-verified system HTTP TLS 1.2/1.3 requests, and the BrowserLeaks detailed report. PlayStation HTTPS connectivity and normal Store sign-in have also been confirmed after the native certificate-layout repair. Store sign-in still requires the account linked to the console and a PlayStation Device Setup Password; legacy account-management operations are separate server features.
 
 Version 0.2.2 was checked on retail firmware 3.60 with Browser's refreshed Cloudflare TLS 1.3 page, verified TLS 1.2/1.3 requests and the BrowserLeaks report, PlayStation HTTPS connectivity, and Store artwork for 10 Second Ninja X, Blind Men and Brotherhood United. Earlier compatibility tests reached the PSP menu in Adrenaline 7 and game/dialog checks in HELLDIVERS, MotorStorm RC and Need for Speed Most Wanted. These observations do not establish compatibility with every game, Adrenaline version or endpoint.
+
+Version 0.2.3 changes the installer and package version; its runtime modules are unchanged from 0.2.2. Installer tests cover both taiHEN configs, duplicate and relocated entries, cleanup retries, failed reads/writes/synchronization/removal, and preservation of unrelated configuration and Sony's certificate backup. The new migration has not been exercised on physical hardware.
 
 The shared-pool implementation passed 385 AddressSanitizer/UndefinedBehaviorSanitizer host tests, native builds and import checks, and static compatibility checks against 31 available firmware/hardware combinations. The modern HTTP payload is checked to reject memory-block allocation/free and heap creation/destruction imports. Pool tests cover exhaustion, failed-reallocation data preservation, concurrent users, initialization order, cleanup and reuse. Five kit firmware images were unavailable; physical validation remains retail 3.60.
 

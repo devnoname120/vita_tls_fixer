@@ -8,6 +8,16 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class InstallerOptionsTests(unittest.TestCase):
+    def test_conflict_removal_and_interruption_boundaries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            exe = Path(directory) / 'conflicts'
+            subprocess.run([os.environ.get('CC', 'cc'), '-std=c11', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-I', str(ROOT / 'installer'), '-I', str(ROOT),
+                            str(ROOT / 'installer/conflicts.c'), str(ROOT / 'installer/tests/test_conflicts.c'),
+                            '-o', str(exe)], check=True, capture_output=True, timeout=60)
+            result = subprocess.run([str(exe)], check=True, capture_output=True, text=True, timeout=20)
+            self.assertIn('PASS', result.stdout)
+
     def test_config_edits_preserve_active_file_at_failure_boundaries(self):
         with tempfile.TemporaryDirectory() as directory:
             exe = Path(directory) / 'config'

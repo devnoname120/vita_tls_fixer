@@ -17,9 +17,9 @@ $(error INSTALLER_AUGMENTED_RELEASE requires INSTALLER_HTTP_BACKEND=augmented)
 endif
 endif
 TITLE_ID = TLSF00001
-# Vita package metadata uses ##.##; release builds display 0.2.2.
-APP_VERSION = 00.22
-OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o installer/crypto_lock_vita.o installer/options.o installer/system_payloads.o installer/config.o
+# Vita package metadata uses ##.##; release builds display 0.2.3.
+APP_VERSION = 00.23
+OBJS = main.o font.o graphics.o installer/certificates.o installer/network_vita.o installer/crypto_lock_vita.o installer/options.o installer/system_payloads.o installer/config.o installer/conflicts.o
 CRYPTO_LOCK_FUNCTIONS = CRYPTO_THREAD_lock_new CRYPTO_THREAD_read_lock CRYPTO_THREAD_write_lock \
 	CRYPTO_THREAD_unlock CRYPTO_THREAD_lock_free CRYPTO_atomic_add
 CRYPTO_LOCK_LINK_FLAGS = $(foreach function,$(CRYPTO_LOCK_FUNCTIONS),-Wl,--wrap=$(function))
@@ -167,11 +167,12 @@ $(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(PSN_MODULE) $(STORE_MODULE) $(DNS_FI
 .PHONY: force-installer-profile
 force-installer-profile:
 
-main.o: main.c force-installer-profile installer/certificates.h installer/network_vita.h installer/options.h installer/system_payloads.h installer/config.h kernel/self_disarm.h
+main.o: main.c force-installer-profile installer/certificates.h installer/network_vita.h installer/options.h installer/system_payloads.h installer/config.h installer/conflicts.h kernel/self_disarm.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DTLS_FIXER_INSTALL_AUGMENTED_HTTP=$(INSTALLER_BACKEND_DEFINE) -DTLS_FIXER_AUGMENTED_RELEASE=$(INSTALLER_AUGMENTED_RELEASE) -c main.c -o $@
 installer/options.o: installer/options.h
 installer/system_payloads.o: installer/system_payloads.h
 installer/config.o: installer/config.h kernel/self_disarm.h
+installer/conflicts.o: installer/conflicts.h installer/config.h kernel/self_disarm.h
 installer/certificates.o: installer/certificates.h
 installer/network_vita.o: installer/network_vita.h
 

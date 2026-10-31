@@ -23,13 +23,14 @@ int tls_fixer_plan_option(enum TlsFixerOption option, int removing,
         break;
     default: return -1;
     }
+    if (!removing) plan->components |= TLS_FIXER_COMPONENT_CONFLICTS;
     return 0;
 }
 int tls_fixer_execute_plan(const TlsFixerInstallPlan *plan, TlsFixerInstallAction action, void *context) {
     if (!plan || !action) return -1;
     /* Install/enable the shared coordinator only after its payloads are ready.
      * Remove it only after selected payload removals have succeeded. */
-    static const unsigned order[] = {TLS_FIXER_COMPONENT_BROWSER, TLS_FIXER_COMPONENT_SYSTEM,
+    static const unsigned order[] = {TLS_FIXER_COMPONENT_CONFLICTS, TLS_FIXER_COMPONENT_BROWSER, TLS_FIXER_COMPONENT_SYSTEM,
         TLS_FIXER_COMPONENT_CERTIFICATES, TLS_FIXER_COMPONENT_COORDINATOR};
     for (unsigned i = 0; i < sizeof(order) / sizeof(order[0]); ++i) {
         if (!(plan->components & order[i])) continue;

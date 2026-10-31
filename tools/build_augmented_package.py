@@ -116,7 +116,7 @@ def build(args):
          'INSTALLER_AUGMENTED_RELEASE=' + ('1' if args.release else '0'), *common],
         source, output / 'installer-build.log')
     sfo = output / 'param.sfo'
-    run(['vita-mksfoex', '-s', 'APP_VER=00.22', '-s', 'TITLE_ID=TLSF00001',
+    run(['vita-mksfoex', '-s', 'APP_VER=00.23', '-s', 'TITLE_ID=TLSF00001',
          'tls_fixer' if args.release else 'tls_fixer augmented test', str(sfo)], ROOT, output / 'installer-build.log')
     kernel = output / 'kernel/tls_fixer.skprx'
     module = args.http_module.resolve()

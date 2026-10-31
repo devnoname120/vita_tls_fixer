@@ -11,6 +11,7 @@
 #include <psp2/ctrl.h>
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
+#include <psp2/io/dirent.h>
 #include <psp2/kernel/processmgr.h>
 #include <psp2/kernel/modulemgr.h>
 #include <psp2/sysmodule.h>
@@ -23,6 +24,7 @@
 #include "installer/options.h"
 #include "installer/system_payloads.h"
 #include "installer/config.h"
+#include "installer/conflicts.h"
 #include "kernel/self_disarm.h"
 
 #define printf psvDebugScreenPrintf
@@ -363,7 +365,6 @@ static int plugin_configured(void) {
 }
 #endif
 
-#if TLS_FIXER_INSTALL_AUGMENTED_HTTP
 typedef struct { const char *path, *mount; } ConfigFile;
 static ConfigFile config_files[] = {{"ur0:tai/config.txt", "ur0:"}, {"ux0:tai/config.txt", "ux0:"}};
 static int config_read(void *context, char **data, size_t *size) {
@@ -389,6 +390,7 @@ static int config_sync(void *context) { return sceIoSync(((ConfigFile *)context)
 static TlsFixerConfigIo config_io(unsigned index) {
     TlsFixerConfigIo io = {config_read, config_append, config_patch, config_sync, &config_files[index]}; return io;
 }
+#if TLS_FIXER_INSTALL_AUGMENTED_HTTP
 static int alternate_config(void) {
     SceIoStat info; int rc = sceIoGetstat(config_files[1].path, &info);
     return rc >= 0 ? 1 : (uint32_t)rc == UINT32_C(0x80010002) ? 0 : -1;
@@ -428,6 +430,68 @@ static int test_payloads_active(void) {
     return 0;
 }
 #endif
+
+static int conflict_exists(void *context, const char *path) {
+    (void)context;
+    SceIoStat info;
+    int rc = sceIoGetstat(path, &info);
+    return rc >= 0 ? 1 : (uint32_t)rc == UINT32_C(0x80010002) ? 0 : rc;
+}
+static int conflict_config_read(void *context, char **data, size_t *size) {
+    int rc = config_read(context, data, size);
+    if ((uint32_t)rc == UINT32_C(0x80010002)) {
+        *data = calloc(1, 1); *size = 0; return *data ? 0 : -1;
+    }
+    return rc;
+}
+static int remove_conflict_tree(const char *path) {
+    int exists = conflict_exists(NULL, path);
+    if (exists <= 0) return exists;
+    SceUID directory = sceIoDopen(path);
+    if (directory < 0) return directory;
+    int result = 0;
+    for (;;) {
+        SceIoDirent entry = {0};
+        int rc = sceIoDread(directory, &entry);
+        if (rc <= 0) { result = rc; break; }
+        if (!strcmp(entry.d_name, ".") || !strcmp(entry.d_name, "..")) continue;
+        char child[512];
+        int n = snprintf(child, sizeof(child), "%s/%s", path, entry.d_name);
+        if (n < 0 || (size_t)n >= sizeof(child)) { result = -1; break; }
+        rc = SCE_S_ISDIR(entry.d_stat.st_mode) ? remove_conflict_tree(child) : sceIoRemove(child);
+        if (rc < 0) { result = rc; break; }
+    }
+    if (sceIoDclose(directory) < 0) result = -1;
+    return result < 0 ? result : sceIoRmdir(path);
+}
+static int conflict_remove(void *context, const char *path, int directory) {
+    (void)context;
+    if (directory) return remove_conflict_tree(path);
+    int exists = conflict_exists(NULL, path);
+    if (exists <= 0) return exists;
+    int rc = sceIoRemove(path);
+    if (rc < 0) return rc;
+    char mount[16]; const char *colon = strchr(path, ':');
+    if (!colon || (size_t)(colon - path) + 2 > sizeof(mount)) return -1;
+    size_t length = (size_t)(colon - path) + 1;
+    memcpy(mount, path, length); mount[length] = 0;
+    return sceIoSync(mount, 0);
+}
+static int conflict_sync(void *context) {
+    (void)context;
+    const char *const mounts[] = {"ur0:", "ux0:", "vs0:"};
+    for (unsigned i = 0; i < sizeof(mounts) / sizeof(mounts[0]); ++i) {
+        int rc = sceIoSync(mounts[i], 0); if (rc < 0) return rc;
+    }
+    return 0;
+}
+static int conflicting_plugins(int removing) {
+    TlsFixerConfigIo configs[2] = {config_io(0), config_io(1)};
+    for (unsigned i = 0; i < 2; ++i) configs[i].read = conflict_config_read;
+    TlsFixerConflictFiles files = {conflict_exists, conflict_remove, conflict_sync, NULL};
+    return removing ? tls_fixer_remove_conflicts(configs, 2, &files) :
+        tls_fixer_conflicts_present(configs, 2, &files);
+}
 
 #if !TLS_FIXER_INSTALL_AUGMENTED_HTTP
 static int install_plugin_config(void) {
@@ -576,6 +640,8 @@ static void show_menu(void) {
     printf("Modern, secure Mbed TLS (2026) brings TLS 1.3 to PS Vita.\n");
     printf("Replaces legacy RSA BSAFE Micro Edition Suite 3.2.1 (2014)\n");
     printf("TLS transport in supported system HTTPS, plus browser TLS.\n\n");
+    printf("iTLS and vitals are incompatible with tls_fixer.\n");
+    printf("Installing any option automatically removes both plugins.\n\n");
     psvDebugScreenSetFgColor(COLOR_RED);
     for (index = 0; index < MENU_COUNT; ++index) {
         if (selected_option == index) {
@@ -808,6 +874,12 @@ static int system_payload_present(void) {
 }
 static int apply_component(void *context, unsigned component, int removing) {
     (void)context;
+    if (component == TLS_FIXER_COMPONENT_CONFLICTS) {
+        /* Diagnostic packages must not modify an existing installation. */
+        if (packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED) return 0;
+        printf("Removing incompatible iTLS and vitals plugins...\n");
+        return conflicting_plugins(1);
+    }
     if (packaged_system_backend() == TLS_FIXER_SYSTEM_AUGMENTED &&
         component != TLS_FIXER_COMPONENT_SYSTEM && component != TLS_FIXER_COMPONENT_COORDINATOR) return -1;
     switch (component) {
@@ -917,6 +989,10 @@ static void refresh_installed_state(uint32_t firmware_version) {
         installed[TLS_FIXER_OPTION_FULL] = installed[TLS_FIXER_OPTION_BROWSER] &&
             installed[TLS_FIXER_OPTION_SYSTEM] && installed[TLS_FIXER_OPTION_CERTIFICATES];
     }
+    /* The certificate backup is shared with the older installers. It must
+     * not make Cross uninstall certificates when the user is migrating. */
+    if (packaged_system_backend() != TLS_FIXER_SYSTEM_AUGMENTED && conflicting_plugins(0) > 0)
+        memset(installed, 0, sizeof(installed));
 }
 
 int main(void) {

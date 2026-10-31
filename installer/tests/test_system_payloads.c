@@ -41,6 +41,7 @@ static void helpers(Files *f) {
 }
 static int component(void *context, unsigned which, int removing) {
     Files *f = context; TlsFixerSystemFiles o = ops(f);
+    if (which == TLS_FIXER_COMPONENT_CONFLICTS) { assert(!removing); return 0; }
     if (which == TLS_FIXER_COMPONENT_SYSTEM)
         return tls_fixer_update_system_payloads(f->backend, removing, &o);
     assert(which == TLS_FIXER_COMPONENT_COORDINATOR); ++f->coordinator_calls; return 0;
